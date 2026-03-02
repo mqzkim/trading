@@ -1,0 +1,47 @@
+name: Sprint PR Auto-Merge
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  auto-merge:
+    # claude/sprint-* 브랜치에서 오는 PR만 처리
+    if: startsWith(github.head_ref, 'claude/sprint-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract sprint/gate from branch name
+        id: parse
+        run: |
+          BRANCH="${{ github.head_ref }}"
+          # claude/sprint-S1/G4 → SPRINT=S1, GATE=G4
+          SPRINT=$(echo "$BRANCH" | grep -oP '(?<=sprint-)[A-Z][0-9]+(?=/)' || echo "")
+          GATE=$(echo "$BRANCH"  | grep -oP '(?<=/)[A-Z][0-9]+$'           || echo "")
+          echo "sprint=$SPRINT" >> $GITHUB_OUTPUT
+          echo "gate=$GATE"     >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Label PR as sprint
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} \
+            --add-label "sprint" \
+            --add-label "auto-merge" 2>/dev/null || true
+
+      - name: Enable auto-merge (squash)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} \
+            --auto \
+            --squash \
+            --subject "feat(sprint-${{ steps.parse.outputs.sprint }}/${{ steps.parse.outputs.gate }}): merge from ${{ steps.parse.outputs.branch }}" \
+            --delete-branch
