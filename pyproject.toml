@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "trading-system"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.26",
+    "requests>=2.31",
+    "yfinance>=0.2",
+    "python-dotenv>=1.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "typer>=0.9",
+    "rich>=13.0",
+    "fastapi>=0.104",
+    "uvicorn[standard]>=0.24",
+    "httpx>=0.25",
+]
+
+[project.optional-dependencies]
+ml = [
+    "scikit-learn>=1.3",
+    "xgboost>=2.0",
+    "hmmlearn>=0.3",
+    "optuna>=3.3",
+]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "pytest-asyncio>=0.21",
+    "black>=23.0",
+    "mypy>=1.5",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+trading = "cli.main:app"
+
+[tool.setuptools.packages.find]
+include = ["core*", "personal*", "commercial*", "cli*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = [
+    "--cov=core",
+    "--cov=personal",
+    "--cov-report=term-missing",
+    "-v",
+]
+
+[tool.black]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100

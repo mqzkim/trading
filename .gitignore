@@ -6,8 +6,25 @@
 # Python cache and virtual environments
 __pycache__/
 *.py[cod]
+*.egg-info/
+dist/
+build/
 .venv/
 venv/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Data / DB (runtime data directory only, not core/data/ package)
+/data/
+*.db
+*.sqlite3
+
+# IDE
+.idea/
+.vscode/
 
 # OS cruft
 .DS_Store
