@@ -1,0 +1,1 @@
+# S4 — Retrospective\n완료: 2026-03-03 | 판정: PASS\n\n## 잘된 것\n- ATR 스탑 2.5~3.5x 클램핑, Kelly 1/4, 8%/25% 하드 리밋 전체 구현\n- 낙폭 방어 경계값(10/15/20%) 단위테스트로 검증\n\n## S5 준비사항\n- cli/main.py에 trading score/regime/signal 명령 추가\n- trading-orchestrator로 전체 파이프라인 통합

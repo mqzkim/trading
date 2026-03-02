@@ -1,0 +1,1 @@
+# S4 — Release Review (G6)\n| Gate | 판정 |\n|------|------|\n| G0~G3 | ✅ PASS |\n| G4 Build | ✅ PASS — sizer/kelly, risk/drawdown, risk/manager, execution/planner |\n| G5 Verify | ✅ PASS — 24/24 |\n\n**최종 판정: PASS** — S5 진입 가능
