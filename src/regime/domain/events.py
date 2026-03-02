@@ -6,7 +6,7 @@ from src.shared.domain import DomainEvent
 from .value_objects import RegimeType
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class RegimeChangedEvent(DomainEvent):
     """레짐 전환 이벤트.
 
