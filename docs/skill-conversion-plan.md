@@ -11,6 +11,14 @@
 - 자기 개선 루프 → 자동 피드백 스킬로 구현
 - 단타 지양 → 모든 스킬에 중장기 시간축 강제
 
+**적용 전략** (strategy-recommendation.md 참조):
+- Scoring Engine을 공통 기반으로 개인 사용 + 상업 제품 동시 서빙
+- 공통 스킬: scoring-engine, regime-detect, signal-generate, data-ingest, backtest-validator
+- 개인 전용 스킬: trading-orchestrator, position-sizer, risk-manager, execution-planner, bias-checker, performance-analyst, self-improver
+- 상업 제품: QuantScore API, RegimeRadar API, SignalFusion API (commercial/api/ FastAPI)
+- 코드 3계층: core/ (공통) + personal/ (개인) + commercial/ (상업)
+- 상세 구현은 cli-skill-implementation-plan.md 참조
+
 ---
 
 ## 1. 아키텍처 개요

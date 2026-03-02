@@ -19,22 +19,31 @@
 | [`skill_chaining_and_self_improvement_research.md`](skill_chaining_and_self_improvement_research.md) | **스킬 체이닝 & 자기 개선** - HRL 기반 파이프라인, 레짐 감지, 앙상블, 메타러닝 | ~1,150줄 |
 | [`verified-methodologies-and-risk-management.md`](verified-methodologies-and-risk-management.md) | **검증된 방법론 & 리스크 관리** - CAN SLIM, Magic Formula, Dual Momentum, 행동재무학 | ~700줄 |
 
-### 구현 계획 문서
+### 전략 & 구현 계획 문서
 
 | 문서 | 설명 | 분량 |
 |------|------|------|
+| [`strategy-recommendation.md`](strategy-recommendation.md) | **전략 추천서** - 개인 사용 vs 상업 제품 분류, 공통 기반 전략, 수익 모델, 법적 경계선 | ~600줄 |
 | [`skill-conversion-plan.md`](skill-conversion-plan.md) | **Claude Skill 변환 계획** - 9개 스킬 체인, 13개 Team Agent, 6단계 구현 로드맵 | ~900줄 |
-| [`api-technical-feasibility.md`](api-technical-feasibility.md) | **API 기술적 타당성** - 글로벌 5대 시장 API 비교, 아키텍처 옵션, 비용 분석, CLI/Skill 설계 | ~700줄 |
+| [`api-technical-feasibility.md`](api-technical-feasibility.md) | **API 기술적 타당성** - 글로벌 5대 시장 API 비교, 아키텍처 옵션, 비용 분석 | ~700줄 |
+| [`cli-skill-implementation-plan.md`](cli-skill-implementation-plan.md) | **CLI & Skill 구현 플랜** - 3계층 코드 구조, CLI/API/Skill 상세 설계, 10주 로드맵 | ~600줄 |
 
 ### 읽는 순서 (권장)
 
 ```
-1. trading-methodology-overview.md       ← 먼저 전체 그림 파악
-2. quantitative-scoring-methodologies.md ← 스코어링 시스템 심화
+[리서치]
+1. trading-methodology-overview.md           ← 전체 그림 파악
+2. quantitative-scoring-methodologies.md     ← 스코어링 시스템 심화
 3. verified-methodologies-and-risk-management.md ← 검증된 전략 + 리스크
 4. skill_chaining_and_self_improvement_research.md ← 자동화/적응형 시스템
-5. skill-conversion-plan.md              ← Claude Skill 변환 계획
-6. api-technical-feasibility.md          ← API 기술적 타당성 분석
+
+[전략]
+5. strategy-recommendation.md                ← 개인 vs 상업 전략 결정
+6. api-technical-feasibility.md              ← API 기술적 타당성 분석
+
+[구현 플랜]
+7. skill-conversion-plan.md                  ← Claude Skill 변환 상세
+8. cli-skill-implementation-plan.md          ← CLI/API/Skill 구현 플랜
 ```
 
 ---
