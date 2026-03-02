@@ -61,9 +61,17 @@ def test_indicators_all_present(mock_yf_ticker):
 
 def test_cache_hit_on_second_call(mock_yf_ticker):
     """Second call must use cache and not call yfinance again."""
-    from core.data import cache as cache_module
-    cache_module.delete("price:MSFT:100")  # ensure clean state
-    with patch("core.data.client.yf.Ticker", return_value=mock_yf_ticker) as mock_cls:
+    stored = {}
+
+    def fake_get(key):
+        return stored.get(key)
+
+    def fake_set(key, value, ttl):
+        stored[key] = value
+
+    with patch("core.data.cache.get", side_effect=fake_get), \
+         patch("core.data.cache.set", side_effect=fake_set), \
+         patch("yfinance.Ticker", return_value=mock_yf_ticker) as mock_cls:
         client = DataClient(api_key=None)
         client.get_price_history("MSFT", days=100)
         client.get_price_history("MSFT", days=100)
