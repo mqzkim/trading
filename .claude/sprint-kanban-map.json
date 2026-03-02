@@ -1,0 +1,28 @@
+{
+  "_meta": {
+    "project_id": "PVT_kwHOAJ7Yb84BQfi9",
+    "status_field_id": "PVTSSF_lAHOAJ7Yb84BQfi9zg-mHx4",
+    "status_options": {
+      "Backlog": "bc3cbeb4",
+      "Todo": "3e5ed4c7",
+      "In Progress": "c6a8fecd",
+      "In Review": "572d115c",
+      "Done": "1cad29c3"
+    },
+    "repo": "mqzkim/trading"
+  },
+  "sprints": {
+    "S0": {
+      "gates": {
+        "G0": { "issue": 2, "item_id": "PVTI_lAHOAJ7Yb84BQfi9zgmeeWo" },
+        "G1": { "issue": 3, "item_id": "PVTI_lAHOAJ7Yb84BQfi9zgmeeXw" },
+        "G2": { "issue": 4, "item_id": "PVTI_lAHOAJ7Yb84BQfi9zgmeeY4" },
+        "G3": { "issue": 5, "item_id": "PVTI_lAHOAJ7Yb84BQfi9zgmeeZs" },
+        "G4": { "issue": 6, "item_id": "PVTI_lAHOAJ7Yb84BQfi9zgmeeaw" },
+        "G5": { "issue": 7, "item_id": "PVTI_lAHOAJ7Yb84BQfi9zgmeebY" },
+        "G6": { "issue": 8, "item_id": "PVTI_lAHOAJ7Yb84BQfi9zgmeeb0" },
+        "G7": { "issue": 9, "item_id": "PVTI_lAHOAJ7Yb84BQfi9zgmeecg" }
+      }
+    }
+  }
+}

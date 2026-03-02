@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash C:/workspace/trading/.claude/scripts/kanban-sprint-sync.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
