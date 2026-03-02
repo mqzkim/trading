@@ -1,12 +1,12 @@
 """Scoring 도메인 — Domain Events."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from src.shared.domain import DomainEvent
 from .value_objects import Symbol, CompositeScore
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class ScoreUpdatedEvent(DomainEvent):
     """종목 스코어 업데이트 이벤트.
 
