@@ -19,13 +19,22 @@
 | [`skill_chaining_and_self_improvement_research.md`](skill_chaining_and_self_improvement_research.md) | **스킬 체이닝 & 자기 개선** - HRL 기반 파이프라인, 레짐 감지, 앙상블, 메타러닝 | ~1,150줄 |
 | [`verified-methodologies-and-risk-management.md`](verified-methodologies-and-risk-management.md) | **검증된 방법론 & 리스크 관리** - CAN SLIM, Magic Formula, Dual Momentum, 행동재무학 | ~700줄 |
 
+### 구현 계획 문서
+
+| 문서 | 설명 | 분량 |
+|------|------|------|
+| [`skill-conversion-plan.md`](skill-conversion-plan.md) | **Claude Skill 변환 계획** - 9개 스킬 체인, 13개 Team Agent, 6단계 구현 로드맵 | ~900줄 |
+| [`api-technical-feasibility.md`](api-technical-feasibility.md) | **API 기술적 타당성** - 글로벌 5대 시장 API 비교, 아키텍처 옵션, 비용 분석, CLI/Skill 설계 | ~700줄 |
+
 ### 읽는 순서 (권장)
 
 ```
-1. trading-methodology-overview.md     ← 먼저 전체 그림 파악
-2. quantitative-scoring-methodologies.md  ← 스코어링 시스템 심화
+1. trading-methodology-overview.md       ← 먼저 전체 그림 파악
+2. quantitative-scoring-methodologies.md ← 스코어링 시스템 심화
 3. verified-methodologies-and-risk-management.md ← 검증된 전략 + 리스크
 4. skill_chaining_and_self_improvement_research.md ← 자동화/적응형 시스템
+5. skill-conversion-plan.md              ← Claude Skill 변환 계획
+6. api-technical-feasibility.md          ← API 기술적 타당성 분석
 ```
 
 ---
