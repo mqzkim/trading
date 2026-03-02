@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAP_FILE="$SCRIPT_DIR/../sprint-kanban-map.json"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOG_FILE="$SCRIPT_DIR/kanban-sync.log"
 
 log() { echo "[$(date '+%H:%M:%S')] $*" >> "$LOG_FILE"; }
