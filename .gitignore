@@ -1,0 +1,14 @@
+# Local env and secrets
+.env
+.env.*
+!.env.example
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS cruft
+.DS_Store
+Thumbs.db
