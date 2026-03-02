@@ -27,6 +27,8 @@
 | [`skill-conversion-plan.md`](skill-conversion-plan.md) | **Claude Skill 변환 계획** - 9개 스킬 체인, 13개 Team Agent, 6단계 구현 로드맵 | ~900줄 |
 | [`api-technical-feasibility.md`](api-technical-feasibility.md) | **API 기술적 타당성** - 글로벌 5대 시장 API 비교, 아키텍처 옵션, 비용 분석 | ~700줄 |
 | [`cli-skill-implementation-plan.md`](cli-skill-implementation-plan.md) | **CLI & Skill 구현 플랜** - 3계층 코드 구조, CLI/API/Skill 상세 설계, 10주 로드맵 | ~600줄 |
+| [`sprint-plan.md`](sprint-plan.md) | **Gate 기반 마스터 스프린트** - 모든 작업의 Skill/Team Agent 강제, Full Close-Out 표준 | ~500줄 |
+| [`sprints/`](sprints/) | **스프린트 실행 산출물 템플릿** - Gate 로그, 회고, Close-Out 체크리스트 | 템플릿 |
 
 ### 읽는 순서 (권장)
 
@@ -44,6 +46,8 @@
 [구현 플랜]
 7. skill-conversion-plan.md                  ← Claude Skill 변환 상세
 8. cli-skill-implementation-plan.md          ← CLI/API/Skill 구현 플랜
+9. sprint-plan.md                            ← Gate 운영 기준서 (실행용)
+10. sprints/README.md                        ← 스프린트 산출물 작성 규칙
 ```
 
 ---
