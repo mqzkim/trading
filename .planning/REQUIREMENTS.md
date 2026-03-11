@@ -11,10 +11,10 @@
 
 ## Category 2: Scoring (SCOR)
 
-- [ ] **SCOR-01**: Safety Gate — Altman Z-Score > 1.81 AND Beneish M-Score < -1.78 hard gate (미통과 시 즉시 제외)
-- [ ] **SCOR-02**: Piotroski F-Score 계산 — 9항목 기본적 건전성 점수 (0-9)
-- [ ] **SCOR-03**: Altman Z-Score 계산 — 부도 위험도 평가 (Safe/Grey/Distress)
-- [ ] **SCOR-04**: Beneish M-Score 계산 — 이익 조작 가능성 탐지
+- [x] **SCOR-01**: Safety Gate — Altman Z-Score > 1.81 AND Beneish M-Score < -1.78 hard gate (미통과 시 즉시 제외)
+- [x] **SCOR-02**: Piotroski F-Score 계산 — 9항목 기본적 건전성 점수 (0-9)
+- [x] **SCOR-03**: Altman Z-Score 계산 — 부도 위험도 평가 (Safe/Grey/Distress)
+- [x] **SCOR-04**: Beneish M-Score 계산 — 이익 조작 가능성 탐지
 - [ ] **SCOR-05**: Mohanram G-Score 계산 — 성장주 품질 스코어 (0-8)
 - [ ] **SCOR-06**: Composite Score — 가중 평균 복합 스코어 (0-100) + regime 조정 가중치
 
@@ -75,10 +75,10 @@
 | DATA-02 | Phase 1: Data Foundation | Complete |
 | DATA-03 | Phase 1: Data Foundation | Complete |
 | DATA-04 | Phase 1: Data Foundation | Complete |
-| SCOR-01 | Phase 1: Data Foundation | Pending |
-| SCOR-02 | Phase 1: Data Foundation | Pending |
-| SCOR-03 | Phase 1: Data Foundation | Pending |
-| SCOR-04 | Phase 1: Data Foundation | Pending |
+| SCOR-01 | Phase 1: Data Foundation | Complete |
+| SCOR-02 | Phase 1: Data Foundation | Complete |
+| SCOR-03 | Phase 1: Data Foundation | Complete |
+| SCOR-04 | Phase 1: Data Foundation | Complete |
 | SCOR-05 | Phase 2: Analysis Core | Pending |
 | SCOR-06 | Phase 2: Analysis Core | Pending |
 | VALU-01 | Phase 2: Analysis Core | Pending |

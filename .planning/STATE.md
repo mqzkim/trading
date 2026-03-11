@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-03-11T23:33:16.196Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-03-11T23:42:45.113Z"
 last_activity: "2026-03-12 -- Plan 01-02 executed (infrastructure clients: yfinance, edgartools, universe, quality)"
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 67
 ---
 
@@ -55,6 +55,7 @@ Progress: [███████░░░] 67%
 |------|----------|-------|-------|
 | Phase 01 P01 | 7min | 2 tasks | 12 files |
 | Phase 01 P02 | 6min | 2 tasks | 8 files |
+| Phase 01 P03 | 6min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,9 @@ Recent decisions affecting current work:
 - [Phase 01-01]: Fixed setuptools build backend (legacy -> build_meta) and added src* to package discovery
 - [Phase 01]: EdgartoolsClient extracts filing_date from SEC filings for point-in-time correctness
 - [Phase 01]: QualityChecker uses 3-sigma method with >1% threshold for outlier detection
+- [Phase 01]: CoreScoringAdapter delegates to core functions without rewriting math -- adapter pattern only
+- [Phase 01]: DataPipeline converts DatetimeIndex OHLCV to flat DataFrame before DuckDB storage
+- [Phase 01]: Pipeline uses dependency injection for all clients enabling easy test mocking
 
 ### Pending Todos
 
@@ -89,6 +93,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12
-Stopped at: Completed 01-01-PLAN.md and 01-02-PLAN.md (parallel execution)
-Resume file: .planning/phases/01/01-03-PLAN.md
+Last session: 2026-03-11T23:42:45.110Z
+Stopped at: Completed 01-03-PLAN.md
+Resume file: None
