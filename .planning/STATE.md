@@ -35,21 +35,25 @@ Progress: [███████░░░] 67%
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 2
+- Average duration: 6.5 min
+- Total execution time: 0.22 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 1. Data Foundation | 2/3 | 13 min | 6.5 min |
 
 **Recent Trend:**
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 01-01 (7 min), 01-02 (6 min)
+- Trend: Stable
 
 *Updated after each plan completion*
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P01 | 7min | 2 tasks | 12 files |
 | Phase 01 P02 | 6min | 2 tasks | 8 files |
 
 ## Accumulated Context
@@ -66,6 +70,9 @@ Recent decisions affecting current work:
 - [Phase 1]: Data sources = yfinance(가격) + edgartools(재무/filing date) + asyncio 병렬
 - [Phase 1]: Code reuse = core/ 래핑 + 경량 DDD (domain/VOs + infra만) + async 이벤트 버스
 - [Phase 1]: Point-in-Time = 완전 엄격 (SEC filing date 필수, as-of-date 필터)
+- [Phase 01-01]: Domain events use kw_only=True to resolve dataclass inheritance with DomainEvent default fields
+- [Phase 01-01]: DuckDB INSERT OR REPLACE for upsert semantics on OHLCV and financials
+- [Phase 01-01]: Fixed setuptools build backend (legacy -> build_meta) and added src* to package discovery
 - [Phase 01]: EdgartoolsClient extracts filing_date from SEC filings for point-in-time correctness
 - [Phase 01]: QualityChecker uses 3-sigma method with >1% threshold for outlier detection
 
@@ -82,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-11T23:33:16.193Z
-Stopped at: Completed 01-02-PLAN.md
-Resume file: None
+Last session: 2026-03-12
+Stopped at: Completed 01-01-PLAN.md and 01-02-PLAN.md (parallel execution)
+Resume file: .planning/phases/01/01-03-PLAN.md

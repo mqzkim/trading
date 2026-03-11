@@ -6,7 +6,7 @@
 
 - [x] **DATA-01**: OHLCV 데이터 수집 — yfinance 기반 3년+ 가격 데이터 (daily OHLCV + adjusted close)
 - [x] **DATA-02**: 재무제표 데이터 수집 — yfinance + edgartools 기반 SEC 재무 데이터 (income statement, balance sheet, cash flow)
-- [ ] **DATA-03**: 데이터 캐시/저장 — DuckDB(분석 워크로드) + SQLite(운영 상태) 이중 DB 아키텍처
+- [x] **DATA-03**: 데이터 캐시/저장 — DuckDB(분석 워크로드) + SQLite(운영 상태) 이중 DB 아키텍처
 - [x] **DATA-04**: 데이터 품질 검증 — 결측값, 이상치, stale data 감지 + point-in-time awareness (filing date 추적)
 
 ## Category 2: Scoring (SCOR)
@@ -73,7 +73,7 @@
 |-------------|-------|--------|
 | DATA-01 | Phase 1: Data Foundation | Complete |
 | DATA-02 | Phase 1: Data Foundation | Complete |
-| DATA-03 | Phase 1: Data Foundation | Pending |
+| DATA-03 | Phase 1: Data Foundation | Complete |
 | DATA-04 | Phase 1: Data Foundation | Complete |
 | SCOR-01 | Phase 1: Data Foundation | Pending |
 | SCOR-02 | Phase 1: Data Foundation | Pending |
