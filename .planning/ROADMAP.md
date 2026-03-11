@@ -29,12 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Data quality checks flag missing values, stale data, and outliers with a summary report before any data is consumed downstream
   4. Querying DuckDB for analytical workloads (screen 500+ tickers) completes in under 30 seconds; SQLite stores operational state (watchlists, logs)
   5. Safety gates (Altman Z-Score > 1.81 AND Beneish M-Score < -1.78) correctly filter out distressed/manipulative companies, and individual Piotroski F-Score and Altman Z-Score calculations match known reference values for test tickers
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md — Domain VOs, DuckDB/SQLite stores, async event bus, dependency install
+- [ ] 01-02-PLAN.md — YFinance adapter, edgartools SEC client, universe provider, quality checker
+- [ ] 01-03-PLAN.md — Core scoring adapter (F/Z/M-Score), end-to-end data pipeline
 
 ### Phase 2: Analysis Core
 **Goal**: Users can score any US equity on fundamental quality and estimate its intrinsic value through an ensemble of valuation models
@@ -94,7 +94,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data Foundation | 0/3 | Not started | - |
+| 1. Data Foundation | 0/3 | Planned | - |
 | 2. Analysis Core | 0/3 | Not started | - |
 | 3. Decision Engine | 0/3 | Not started | - |
 | 4. Execution and Interface | 0/3 | Not started | - |
