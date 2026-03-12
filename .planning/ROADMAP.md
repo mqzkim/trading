@@ -96,5 +96,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Data Foundation | 3/3 | Complete | 2026-03-12 |
 | 2. Analysis Core | 3/3 | Complete | 2026-03-12 |
-| 3. Decision Engine | 0/3 | Planned | - |
+| 3. Decision Engine | 1/3 | In Progress | - |
 | 4. Execution and Interface | 0/3 | Not started | - |

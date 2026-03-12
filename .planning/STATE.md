@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Completed 02-03-PLAN.md (Phase 2 complete)
-last_updated: "2026-03-12T00:41:36.953Z"
-last_activity: 2026-03-12 -- Plan 02-03 executed (ensemble valuation + MoS + adapter + DuckDB store)
+status: in-progress
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-12T01:10:32Z"
+last_activity: 2026-03-12 -- Plan 03-01 executed (signal engine + screener with reasoning traces)
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
+  total_plans: 9
+  completed_plans: 7
+  percent: 78
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 2 complete, ready for Phase 3
+**Current focus:** Phase 3 in progress -- signal engine and screener complete, risk/portfolio next
 
 ## Current Position
 
-Phase: 2 of 4 (Analysis Core) -- COMPLETE
-Plan: 3 of 3 in current phase (all done)
-Status: Phase 2 complete, ready for Phase 3
-Last activity: 2026-03-12 -- Plan 02-03 executed (ensemble valuation + MoS + adapter + DuckDB store)
+Phase: 3 of 4 (Decision Engine) -- IN PROGRESS
+Plan: 1 of 3 in current phase
+Status: Plan 03-01 complete (signal engine + screener), ready for 03-02
+Last activity: 2026-03-12 -- Plan 03-01 executed (signal engine + screener with reasoning traces)
 
-Progress: [██████████] 100%
+Progress: [███████░░░] 78%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: 5.7 min
-- Total execution time: 0.57 hours
+- Total plans completed: 7
+- Average duration: 5.6 min
+- Total execution time: 0.65 hours
 
 **By Phase:**
 
@@ -45,9 +45,10 @@ Progress: [██████████] 100%
 |-------|-------|-------|----------|
 | 1. Data Foundation | 3/3 | 19 min | 6.3 min |
 | 2. Analysis Core | 3/3 | 15 min | 5.0 min |
+| 3. Decision Engine | 1/3 | 5 min | 5.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (6 min), 01-03 (6 min), 02-01 (5 min), 02-02 (6 min), 02-03 (4 min)
+- Last 5 plans: 01-03 (6 min), 02-01 (5 min), 02-02 (6 min), 02-03 (4 min), 03-01 (5 min)
 - Trend: Stable/Improving
 
 *Updated after each plan completion*
@@ -60,6 +61,7 @@ Progress: [██████████] 100%
 | Phase 02 P01 | 5min | 2 tasks | 6 files |
 | Phase 02 P02 | 6min | 2 tasks | 15 files |
 | Phase 02 P03 | 4min | 2 tasks | 9 files |
+| Phase 03 P01 | 5min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -94,6 +96,10 @@ Recent decisions affecting current work:
 - [Phase 02-03]: Single-model agreement = 0.0 (cannot compute CV) -- penalizes single-source valuations
 - [Phase 02-03]: Relative value estimated as market_price * (1 + (50 - percentile)/100)
 - [Phase 02-03]: DuckDBValuationStore accepts connection via DI (not creating own)
+- [Phase 03-01]: CoreSignalAdapter.evaluate_all() normalizes methodology scores to 0-100 scale for MethodologyResult VO compatibility
+- [Phase 03-01]: Reasoning trace is plain-text multi-line string (not structured JSON) for human readability
+- [Phase 03-01]: DuckDBSignalStore.query_top_n() uses LEFT JOIN across scores/valuations/signals tables -- tolerates missing rows
+- [Phase 03-01]: Signal handler accepts adapter OR individual clients (backward compatible with legacy path)
 
 ### Pending Todos
 
@@ -108,6 +114,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T00:35:14Z
-Stopped at: Completed 02-03-PLAN.md (Phase 2 complete)
-Resume file: .planning/phases/02/02-03-SUMMARY.md
+Last session: 2026-03-12T01:10:32Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: .planning/phases/03-decision-engine/03-01-SUMMARY.md

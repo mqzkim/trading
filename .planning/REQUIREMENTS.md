@@ -28,8 +28,8 @@
 
 ## Category 4: Signal (SIGN)
 
-- [ ] **SIGN-01**: BUY/HOLD/SELL 시그널 — Quality score + Valuation gap 결합, 명확한 근거 텍스트 포함
-- [ ] **SIGN-02**: Screener/Ranker — Composite score 기준 Top N 종목 랭킹 + 필터링
+- [x] **SIGN-01**: BUY/HOLD/SELL 시그널 — Quality score + Valuation gap 결합, 명확한 근거 텍스트 포함
+- [x] **SIGN-02**: Screener/Ranker — Composite score 기준 Top N 종목 랭킹 + 필터링
 
 ## Category 5: Risk/Portfolio (RISK)
 
@@ -86,8 +86,8 @@
 | VALU-03 | Phase 2: Analysis Core | Complete |
 | VALU-04 | Phase 2: Analysis Core | Complete |
 | VALU-05 | Phase 2: Analysis Core | Complete |
-| SIGN-01 | Phase 3: Decision Engine | Pending |
-| SIGN-02 | Phase 3: Decision Engine | Pending |
+| SIGN-01 | Phase 3: Decision Engine | Complete |
+| SIGN-02 | Phase 3: Decision Engine | Complete |
 | RISK-01 | Phase 3: Decision Engine | Pending |
 | RISK-02 | Phase 3: Decision Engine | Pending |
 | RISK-03 | Phase 3: Decision Engine | Pending |
