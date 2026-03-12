@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Optional
 
 from personal.execution.planner import plan_entry
-from src.portfolio.domain.value_objects import TakeProfitLevels
+from src.shared.domain.take_profit import TakeProfitLevels
 
 from .value_objects import TradePlan
 

@@ -12,17 +12,22 @@ from src.signals.infrastructure.duckdb_signal_store import DuckDBSignalStore
 
 
 def _create_test_tables(conn: duckdb.DuckDBPyConnection) -> None:
-    """Pre-create scores and valuations tables with test data."""
+    """Pre-create scores and valuation_results tables with test data.
+
+    scores table is also created by DuckDBSignalStore.__init__ via
+    _ensure_scores_table() (CREATE IF NOT EXISTS), so this is safe.
+    """
     conn.execute("""
         CREATE TABLE IF NOT EXISTS scores (
             symbol VARCHAR PRIMARY KEY,
             composite_score DOUBLE,
-            risk_adjusted_score DOUBLE
+            risk_adjusted_score DOUBLE,
+            strategy VARCHAR
         )
     """)
     conn.execute("""
-        CREATE TABLE IF NOT EXISTS valuations (
-            symbol VARCHAR PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS valuation_results (
+            ticker VARCHAR PRIMARY KEY,
             intrinsic_value DOUBLE,
             margin_of_safety DOUBLE,
             has_margin BOOLEAN
@@ -31,19 +36,19 @@ def _create_test_tables(conn: duckdb.DuckDBPyConnection) -> None:
 
 
 def _insert_test_data(conn: duckdb.DuckDBPyConnection) -> None:
-    """Insert test scores and valuations for 6 tickers."""
+    """Insert test scores and valuation_results for 6 tickers."""
     scores_data = [
-        ("AAPL", 85.0, 82.0),
-        ("MSFT", 90.0, 88.0),
-        ("GOOG", 75.0, 72.0),
-        ("AMZN", 60.0, 55.0),
-        ("TSLA", 40.0, 35.0),
-        ("META", 70.0, 68.0),
+        ("AAPL", 85.0, 82.0, "swing"),
+        ("MSFT", 90.0, 88.0, "swing"),
+        ("GOOG", 75.0, 72.0, "swing"),
+        ("AMZN", 60.0, 55.0, "swing"),
+        ("TSLA", 40.0, 35.0, "swing"),
+        ("META", 70.0, 68.0, "swing"),
     ]
-    for symbol, composite, risk_adj in scores_data:
+    for symbol, composite, risk_adj, strategy in scores_data:
         conn.execute(
-            "INSERT INTO scores VALUES (?, ?, ?)",
-            [symbol, composite, risk_adj],
+            "INSERT OR REPLACE INTO scores VALUES (?, ?, ?, ?)",
+            [symbol, composite, risk_adj, strategy],
         )
 
     valuations_data = [
@@ -54,10 +59,10 @@ def _insert_test_data(conn: duckdb.DuckDBPyConnection) -> None:
         ("TSLA", 200.0, -0.10, False),
         ("META", 350.0, 0.12, True),
     ]
-    for symbol, intrinsic, mos, has_margin in valuations_data:
+    for ticker, intrinsic, mos, has_margin in valuations_data:
         conn.execute(
-            "INSERT INTO valuations VALUES (?, ?, ?, ?)",
-            [symbol, intrinsic, mos, has_margin],
+            "INSERT INTO valuation_results VALUES (?, ?, ?, ?)",
+            [ticker, intrinsic, mos, has_margin],
         )
 
 

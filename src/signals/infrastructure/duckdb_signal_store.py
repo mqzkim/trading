@@ -27,6 +27,7 @@ class DuckDBSignalStore(ISignalRepository):
     def __init__(self, conn: duckdb.DuckDBPyConnection) -> None:
         self._conn = conn
         self._ensure_table()
+        self._ensure_scores_table()
 
     def _ensure_table(self) -> None:
         """Create signals table if not exists."""
@@ -39,6 +40,32 @@ class DuckDBSignalStore(ISignalRepository):
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+    def _ensure_scores_table(self) -> None:
+        """Create scores table if not exists."""
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS scores (
+                symbol VARCHAR PRIMARY KEY,
+                composite_score DOUBLE,
+                risk_adjusted_score DOUBLE,
+                strategy VARCHAR
+            )
+        """)
+
+    def sync_scores(self, rows: list[dict]) -> None:
+        """Populate scores table from external data.
+
+        Used by bootstrap or CLI to sync SQLite scores to DuckDB
+        before screening. Each dict has keys: symbol, composite_score,
+        risk_adjusted_score, strategy.
+        """
+        self._conn.execute("DELETE FROM scores")
+        for row in rows:
+            self._conn.execute(
+                "INSERT INTO scores (symbol, composite_score, risk_adjusted_score, strategy) "
+                "VALUES (?, ?, ?, ?)",
+                [row["symbol"], row["composite_score"], row["risk_adjusted_score"], row["strategy"]],
+            )
 
     # -- ISignalRepository implementation ------------------------------------
 
@@ -113,7 +140,7 @@ class DuckDBSignalStore(ISignalRepository):
                    sig.direction,
                    sig.strength
             FROM scores s
-            LEFT JOIN valuations v ON s.symbol = v.symbol
+            LEFT JOIN valuation_results v ON s.symbol = v.ticker
             LEFT JOIN signals sig ON s.symbol = sig.symbol
             WHERE s.risk_adjusted_score >= ?
         """
