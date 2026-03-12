@@ -47,7 +47,7 @@ Progress: [████████░░] 83%
 | 2. Analysis Core | 2/3 | 11 min | 5.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (7 min), 01-02 (6 min), 01-03 (6 min), 02-01 (5 min)
+- Last 5 plans: 01-01 (7 min), 01-02 (6 min), 01-03 (6 min), 02-01 (5 min), 02-02 (6 min)
 - Trend: Stable/Improving
 
 *Updated after each plan completion*
@@ -58,7 +58,7 @@ Progress: [████████░░] 83%
 | Phase 01 P02 | 6min | 2 tasks | 8 files |
 | Phase 01 P03 | 6min | 2 tasks | 6 files |
 | Phase 02 P01 | 5min | 2 tasks | 6 files |
-| Phase 02 P01 | 5min | 2 tasks | 6 files |
+| Phase 02 P02 | 6min | 2 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -85,6 +85,10 @@ Recent decisions affecting current work:
 - [Phase 02-01]: G-Score added as field to existing FundamentalScore VO (not separate VO) for consistency with f/z/m pattern
 - [Phase 02-01]: G-Score blending: (g_score/8)*15 added to fundamental value (capped 100) before composite weighting
 - [Phase 02-01]: RegimeWeightAdjuster uses Protocol (structural subtyping), NoOp default, Phase 3 provides concrete impl
+- [Phase 02-02]: Valuation VOs use same frozen dataclass + _validate() pattern as Phase 1 scoring VOs
+- [Phase 02-02]: DCF terminal value averages Gordon Growth and Exit Multiple before applying 40% cap
+- [Phase 02-02]: EPV earnings CV uses population std dev for cyclical detection (CV > 0.5)
+- [Phase 02-02]: Relative Multiples percentile = count_below / total_peers * 100 (empirical percentile)
 
 ### Pending Todos
 
@@ -99,6 +103,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T00:28:14.235Z
-Stopped at: Completed 02-01-PLAN.md
-Resume file: None
+Last session: 2026-03-12T00:27:00Z
+Stopped at: Completed 02-02-PLAN.md
+Resume file: .planning/phases/02/02-02-SUMMARY.md
