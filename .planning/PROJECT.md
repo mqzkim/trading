@@ -31,49 +31,39 @@ Every recommendation must be explainable and risk-controlled — the system prio
 
 ### Active
 
-#### Tech Debt Stabilization
-- [ ] Fix DuckDB/SQLite scoring store mismatch (screener integration)
-- [ ] Fix table name/column mismatches in screener valuations join
-- [ ] Add missing CLI commands (ingest, generate-plan, backtest)
-- [ ] Wire G-Score blending and regime adjustment in DDD handler path
-- [ ] Publish domain events to EventBus (currently defined but unused)
-- [ ] Fix cross-context domain import (execution → portfolio)
-- [ ] Resolve remaining 10 tech debt items from v1.0 audit
+#### Automated Pipeline
+- [ ] Daily automated screening → scoring → signal → execution pipeline
+- [ ] Strategy/budget approval workflow (human approves strategy + daily budget)
+- [ ] Scheduler daemon (cron or persistent process)
 
-#### Live Data Validation
-- [ ] Live data pipeline validation with real APIs (yfinance, SEC EDGAR)
-- [ ] Empirical validation of adjusted close behavior
-- [ ] XBRL coverage testing for smaller companies
+#### Live Trading
+- [ ] Alpaca live account integration (paper → live migration)
+- [ ] Auto-execution within approved budget/risk limits
+- [ ] Real-time order monitoring and error recovery
 
-#### New Capabilities
-- [ ] Technical scoring engine (RSI, MACD, moving averages, ADX, OBV)
-- [ ] Market regime detection (Bull/Bear/Sideways/Crisis via VIX, S&P 200MA, ADX, yield curve)
-- [ ] Multi-strategy signal fusion (CAN SLIM, Magic Formula, Dual Momentum, Trend Following)
-- [ ] Korean market support (KOSPI/KOSDAQ data ingestion, KIS broker integration)
-
-#### Commercial API
-- [ ] FastAPI REST API for QuantScore, RegimeRadar, SignalFusion products
+#### Web Dashboard
+- [ ] Portfolio overview (holdings, P&L, allocation)
+- [ ] Scoring/signal results visualization
+- [ ] Trade history and execution log
+- [ ] Risk dashboard (drawdown, sector exposure, position limits)
 
 ### Out of Scope
 
-- Full auto-execution — requires paper trading validation first
-- Web/GUI dashboard — CLI first, Streamlit/Next.js in future version
+- Full auto-execution without any human oversight — strategy/budget approval still required
+- Mobile app — web dashboard first
 - Real-time intraday trading — daily granularity for mid-term holding
 - Options/derivatives — stock-only
 - Social/sentiment scoring — focus on fundamentals + technicals first
 
-## Current Milestone: v1.1 Stabilization & Expansion
+## Current Milestone: v1.2 Production Trading & Dashboard
 
-**Goal:** Stabilize v1.0 tech debt, validate with live data, and expand capabilities with technical scoring, regime detection, multi-strategy signal fusion, Korean market support, and commercial API products.
+**Goal:** 전체 파이프라인을 자동화하고, 라이브 트레이딩과 웹 대시보드를 통해 실제로 동작하는 프로덕션 시스템을 완성한다. 핵심은 견고함과 positive expectancy.
 
 **Target features:**
-- Tech debt resolution (16 items from v1.0 audit)
-- Live data pipeline validation (yfinance, SEC EDGAR)
-- Technical scoring engine (RSI, MACD, MA, ADX, OBV)
-- Market regime detection (Bull/Bear/Sideways/Crisis)
-- Multi-strategy signal fusion (CAN SLIM, Magic Formula, Dual Momentum, Trend Following)
-- Korean market support (KOSPI/KOSDAQ + KIS broker)
-- Commercial API (FastAPI: QuantScore, RegimeRadar, SignalFusion)
+- 자동 파이프라인 스케줄러 (매일 스크리닝 → 스코어링 → 시그널 → 주문 실행)
+- 전략/일일 예산 승인 워크플로 (사람은 전략만 승인, 실행은 자동)
+- Alpaca 라이브 트레이딩 (소액 실전 매매, 리스크 한도 내 자동 실행)
+- 웹 대시보드 (포트폴리오, P&L, 스코어, 시그널, 매매 히스토리, 리스크 현황)
 
 ## Context
 
@@ -110,4 +100,4 @@ Legacy core/ path provides working alternatives where DDD path has wiring gaps.
 | Coarse 4-phase roadmap | Strict dependency chain, each phase standalone | ✓ Good — clean execution, 12 plans in 10 days |
 
 ---
-*Last updated: 2026-03-12 after v1.1 milestone start*
+*Last updated: 2026-03-13 after v1.2 milestone start*

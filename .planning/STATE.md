@@ -1,36 +1,36 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Stabilization & Expansion
-status: completed
-stopped_at: Completed 11-03-PLAN.md (Gap Closure)
-last_updated: "2026-03-12T21:58:12.303Z"
-last_activity: 2026-03-13 -- Completed Plan 11-03 (Gap Closure)
+milestone: v1.2
+milestone_name: Production Trading & Dashboard
+status: active
+stopped_at: null
+last_updated: "2026-03-13"
+last_activity: 2026-03-13 -- Milestone v1.2 started
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 17
-  completed_plans: 19
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-12)
+See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 11 -- Commercial FastAPI REST API
+**Current focus:** Defining requirements for v1.2
 
 ## Current Position
 
-Phase: 11 of 11 (Commercial FastAPI REST API)
-Plan: 3 of 3 in current phase (COMPLETE)
-Status: Phase 11 complete -- all plans done (including gap closure)
-Last activity: 2026-03-13 -- Completed Plan 11-03 (Gap Closure)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-13 — Milestone v1.2 started
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
