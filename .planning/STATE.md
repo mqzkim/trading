@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-12T01:10:32Z"
-last_activity: 2026-03-12 -- Plan 03-01 executed (signal engine + screener with reasoning traces)
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-12T01:12:29Z"
+last_activity: 2026-03-12 -- Plan 03-02 executed (risk management: Kelly, ATR, take-profit, drawdown, sector limits)
 progress:
   total_phases: 4
   completed_phases: 2
   total_plans: 9
-  completed_plans: 7
-  percent: 78
+  completed_plans: 8
+  percent: 89
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 3 in progress -- signal engine and screener complete, risk/portfolio next
+**Current focus:** Phase 3 in progress -- signal engine, screener, and risk management complete
 
 ## Current Position
 
 Phase: 3 of 4 (Decision Engine) -- IN PROGRESS
-Plan: 1 of 3 in current phase
-Status: Plan 03-01 complete (signal engine + screener), ready for 03-02
-Last activity: 2026-03-12 -- Plan 03-01 executed (signal engine + screener with reasoning traces)
+Plan: 2 of 3 in current phase
+Status: Plan 03-02 complete (risk management), ready for 03-03
+Last activity: 2026-03-12 -- Plan 03-02 executed (risk management: Kelly, ATR, take-profit, drawdown, sector limits)
 
-Progress: [███████░░░] 78%
+Progress: [████████░░] 89%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 5.6 min
-- Total execution time: 0.65 hours
+- Total plans completed: 8
+- Average duration: 5.8 min
+- Total execution time: 0.77 hours
 
 **By Phase:**
 
@@ -45,10 +45,10 @@ Progress: [███████░░░] 78%
 |-------|-------|-------|----------|
 | 1. Data Foundation | 3/3 | 19 min | 6.3 min |
 | 2. Analysis Core | 3/3 | 15 min | 5.0 min |
-| 3. Decision Engine | 1/3 | 5 min | 5.0 min |
+| 3. Decision Engine | 2/3 | 12 min | 6.0 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-03 (6 min), 02-01 (5 min), 02-02 (6 min), 02-03 (4 min), 03-01 (5 min)
+- Last 5 plans: 02-01 (5 min), 02-02 (6 min), 02-03 (4 min), 03-01 (5 min), 03-02 (7 min)
 - Trend: Stable/Improving
 
 *Updated after each plan completion*
@@ -62,6 +62,7 @@ Progress: [███████░░░] 78%
 | Phase 02 P02 | 6min | 2 tasks | 15 files |
 | Phase 02 P03 | 4min | 2 tasks | 9 files |
 | Phase 03 P01 | 5min | 2 tasks | 7 files |
+| Phase 03 P02 | 7min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,9 @@ Recent decisions affecting current work:
 - [Phase 03-01]: Reasoning trace is plain-text multi-line string (not structured JSON) for human readability
 - [Phase 03-01]: DuckDBSignalStore.query_top_n() uses LEFT JOIN across scores/valuations/signals tables -- tolerates missing rows
 - [Phase 03-01]: Signal handler accepts adapter OR individual clients (backward compatible with legacy path)
+- [Phase 03-02]: CoreRiskAdapter delegates to personal/ functions without math rewriting -- thin adapter only
+- [Phase 03-02]: TakeProfitLevels VO uses computed property (levels) to derive 3 exit points from intrinsic value gap
+- [Phase 03-02]: Portfolio.drawdown uses total_value_or_initial to handle empty portfolios correctly (cash = initial_value)
 
 ### Pending Todos
 
@@ -114,6 +118,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T01:10:32Z
-Stopped at: Completed 03-01-PLAN.md
-Resume file: .planning/phases/03-decision-engine/03-01-SUMMARY.md
+Last session: 2026-03-12T01:12:29Z
+Stopped at: Completed 03-02-PLAN.md
+Resume file: .planning/phases/03-decision-engine/03-02-SUMMARY.md

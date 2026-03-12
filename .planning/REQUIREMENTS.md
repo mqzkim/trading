@@ -33,11 +33,11 @@
 
 ## Category 5: Risk/Portfolio (RISK)
 
-- [ ] **RISK-01**: Fractional Kelly Position Sizing — 1/4 Kelly 기반 최적 포지션 크기 계산
-- [ ] **RISK-02**: ATR-based Stop-Loss — 2.5-3.5x ATR(21) trailing stop
-- [ ] **RISK-03**: Take-Profit 레벨 — 내재가치 기반 목표가 + 부분 익절 레벨
-- [ ] **RISK-04**: Drawdown Defense — 10%/15%/20% 3-tier 포트폴리오 드로다운 방어 프로토콜
-- [ ] **RISK-05**: Position/Sector Limits — Max position 8%, Max sector 25% 하드 리밋
+- [x] **RISK-01**: Fractional Kelly Position Sizing — 1/4 Kelly 기반 최적 포지션 크기 계산
+- [x] **RISK-02**: ATR-based Stop-Loss — 2.5-3.5x ATR(21) trailing stop
+- [x] **RISK-03**: Take-Profit 레벨 — 내재가치 기반 목표가 + 부분 익절 레벨
+- [x] **RISK-04**: Drawdown Defense — 10%/15%/20% 3-tier 포트폴리오 드로다운 방어 프로토콜
+- [x] **RISK-05**: Position/Sector Limits — Max position 8%, Max sector 25% 하드 리밋
 
 ## Category 6: Execution (EXEC)
 
@@ -88,11 +88,11 @@
 | VALU-05 | Phase 2: Analysis Core | Complete |
 | SIGN-01 | Phase 3: Decision Engine | Complete |
 | SIGN-02 | Phase 3: Decision Engine | Complete |
-| RISK-01 | Phase 3: Decision Engine | Pending |
-| RISK-02 | Phase 3: Decision Engine | Pending |
-| RISK-03 | Phase 3: Decision Engine | Pending |
-| RISK-04 | Phase 3: Decision Engine | Pending |
-| RISK-05 | Phase 3: Decision Engine | Pending |
+| RISK-01 | Phase 3: Decision Engine | Complete |
+| RISK-02 | Phase 3: Decision Engine | Complete |
+| RISK-03 | Phase 3: Decision Engine | Complete |
+| RISK-04 | Phase 3: Decision Engine | Complete |
+| RISK-05 | Phase 3: Decision Engine | Complete |
 | BACK-01 | Phase 3: Decision Engine | Pending |
 | BACK-02 | Phase 3: Decision Engine | Pending |
 | EXEC-01 | Phase 4: Execution and Interface | Pending |
