@@ -94,47 +94,47 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SAFE-01 | — | Pending |
-| SAFE-02 | — | Pending |
-| SAFE-03 | — | Pending |
-| SAFE-04 | — | Pending |
-| SAFE-05 | — | Pending |
-| SAFE-06 | — | Pending |
-| SAFE-07 | — | Pending |
-| SAFE-08 | — | Pending |
-| PIPE-01 | — | Pending |
-| PIPE-02 | — | Pending |
-| PIPE-03 | — | Pending |
-| PIPE-04 | — | Pending |
-| PIPE-05 | — | Pending |
-| PIPE-06 | — | Pending |
-| PIPE-07 | — | Pending |
-| APPR-01 | — | Pending |
-| APPR-02 | — | Pending |
-| APPR-03 | — | Pending |
-| APPR-04 | — | Pending |
-| APPR-05 | — | Pending |
-| LIVE-01 | — | Pending |
-| LIVE-02 | — | Pending |
-| LIVE-03 | — | Pending |
-| LIVE-04 | — | Pending |
-| LIVE-05 | — | Pending |
-| LIVE-06 | — | Pending |
-| DASH-01 | — | Pending |
-| DASH-02 | — | Pending |
-| DASH-03 | — | Pending |
-| DASH-04 | — | Pending |
-| DASH-05 | — | Pending |
-| DASH-06 | — | Pending |
-| DASH-07 | — | Pending |
-| DASH-08 | — | Pending |
-| DASH-09 | — | Pending |
+| SAFE-01 | Phase 12 | Pending |
+| SAFE-02 | Phase 12 | Pending |
+| SAFE-03 | Phase 12 | Pending |
+| SAFE-04 | Phase 12 | Pending |
+| SAFE-05 | Phase 12 | Pending |
+| SAFE-06 | Phase 12 | Pending |
+| SAFE-07 | Phase 12 | Pending |
+| SAFE-08 | Phase 12 | Pending |
+| PIPE-01 | Phase 13 | Pending |
+| PIPE-02 | Phase 13 | Pending |
+| PIPE-03 | Phase 13 | Pending |
+| PIPE-04 | Phase 13 | Pending |
+| PIPE-05 | Phase 13 | Pending |
+| PIPE-06 | Phase 13 | Pending |
+| PIPE-07 | Phase 13 | Pending |
+| APPR-01 | Phase 14 | Pending |
+| APPR-02 | Phase 14 | Pending |
+| APPR-03 | Phase 14 | Pending |
+| APPR-04 | Phase 14 | Pending |
+| APPR-05 | Phase 14 | Pending |
+| LIVE-01 | Phase 15 | Pending |
+| LIVE-02 | Phase 15 | Pending |
+| LIVE-03 | Phase 15 | Pending |
+| LIVE-04 | Phase 15 | Pending |
+| LIVE-05 | Phase 15 | Pending |
+| LIVE-06 | Phase 15 | Pending |
+| DASH-01 | Phase 16 | Pending |
+| DASH-02 | Phase 16 | Pending |
+| DASH-03 | Phase 16 | Pending |
+| DASH-04 | Phase 16 | Pending |
+| DASH-05 | Phase 16 | Pending |
+| DASH-06 | Phase 16 | Pending |
+| DASH-07 | Phase 16 | Pending |
+| DASH-08 | Phase 16 | Pending |
+| DASH-09 | Phase 16 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 35 total
-- Mapped to phases: 0
-- Unmapped: 35 ⚠️
+- Mapped to phases: 35
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-13*
-*Last updated: 2026-03-13 after initial definition*
+*Last updated: 2026-03-13 after roadmap creation*

@@ -4,6 +4,7 @@
 
 - ✅ **v1.0 MVP** -- Phases 1-4 (shipped 2026-03-12)
 - ✅ **v1.1 Stabilization & Expansion** -- Phases 5-11 (shipped 2026-03-13)
+- 🚧 **v1.2 Production Trading & Dashboard** -- Phases 12-16 (in progress)
 
 ## Phases
 
@@ -34,7 +35,104 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 </details>
 
+### 🚧 v1.2 Production Trading & Dashboard (In Progress)
+
+**Milestone Goal:** Automate the full pipeline, add live trading with safety infrastructure, and provide a web dashboard for operational visibility -- transforming the CLI tool into a production trading system.
+
+- [ ] **Phase 12: Safety Infrastructure** - Production-safe execution adapters, persistent drawdown defense, position reconciliation, kill switch
+- [ ] **Phase 13: Automated Pipeline Scheduler** - Daily cron pipeline in paper mode with market calendar, stage retry, run logging
+- [ ] **Phase 14: Strategy and Budget Approval** - Human-approved trading rules and daily budget caps gating automated execution
+- [ ] **Phase 15: Live Trading Activation** - Live Alpaca execution with circuit breaker, order monitoring, and WebSocket fills
+- [ ] **Phase 16: Web Dashboard** - HTMX dashboard with portfolio, signals, risk metrics, pipeline status, and real-time SSE updates
+
+## Phase Details
+
+### Phase 12: Safety Infrastructure
+**Goal**: Execution layer is production-safe -- explicit mode switching, no silent failures, persistent risk state, broker reconciliation
+**Depends on**: Phase 11 (existing execution adapter and DDD handlers)
+**Requirements**: SAFE-01, SAFE-02, SAFE-03, SAFE-04, SAFE-05, SAFE-06, SAFE-07, SAFE-08
+**Success Criteria** (what must be TRUE):
+  1. System starts in paper mode by default; switching to live requires explicit EXECUTION_MODE=live setting -- credentials alone cannot trigger live trading
+  2. Order failures in live mode raise errors and halt execution -- the system never creates phantom fills or silent mock fallbacks
+  3. Pipeline startup compares SQLite position records against Alpaca broker positions and reports any divergences before proceeding
+  4. After a 20% drawdown triggers cooldown, restarting the process preserves the 30-day cooling period -- cooldown state survives restarts
+  5. User can trigger kill switch from CLI that cancels all open orders and halts the pipeline immediately
+**Plans**: TBD
+
+Plans:
+- [ ] 12-01: TBD
+- [ ] 12-02: TBD
+- [ ] 12-03: TBD
+
+### Phase 13: Automated Pipeline Scheduler
+**Goal**: Full screening-to-execution pipeline runs daily after market close in paper mode, with market calendar awareness and fault tolerance
+**Depends on**: Phase 12 (safe execution adapter)
+**Requirements**: PIPE-01, PIPE-02, PIPE-03, PIPE-04, PIPE-05, PIPE-06, PIPE-07
+**Success Criteria** (what must be TRUE):
+  1. After market close, the pipeline automatically runs ingest through execution without human intervention -- user sees completed run log next morning
+  2. Pipeline skips weekends and NYSE holidays without submitting orders -- run log shows "skipped: holiday" entries
+  3. If yfinance times out during data ingest, the failed stage retries automatically and the pipeline completes -- transient failures do not abort the full run
+  4. When regime is Crisis or drawdown tier >= 2, the pipeline halts before plan creation and logs the reason -- no trades generated in dangerous conditions
+  5. User can run the pipeline in dry-run mode that executes everything except order submission -- validating the full chain without risk
+**Plans**: TBD
+
+Plans:
+- [ ] 13-01: TBD
+- [ ] 13-02: TBD
+- [ ] 13-03: TBD
+
+### Phase 14: Strategy and Budget Approval
+**Goal**: Human defines trading rules and daily capital limits once; automated pipeline executes within those boundaries until approval expires or conditions change
+**Depends on**: Phase 13 (automated pipeline to gate)
+**Requirements**: APPR-01, APPR-02, APPR-03, APPR-04, APPR-05
+**Success Criteria** (what must be TRUE):
+  1. User can create a strategy approval specifying score threshold, allowed regimes, max per-trade percentage, and expiration date -- pipeline only auto-executes trades matching these parameters
+  2. User sets a daily budget cap and can see how much has been spent vs remaining for the current day's pipeline run
+  3. Trades that exceed the approved budget or violate strategy parameters queue for manual review instead of auto-executing
+  4. When market regime changes, active strategy approval is automatically suspended until user re-approves -- stale approvals cannot execute in changed conditions
+**Plans**: TBD
+
+Plans:
+- [ ] 14-01: TBD
+- [ ] 14-02: TBD
+
+### Phase 15: Live Trading Activation
+**Goal**: System executes real orders through Alpaca live account within approved safety boundaries, with real-time monitoring and automatic failure protection
+**Depends on**: Phase 12 (safe adapter), Phase 13 (validated pipeline), Phase 14 (approval workflow)
+**Requirements**: LIVE-01, LIVE-02, LIVE-03, LIVE-04, LIVE-05, LIVE-06
+**Success Criteria** (what must be TRUE):
+  1. With EXECUTION_MODE=live and valid live API credentials, the system connects to Alpaca live account and submits real orders -- paper and live use separate API key pairs
+  2. SafeExecutionService enforces budget limits and position constraints before every order submission -- no order bypasses pre-checks
+  3. Background order monitor tracks all open orders until they reach terminal state (filled, rejected, cancelled) -- no orders left in unknown status
+  4. After 3 consecutive order failures, circuit breaker halts all live trading automatically -- requires manual reset to resume
+  5. Initial live deployment uses max 25% capital allocation -- system enforces this ceiling regardless of strategy approval settings
+**Plans**: TBD
+
+Plans:
+- [ ] 15-01: TBD
+- [ ] 15-02: TBD
+
+### Phase 16: Web Dashboard
+**Goal**: Operator has full visibility into portfolio, pipeline, risk, and approval status through a browser-based dashboard with real-time updates
+**Depends on**: Phase 12-15 (consumes data from all prior phases)
+**Requirements**: DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06, DASH-07, DASH-08, DASH-09
+**Success Criteria** (what must be TRUE):
+  1. User opens browser dashboard and sees current holdings, per-position P&L, and allocation breakdown -- no CLI needed for portfolio overview
+  2. Dashboard displays latest scoring results, signal recommendations, and trade history with entry/stop/target/fill details
+  3. Risk dashboard shows live drawdown gauge, sector exposure chart, and position limit utilization -- operator sees risk posture at a glance
+  4. Dashboard shows pipeline status (last run, next scheduled, stage results) and allows viewing/managing strategy approval and daily budget
+  5. When an order fills or pipeline completes, dashboard updates in real-time via SSE without page refresh -- and a prominent banner shows whether system is in paper (green) or live (red) mode
+**Plans**: TBD
+
+Plans:
+- [ ] 16-01: TBD
+- [ ] 16-02: TBD
+- [ ] 16-03: TBD
+
 ## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -49,3 +147,8 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 | 9. Multi-Strategy Signal Fusion | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 10. Korean Broker Integration | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 11. Commercial FastAPI REST API | v1.1 | 3/3 | Complete | 2026-03-13 |
+| 12. Safety Infrastructure | v1.2 | 0/? | Not started | - |
+| 13. Automated Pipeline Scheduler | v1.2 | 0/? | Not started | - |
+| 14. Strategy and Budget Approval | v1.2 | 0/? | Not started | - |
+| 15. Live Trading Activation | v1.2 | 0/? | Not started | - |
+| 16. Web Dashboard | v1.2 | 0/? | Not started | - |
