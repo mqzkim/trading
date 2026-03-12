@@ -142,7 +142,7 @@ Plans:
 Plans:
 - [x] 11-01-PLAN.md -- JWT auth, tiered rate limiting, API key management, schemas, config
 - [x] 11-02-PLAN.md -- QuantScore, RegimeRadar, SignalFusion data endpoints via DDD handlers
-- [ ] 11-03-PLAN.md -- Gap closure: fix QuantScore 422 (fundamental fallback args) and SignalFusion 500 (strength scale)
+- [x] 11-03-PLAN.md -- Gap closure: fix QuantScore 422 (fundamental fallback args) and SignalFusion 500 (strength scale)
 
 ## Progress
 
@@ -162,4 +162,4 @@ Note: Phases 7 and 8 both depend on Phase 6 (not on each other). Phase 9 depends
 | 8. Market Regime Detection | v1.1 | 2/3 | Gap Closure | - |
 | 9. Multi-Strategy Signal Fusion | v1.1 | 1/2 | In Progress | - |
 | 10. Korean Broker Integration | v1.1 | Complete    | 2026-03-12 | 2026-03-12 |
-| 11. Commercial FastAPI REST API | v1.1 | 2/3 | Gap Closure | - |
+| 11. Commercial FastAPI REST API | v1.1 | 3/3 | Complete | 2026-03-13 |

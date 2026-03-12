@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
 status: completed
-stopped_at: Completed 11-02-PLAN.md (Data Endpoints)
-last_updated: "2026-03-12T20:58:02.010Z"
-last_activity: 2026-03-13 -- Completed Plan 11-02 (Data Endpoints)
+stopped_at: Completed 11-03-PLAN.md (Gap Closure)
+last_updated: "2026-03-12T21:31:51Z"
+last_activity: 2026-03-13 -- Completed Plan 11-03 (Gap Closure)
 progress:
   total_phases: 7
   completed_phases: 7
   total_plans: 16
-  completed_plans: 18
+  completed_plans: 19
   percent: 100
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 ## Current Position
 
 Phase: 11 of 11 (Commercial FastAPI REST API)
-Plan: 2 of 2 in current phase (COMPLETE)
-Status: Phase 11 complete -- all plans done
-Last activity: 2026-03-13 -- Completed Plan 11-02 (Data Endpoints)
+Plan: 3 of 3 in current phase (COMPLETE)
+Status: Phase 11 complete -- all plans done (including gap closure)
+Last activity: 2026-03-13 -- Completed Plan 11-03 (Gap Closure)
 
 Progress: [██████████] 100%
 
@@ -67,6 +67,7 @@ Progress: [██████████] 100%
 | Phase 10 P02 | 8min | 2 tasks | 11 files |
 | Phase 11 P01 | 11min | 3 tasks | 18 files |
 | Phase 11 P02 | 5min | 2 tasks | 8 files |
+| Phase 11 P03 | 3min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -130,6 +131,8 @@ Recent decisions affecting current work:
 - [Phase 11]: PyJWT over python-jose for JWT (lighter, officially recommended by FastAPI)
 - [Phase 11]: Sentinel zeros in DetectRegimeCommand for auto-fetch at API layer (consistent with CLI)
 - [Phase 11]: Direction mapping BUY->Bullish/SELL->Bearish/HOLD->Neutral at API boundary for legal compliance
+- [Phase 11]: Fundamental fallback uses DataClient().get_fundamentals() to extract highlights/valuation dicts
+- [Phase 11]: API boundary normalization: domain 0-100 scales divided by 100 before Pydantic validation
 
 ### Pending Todos
 
@@ -146,6 +149,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T20:58:02.007Z
-Stopped at: Completed 11-02-PLAN.md (Data Endpoints)
+Last session: 2026-03-12T21:31:51Z
+Stopped at: Completed 11-03-PLAN.md (Gap Closure)
 Resume file: None
