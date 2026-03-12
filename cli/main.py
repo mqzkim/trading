@@ -740,7 +740,6 @@ def _fetch_ohlcv_for_backtest(symbol: str, start: str, end: str):
     Returns (ohlcv_df, signals_series) tuple.
     """
     from core.data.client import DataClient
-    from core.signals.consensus import generate_signals
     import pandas as pd
 
     client = DataClient()
