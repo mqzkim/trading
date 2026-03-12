@@ -63,12 +63,12 @@ Plans:
   3. Fractional Kelly (1/4 Kelly) position sizing calculates optimal position size per stock, ATR-based stop-loss sets trailing stops at 2.5-3.5x ATR(21), and take-profit levels derive from intrinsic value targets
   4. Portfolio-level drawdown defense activates at 10%/15%/20% tiers with predefined responses, and hard limits enforce max 8% per position and 25% per sector
   5. Walk-forward backtesting validates strategy on out-of-sample data, producing a performance report with Sharpe ratio, max drawdown, win rate, and profit factor
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [ ] 03-01-PLAN.md — Signal engine with reasoning traces + DuckDB screener/ranker (SIGN-01, SIGN-02)
+- [ ] 03-02-PLAN.md — Risk management: CoreRiskAdapter, take-profit levels, sector limits (RISK-01 through RISK-05)
+- [ ] 03-03-PLAN.md — Backtest bounded context: walk-forward validation + performance reports (BACK-01, BACK-02)
 
 ### Phase 4: Execution and Interface
 **Goal**: Users can review trade plans, approve orders through CLI, execute via Alpaca paper trading, and monitor positions through an interactive dashboard
@@ -95,6 +95,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Data Foundation | 3/3 | Complete | 2026-03-12 |
-| 2. Analysis Core | 0/3 | Planned | - |
-| 3. Decision Engine | 0/3 | Not started | - |
+| 2. Analysis Core | 3/3 | Complete | 2026-03-12 |
+| 3. Decision Engine | 0/3 | Planned | - |
 | 4. Execution and Interface | 0/3 | Not started | - |
