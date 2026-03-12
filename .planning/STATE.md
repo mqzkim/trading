@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
 status: in-progress
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-03-12T10:44:09.000Z"
-last_activity: 2026-03-12 -- Completed Plan 08-02 (Regime Scoring Weights and CLI Rewiring)
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-03-12T11:03:47.000Z"
+last_activity: 2026-03-12 -- Completed Plan 08-03 (Regime Adjuster Wiring Gap Closure)
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 12
+  completed_plans: 12
   percent: 100
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 ## Current Position
 
 Phase: 8 of 11 (Market Regime Detection)
-Plan: 2 of 2 in current phase
-Status: Phase 08 Complete
-Last activity: 2026-03-12 -- Completed Plan 08-02 (Regime Scoring Weights and CLI Rewiring)
+Plan: 3 of 3 in current phase
+Status: Phase 08 Complete (including gap closure)
+Last activity: 2026-03-12 -- Completed Plan 08-03 (Regime Adjuster Wiring Gap Closure)
 
 Progress: [██████████] 100%
 
@@ -60,6 +60,7 @@ Progress: [██████████] 100%
 | Phase 07 P03 | 6min | 2 tasks | 5 files |
 | Phase 08 P01 | 6min | 2 tasks | 7 files |
 | Phase 08 P02 | 5min | 3 tasks | 6 files |
+| Phase 08 P03 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,7 @@ Recent decisions affecting current work:
 - [Phase 08]: REGIME_SCORING_WEIGHTS in scoring domain services (not value_objects) -- weights are behavior
 - [Phase 08]: ConcreteRegimeWeightAdjuster caches regime via on_regime_changed() for implicit adjust_weights()
 - [Phase 08]: CLI regime --history accesses handler._regime_repo directly (no separate query handler)
+- [Phase 08]: Single regime_adjuster instance shared between EventBus subscription and ScoreSymbolHandler injection (not two separate instances)
 
 ### Pending Todos
 
@@ -116,6 +118,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T10:44:09Z
-Stopped at: Completed 08-02-PLAN.md
+Last session: 2026-03-12T11:03:47Z
+Stopped at: Completed 08-03-PLAN.md
 Resume file: None
