@@ -75,8 +75,13 @@ def bootstrap(
         db_path=db_factory.sqlite_path("portfolio"),
     )
 
+    # -- Regime weight adjuster (must be created before score_handler) --
+    from src.scoring.domain.services import ConcreteRegimeWeightAdjuster
+
+    regime_adjuster = ConcreteRegimeWeightAdjuster()
+
     # -- Handlers (wired with repos) --
-    score_handler = ScoreSymbolHandler(score_repo=score_repo)
+    score_handler = ScoreSymbolHandler(score_repo=score_repo, regime_adjuster=regime_adjuster)
     signal_handler = GenerateSignalHandler(signal_repo=signal_repo)
     regime_handler = DetectRegimeHandler(regime_repo=regime_repo, bus=bus)
     portfolio_handler = PortfolioManagerHandler(
@@ -109,10 +114,9 @@ def bootstrap(
     bus.subscribe(ScoreUpdatedEvent, _log_score_event)
 
     # Regime -> Scoring weight adjustment (cross-context subscription)
-    from src.scoring.domain.services import ConcreteRegimeWeightAdjuster
+    # regime_adjuster already created above and injected into score_handler
     from src.regime.domain.events import RegimeChangedEvent
 
-    regime_adjuster = ConcreteRegimeWeightAdjuster()
     bus.subscribe(RegimeChangedEvent, regime_adjuster.on_regime_changed)
 
     # Remaining cross-context subscriptions deactivated:

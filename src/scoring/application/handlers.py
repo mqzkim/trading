@@ -44,10 +44,11 @@ class ScoreSymbolHandler:
         fundamental_client=None,
         technical_client=None,
         sentiment_client=None,
+        regime_adjuster=None,
     ):
         self._score_repo = score_repo
         self._safety = SafetyFilterService()
-        self._composite = CompositeScoringService()
+        self._composite = CompositeScoringService(regime_adjuster=regime_adjuster)
         self._technical_scoring = TechnicalScoringService()
         self._fundamental_client = fundamental_client
         self._technical_client = technical_client
