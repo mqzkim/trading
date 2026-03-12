@@ -36,3 +36,21 @@ class OrderFailedEvent(DomainEvent):
 
     symbol: str = ""
     error_message: str = ""
+
+
+@dataclass(frozen=True)
+class StopHitAlertEvent(DomainEvent):
+    """Stop-loss price hit alert."""
+
+    symbol: str = ""
+    current_price: float = 0.0
+    stop_price: float = 0.0
+
+
+@dataclass(frozen=True)
+class TargetReachedAlertEvent(DomainEvent):
+    """Take-profit target reached alert."""
+
+    symbol: str = ""
+    current_price: float = 0.0
+    target_price: float = 0.0
