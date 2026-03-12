@@ -137,7 +137,7 @@ Plans:
   3. `GET /api/v1/signals/{ticker}` returns consensus signal with per-strategy votes -- but never includes position sizing or buy/sell recommendations (information only)
   4. Requests without valid JWT are rejected; free-tier users are rate-limited more aggressively than pro-tier users
   5. API key management endpoint allows creating, revoking, and listing API keys
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 11-01-PLAN.md -- JWT auth, tiered rate limiting, API key management, schemas, config
@@ -161,4 +161,4 @@ Note: Phases 7 and 8 both depend on Phase 6 (not on each other). Phase 9 depends
 | 8. Market Regime Detection | v1.1 | 2/3 | Gap Closure | - |
 | 9. Multi-Strategy Signal Fusion | v1.1 | 1/2 | In Progress | - |
 | 10. Korean Broker Integration | v1.1 | Complete    | 2026-03-12 | 2026-03-12 |
-| 11. Commercial FastAPI REST API | v1.1 | 0/2 | Not started | - |
+| 11. Commercial FastAPI REST API | 1/2 | In Progress|  | - |

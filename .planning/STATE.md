@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
 status: completed
-stopped_at: Completed 10-02-PLAN.md (KIS Execution Adapter & Market Routing)
-last_updated: "2026-03-12T19:50:57.430Z"
-last_activity: 2026-03-12 -- Completed Plan 10-02 (KIS Execution Adapter & Market Routing)
+stopped_at: Completed 11-01-PLAN.md (Auth Infrastructure & Rate Limiting)
+last_updated: "2026-03-12T20:39:36.966Z"
+last_activity: 2026-03-12 -- Completed Plan 11-01 (Auth Infrastructure & Rate Limiting)
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 14
-  completed_plans: 16
-  percent: 100
+  total_plans: 16
+  completed_plans: 17
+  percent: 93
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 10 -- Korean Broker Integration
+**Current focus:** Phase 11 -- Commercial FastAPI REST API
 
 ## Current Position
 
-Phase: 10 of 11 (Korean Broker Integration)
-Plan: 2 of 2 in current phase (PHASE COMPLETE)
-Status: Phase 10 complete, all plans executed
-Last activity: 2026-03-12 -- Completed Plan 10-02 (KIS Execution Adapter & Market Routing)
+Phase: 11 of 11 (Commercial FastAPI REST API)
+Plan: 1 of 2 in current phase
+Status: Plan 11-01 complete, Plan 11-02 remaining
+Last activity: 2026-03-12 -- Completed Plan 11-01 (Auth Infrastructure & Rate Limiting)
 
-Progress: [██████████] 100%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -65,6 +65,7 @@ Progress: [██████████] 100%
 | Phase 09 P02 | 5min | 1 task | 4 files |
 | Phase 10 P01 | 4min | 2 tasks | 9 files |
 | Phase 10 P02 | 8min | 2 tasks | 11 files |
+| Phase 11 P01 | 11min | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,12 @@ Recent decisions affecting current work:
 - [Phase 10]: KIS adapter mock=True hardcoded (no real trading path in Phase 10)
 - [Phase 10]: CLI _ctx_cache keyed by market string for multi-market context caching
 - [Phase 10]: capital in bootstrap context dict (not TradePlanHandler attribute)
+- [Phase 11]: PyJWT over python-jose for JWT (lighter, officially recommended by FastAPI)
+- [Phase 11]: Sync def endpoints for all API routes (DDD handlers are synchronous per RESEARCH pitfall 2)
+- [Phase 11]: FastAPI dependency_overrides for testing instead of unittest.mock.patch
+- [Phase 11]: In-memory slowapi storage for single-instance (Redis deferred to v1.2)
+- [Phase 11]: Legacy routes removed entirely from main.py (not prefixed with /legacy/)
+- [Phase 11]: PyJWT over python-jose for JWT (lighter, officially recommended by FastAPI)
 
 ### Pending Todos
 
@@ -136,6 +143,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T19:42:00Z
-Stopped at: Completed 10-02-PLAN.md (KIS Execution Adapter & Market Routing)
-Resume file: .planning/phases/10-korean-broker-integration/10-02-SUMMARY.md
+Last session: 2026-03-12T20:39:29.601Z
+Stopped at: Completed 11-01-PLAN.md (Auth Infrastructure & Rate Limiting)
+Resume file: None

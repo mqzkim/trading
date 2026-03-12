@@ -64,9 +64,9 @@ Requirements for Stabilization & Expansion milestone. Each maps to roadmap phase
 - [ ] **API-01**: QuantScore API 엔드포인트 (복합 점수 조회)
 - [ ] **API-02**: RegimeRadar API 엔드포인트 (현재 레짐 + 히스토리)
 - [ ] **API-03**: SignalFusion API 엔드포인트 (합의 시그널 조회)
-- [ ] **API-04**: JWT 기반 티어 인증 (free/basic/pro)
-- [ ] **API-05**: 티어별 Rate Limiting (slowapi)
-- [ ] **API-06**: API 키 관리 및 면책조항 응답 포함
+- [x] **API-04**: JWT 기반 티어 인증 (free/basic/pro)
+- [x] **API-05**: 티어별 Rate Limiting (slowapi)
+- [x] **API-06**: API 키 관리 및 면책조항 응답 포함
 
 ## v1.2+ Requirements
 
@@ -139,9 +139,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | API-01 | Phase 11 | Pending |
 | API-02 | Phase 11 | Pending |
 | API-03 | Phase 11 | Pending |
-| API-04 | Phase 11 | Pending |
-| API-05 | Phase 11 | Pending |
-| API-06 | Phase 11 | Pending |
+| API-04 | Phase 11 | Complete |
+| API-05 | Phase 11 | Complete |
+| API-06 | Phase 11 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 35 total
