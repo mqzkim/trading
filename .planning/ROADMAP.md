@@ -147,7 +147,7 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 9. Multi-Strategy Signal Fusion | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 10. Korean Broker Integration | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 11. Commercial FastAPI REST API | v1.1 | 3/3 | Complete | 2026-03-13 |
-| 12. Safety Infrastructure | v1.2 | 0/3 | Not started | - |
+| 12. Safety Infrastructure | 1/3 | In Progress|  | - |
 | 13. Automated Pipeline Scheduler | v1.2 | 0/? | Not started | - |
 | 14. Strategy and Budget Approval | v1.2 | 0/? | Not started | - |
 | 15. Live Trading Activation | v1.2 | 0/? | Not started | - |

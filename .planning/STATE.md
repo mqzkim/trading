@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
-status: planning
-stopped_at: Phase 12 context gathered
-last_updated: "2026-03-12T23:23:29.767Z"
-last_activity: 2026-03-13 -- Roadmap created for v1.2
+status: executing
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-03-12T23:56:52.957Z"
+last_activity: 2026-03-13 -- Completed 12-01 domain types, settings, cooldown persistence
 progress:
   total_phases: 5
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 3
+  completed_plans: 1
+  percent: 33
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 12 of 16 (Safety Infrastructure) -- first of 5 v1.2 phases
-Plan: --
-Status: Ready to plan
-Last activity: 2026-03-13 -- Roadmap created for v1.2
+Plan: 1 of 3 complete
+Status: Executing
+Last activity: 2026-03-13 -- Completed 12-01 domain types, settings, cooldown persistence
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 29 (v1.0: 12, v1.1: 17)
-- Average duration: ~6.2 min/plan
-- Total execution time: ~3.0 hours
+- Total plans completed: 30 (v1.0: 12, v1.1: 17, v1.2: 1)
+- Average duration: ~6.1 min/plan
+- Total execution time: ~3.1 hours
 
 **By Phase (v1.1):**
 
@@ -51,6 +51,12 @@ Progress: [░░░░░░░░░░] 0%
 | 10. Korean Broker | 2 | 12 min | 6.0 min |
 | 11. Commercial API | 3 | 19 min | 6.3 min |
 
+**By Phase (v1.2):**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 12. Safety Infrastructure | 1/3 | 4 min | 4.0 min |
+
 ## Accumulated Context
 
 ### Decisions
@@ -63,6 +69,9 @@ Recent decisions affecting current work:
 - [v1.2 research]: Only 2 new pip packages: APScheduler 3.11.2 + Plotly 6.5.x
 - [v1.2 research]: Safety fixes before automation -- real money loss is irreversible
 - [v1.2 research]: Paper automated before live -- validates orchestration without financial risk
+- [12-01]: CooldownState is frozen dataclass (not ValueObject) -- needs optional id for persistence
+- [12-01]: Expiry checked in Python not SQL for timezone safety
+- [12-01]: WAL journal mode for concurrent safety between pipeline and CLI
 
 ### Pending Todos
 
@@ -81,6 +90,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-12T23:23:29.765Z
-Stopped at: Phase 12 context gathered
-Resume file: .planning/phases/12-safety-infrastructure/12-CONTEXT.md
+Last session: 2026-03-12T23:56:52.955Z
+Stopped at: Completed 12-01-PLAN.md
+Resume file: None
