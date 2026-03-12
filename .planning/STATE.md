@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
-status: completed
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-03-12T08:58:26.817Z"
-last_activity: 2026-03-12 -- Completed Plan 07-02 (Handler + CLI Technical Sub-Score Wiring)
+status: in-progress
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-12T10:36:09.000Z"
+last_activity: 2026-03-12 -- Completed Plan 08-01 (Regime Handler Wiring)
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_plans: 11
+  completed_plans: 10
+  percent: 91
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 7 -- Technical Scoring Engine
+**Current focus:** Phase 8 -- Market Regime Detection
 
 ## Current Position
 
-Phase: 7 of 11 (Technical Scoring Engine)
-Plan: 2 of 2 in current phase (PHASE COMPLETE)
-Status: Phase 07 Complete
-Last activity: 2026-03-12 -- Completed Plan 07-02 (Handler + CLI Technical Sub-Score Wiring)
+Phase: 8 of 11 (Market Regime Detection)
+Plan: 1 of 2 in current phase
+Status: Plan 08-01 Complete
+Last activity: 2026-03-12 -- Completed Plan 08-01 (Regime Handler Wiring)
 
-Progress: [██████████] 100%
+Progress: [█████████ ] 91%
 
 ## Performance Metrics
 
@@ -58,6 +58,7 @@ Progress: [██████████] 100%
 | Phase 07 P01 | 8min | 2 tasks | 8 files |
 | Phase 07 P02 | 4min | 1 task | 3 files |
 | Phase 07 P03 | 6min | 2 tasks | 5 files |
+| Phase 08 P01 | 6min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,9 @@ Recent decisions affecting current work:
 - [Phase 07]: CLI color coding for technical sub-scores: green >= 60, yellow 40-60, red < 40
 - [Phase 07]: CLI score command rewired through DDD ScoreSymbolHandler instead of legacy score_symbol()
 - [Phase 07]: Handler fallback fetches OHLCV + compute_all + merges raw indicator values for sub-score detection
+- [Phase 08]: Confirmation state tracked via _last_confirmed_type instance variable for accurate event previous_regime field
+- [Phase 08]: ADX added to RegimeDataClient.fetch_regime_snapshot() (infrastructure layer, not handler)
+- [Phase 08]: yield_spread (percentage) added alongside yield_spread_bps for handler compatibility
 
 ### Pending Todos
 
@@ -108,6 +112,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T08:50:13.034Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-03-12T10:36:09Z
+Stopped at: Completed 08-01-PLAN.md
 Resume file: None

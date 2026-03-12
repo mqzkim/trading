@@ -37,9 +37,9 @@ Requirements for Stabilization & Expansion milestone. Each maps to roadmap phase
 
 ### Regime Detection
 
-- [ ] **REGIME-01**: VIX/S&P500/ADX/수익률곡선 데이터 기반 레짐 판별 배선
-- [ ] **REGIME-02**: 3일 확인 로직 배선 (기존 MarketRegime.is_confirmed)
-- [ ] **REGIME-03**: RegimeChangedEvent EventBus 발행
+- [x] **REGIME-01**: VIX/S&P500/ADX/수익률곡선 데이터 기반 레짐 판별 배선
+- [x] **REGIME-02**: 3일 확인 로직 배선 (기존 MarketRegime.is_confirmed)
+- [x] **REGIME-03**: RegimeChangedEvent EventBus 발행
 - [ ] **REGIME-04**: 레짐별 스코어링 가중치 자동 조정 (Bull/Bear/Sideways/Crisis)
 - [ ] **REGIME-05**: CLI에서 현재 레짐 + 90일 히스토리 조회
 
@@ -121,9 +121,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | TECH-02 | Phase 7 | Complete |
 | TECH-03 | Phase 7 | Complete |
 | TECH-04 | Phase 7 | Complete |
-| REGIME-01 | Phase 8 | Pending |
-| REGIME-02 | Phase 8 | Pending |
-| REGIME-03 | Phase 8 | Pending |
+| REGIME-01 | Phase 8 | Complete |
+| REGIME-02 | Phase 8 | Complete |
+| REGIME-03 | Phase 8 | Complete |
 | REGIME-04 | Phase 8 | Pending |
 | REGIME-05 | Phase 8 | Pending |
 | SIGNAL-01 | Phase 9 | Pending |
