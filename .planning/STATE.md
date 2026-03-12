@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
-status: ready_to_plan
-stopped_at: null
-last_updated: "2026-03-12T05:00:00.000Z"
-last_activity: 2026-03-12 -- Roadmap created for v1.1 (7 phases, 35 requirements)
+status: executing
+stopped_at: "Completed 05-01-PLAN.md"
+last_updated: "2026-03-12T03:37:25Z"
+last_activity: 2026-03-12 -- Completed Plan 05-01 (Infrastructure Primitives)
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 15
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 7
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 ## Current Position
 
 Phase: 5 of 11 (Tech Debt & Infrastructure Foundation) -- first phase of v1.1
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-03-12 -- Roadmap created for v1.1 milestone
+Plan: 1 of 3 in current phase
+Status: Executing
+Last activity: 2026-03-12 -- Completed Plan 05-01 (Infrastructure Primitives)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [#░░░░░░░░░] 7%
 
 ## Performance Metrics
 
@@ -48,6 +48,12 @@ Progress: [░░░░░░░░░░] 0%
 | 3. Decision Engine | 3 | ~16 min | ~5.3 min |
 | 4. Execution & Interface | 3 | ~17 min | ~5.7 min |
 
+**By Phase (v1.1):**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| 5. Tech Debt & Infrastructure | 1/3 | 4 min | 4 min |
+
 ## Accumulated Context
 
 ### Decisions
@@ -58,6 +64,9 @@ Recent decisions affecting current work:
 - [v1.0 retro]: Wire data stores end-to-end before building consumers
 - [v1.0 retro]: Add CLI surface incrementally per phase, not at the end
 - [v1.0 retro]: Define event contracts early, publish immediately
+- [05-01]: SyncEventBus mirrors AsyncEventBus API, fully synchronous for CLI
+- [05-01]: bootstrap() eagerly creates all handlers; lazy init deferred to Phase 6+
+- [05-01]: Event subscriptions commented in bootstrap.py for Phase 6+ activation
 
 ### Pending Todos
 
@@ -75,5 +84,5 @@ Carried forward from v1.0:
 ## Session Continuity
 
 Last session: 2026-03-12
-Stopped at: Roadmap created for v1.1, ready to plan Phase 5
+Stopped at: Completed 05-01-PLAN.md
 Resume file: None

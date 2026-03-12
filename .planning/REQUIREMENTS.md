@@ -9,9 +9,9 @@ Requirements for Stabilization & Expansion milestone. Each maps to roadmap phase
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: SyncEventBus 구현 및 기존 4개 바운디드 컨텍스트 배선
-- [ ] **INFRA-02**: Composition Root (bootstrap) 구현으로 God Orchestrator 제거
-- [ ] **INFRA-03**: DB Connection Factory (DuckDB/SQLite 통합 관리)
+- [x] **INFRA-01**: SyncEventBus 구현 및 기존 4개 바운디드 컨텍스트 배선
+- [x] **INFRA-02**: Composition Root (bootstrap) 구현으로 God Orchestrator 제거
+- [x] **INFRA-03**: DB Connection Factory (DuckDB/SQLite 통합 관리)
 - [ ] **INFRA-04**: DuckDB/SQLite 스코어링 스토어 불일치 수정
 - [ ] **INFRA-05**: 누락 CLI 명령어 추가 (ingest, generate-plan, backtest)
 - [ ] **INFRA-06**: G-Score 블렌딩 및 레짐 조정 DDD 핸들러 배선
@@ -102,9 +102,9 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 5 | Pending |
-| INFRA-02 | Phase 5 | Pending |
-| INFRA-03 | Phase 5 | Pending |
+| INFRA-01 | Phase 5 | Complete |
+| INFRA-02 | Phase 5 | Complete |
+| INFRA-03 | Phase 5 | Complete |
 | INFRA-04 | Phase 5 | Pending |
 | INFRA-05 | Phase 5 | Pending |
 | INFRA-06 | Phase 5 | Pending |
