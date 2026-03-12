@@ -3,7 +3,7 @@ from datetime import date
 
 import pandas as pd
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from typer.testing import CliRunner
 from cli.main import app
 
@@ -11,6 +11,7 @@ runner = CliRunner()
 
 # Patch at the source module since cli/main.py uses lazy import inside function body
 _PIPELINE = "src.data_ingest.infrastructure.pipeline.DataPipeline"
+_PYKRX_CLIENT = "src.data_ingest.infrastructure.pykrx_client.PyKRXClient"
 _REGIME_CLIENT = "src.data_ingest.infrastructure.regime_data_client.RegimeDataClient"
 _DUCKDB_STORE = "src.data_ingest.infrastructure.duckdb_store.DuckDBStore"
 
@@ -201,3 +202,62 @@ class TestIngestRegimeCommand:
         """'trading ingest --regime AAPL' is rejected (no per-ticker granularity)."""
         result = runner.invoke(app, ["ingest", "--regime", "AAPL"])
         assert result.exit_code == 1
+
+
+class TestIngestKoreanMarket:
+    """Tests for 'trading ingest --market kr' CLI command."""
+
+    @patch(_PYKRX_CLIENT)
+    @patch(_PIPELINE)
+    def test_ingest_market_kr_invokes_pipeline(self, mock_pipeline_cls, mock_pykrx_cls):
+        """'trading ingest --market kr 005930' invokes pipeline with MarketType.KR."""
+        mock_pipeline = MagicMock()
+        mock_pipeline_cls.return_value = mock_pipeline
+
+        async def mock_ingest(tickers, market=None):
+            return {
+                "total": 1,
+                "succeeded": ["005930"],
+                "succeeded_count": 1,
+                "failed": [],
+                "failed_count": 0,
+                "errors": [],
+                "errors_count": 0,
+            }
+
+        async def mock_close():
+            pass
+
+        mock_pipeline.ingest_universe = mock_ingest
+        mock_pipeline.close = mock_close
+
+        result = runner.invoke(app, ["ingest", "--market", "kr", "005930"])
+        assert result.exit_code == 0
+        assert "1" in result.output
+
+    @patch(_PIPELINE)
+    def test_ingest_default_us_market(self, mock_pipeline_cls):
+        """'trading ingest AAPL' (no --market) still works as US default."""
+        mock_pipeline = MagicMock()
+        mock_pipeline_cls.return_value = mock_pipeline
+
+        async def mock_ingest(tickers, market=None):
+            return {
+                "total": 1,
+                "succeeded": ["AAPL"],
+                "succeeded_count": 1,
+                "failed": [],
+                "failed_count": 0,
+                "errors": [],
+                "errors_count": 0,
+            }
+
+        async def mock_close():
+            pass
+
+        mock_pipeline.ingest_universe = mock_ingest
+        mock_pipeline.close = mock_close
+
+        result = runner.invoke(app, ["ingest", "AAPL"])
+        assert result.exit_code == 0
+        assert "1" in result.output
