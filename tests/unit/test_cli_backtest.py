@@ -6,17 +6,35 @@ from cli.main import app
 
 runner = CliRunner()
 
+# Patch at source modules since cli/main.py uses lazy import inside function body
+_BACKTEST_HANDLER = "src.backtest.application.handlers.BacktestHandler"
+_ADAPTER = "src.backtest.infrastructure.core_backtest_adapter.CoreBacktestAdapter"
+_VALIDATION = "src.backtest.domain.services.BacktestValidationService"
+_FETCH = "cli.main._fetch_ohlcv_for_backtest"
+
 
 class TestBacktestCommand:
     """Tests for the 'trading backtest' CLI command."""
 
-    @patch("cli.main.CoreBacktestAdapter")
-    @patch("cli.main.BacktestValidationService")
-    def test_backtest_with_dates(self, mock_validation_cls, mock_adapter_cls):
+    @patch(_FETCH)
+    @patch(_BACKTEST_HANDLER)
+    @patch(_VALIDATION)
+    @patch(_ADAPTER)
+    def test_backtest_with_dates(
+        self, mock_adapter_cls, mock_validation_cls, mock_handler_cls, mock_fetch
+    ):
         """'trading backtest AAPL --start 2020-01-01 --end 2024-01-01' runs backtest."""
+        import pandas as pd
+
+        mock_fetch.return_value = (
+            pd.DataFrame({"close": [100, 101, 102]}),
+            pd.Series([1, 0, 1]),
+        )
+
         mock_handler = MagicMock()
-        mock_ok = MagicMock()
-        mock_ok.value = {
+        mock_result = MagicMock()
+        mock_result.is_ok = True
+        mock_result.value = {
             "symbol": "AAPL",
             "performance_report": {
                 "total_return": 0.45,
@@ -26,30 +44,35 @@ class TestBacktestCommand:
                 "profit_factor": 1.8,
             },
         }
-        mock_ok.is_ok = True
-        mock_handler.run_backtest.return_value = mock_ok
+        mock_handler.run_backtest.return_value = mock_result
+        mock_handler_cls.return_value = mock_handler
 
-        with patch("cli.main.BacktestHandler", return_value=mock_handler):
-            with patch("cli.main._fetch_ohlcv_for_backtest") as mock_fetch:
-                import pandas as pd
-                mock_fetch.return_value = (
-                    pd.DataFrame({"close": [100, 101, 102]}),
-                    pd.Series([1, 0, 1]),
-                )
-                result = runner.invoke(
-                    app, ["backtest", "AAPL", "--start", "2020-01-01", "--end", "2024-01-01"]
-                )
+        result = runner.invoke(
+            app, ["backtest", "AAPL", "--start", "2020-01-01", "--end", "2024-01-01"]
+        )
 
         assert result.exit_code == 0
         assert "AAPL" in result.output
 
-    @patch("cli.main.CoreBacktestAdapter")
-    @patch("cli.main.BacktestValidationService")
-    def test_backtest_default_dates(self, mock_validation_cls, mock_adapter_cls):
+    @patch(_FETCH)
+    @patch(_BACKTEST_HANDLER)
+    @patch(_VALIDATION)
+    @patch(_ADAPTER)
+    def test_backtest_default_dates(
+        self, mock_adapter_cls, mock_validation_cls, mock_handler_cls, mock_fetch
+    ):
         """'trading backtest AAPL' uses default dates."""
+        import pandas as pd
+
+        mock_fetch.return_value = (
+            pd.DataFrame({"close": [100, 101, 102]}),
+            pd.Series([1, 0, 1]),
+        )
+
         mock_handler = MagicMock()
-        mock_ok = MagicMock()
-        mock_ok.value = {
+        mock_result = MagicMock()
+        mock_result.is_ok = True
+        mock_result.value = {
             "symbol": "AAPL",
             "performance_report": {
                 "total_return": 0.30,
@@ -59,17 +82,10 @@ class TestBacktestCommand:
                 "profit_factor": 1.5,
             },
         }
-        mock_ok.is_ok = True
-        mock_handler.run_backtest.return_value = mock_ok
+        mock_handler.run_backtest.return_value = mock_result
+        mock_handler_cls.return_value = mock_handler
 
-        with patch("cli.main.BacktestHandler", return_value=mock_handler):
-            with patch("cli.main._fetch_ohlcv_for_backtest") as mock_fetch:
-                import pandas as pd
-                mock_fetch.return_value = (
-                    pd.DataFrame({"close": [100, 101, 102]}),
-                    pd.Series([1, 0, 1]),
-                )
-                result = runner.invoke(app, ["backtest", "AAPL"])
+        result = runner.invoke(app, ["backtest", "AAPL"])
 
         assert result.exit_code == 0
         assert "AAPL" in result.output

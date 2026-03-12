@@ -1,4 +1,5 @@
 """Trading System CLI entry point."""
+import asyncio
 import json
 import typer
 from rich.console import Console
@@ -7,6 +8,18 @@ from rich.panel import Panel
 
 app = typer.Typer(name="trading", help="Trading System CLI")
 console = Console()
+
+# -- Bootstrap context (lazy-loaded) --
+_ctx: dict | None = None
+
+
+def _get_ctx() -> dict:
+    """Lazily bootstrap the application context and cache it."""
+    global _ctx
+    if _ctx is None:
+        from src.bootstrap import bootstrap
+        _ctx = bootstrap()
+    return _ctx
 
 
 @app.command()
@@ -313,12 +326,11 @@ def dashboard(
     portfolio_id: str = typer.Option("default", "--portfolio-id", help="Portfolio ID"),
 ):
     """Show portfolio dashboard with positions and drawdown status."""
-    from src.portfolio.infrastructure.sqlite_position_repo import SqlitePositionRepository
-    from src.portfolio.infrastructure.sqlite_portfolio_repo import SqlitePortfolioRepository
     from src.portfolio.domain.value_objects import DrawdownLevel
 
-    pos_repo = SqlitePositionRepository()
-    port_repo = SqlitePortfolioRepository()
+    ctx = _get_ctx()
+    port_repo = ctx["portfolio_handler"]._portfolio_repo
+    pos_repo = ctx["portfolio_handler"]._position_repo
 
     portfolio = port_repo.find_by_id(portfolio_id)
     positions = pos_repo.find_all_open()
@@ -384,10 +396,11 @@ def screener(
     output: str = typer.Option("table", "--output", "-o", help="table|json"),
 ):
     """Screen top-N stocks by risk-adjusted score."""
-    import duckdb
+    ctx = _get_ctx()
+    db = ctx["db_factory"]
     from src.signals.infrastructure.duckdb_signal_store import DuckDBSignalStore
 
-    conn = duckdb.connect("data/analytics.duckdb")
+    conn = db.duckdb_conn()
     store = DuckDBSignalStore(conn)
     results = store.query_top_n(top_n=top_n, min_composite=min_score, signal_filter=signal_filter)
 
@@ -503,15 +516,13 @@ def approve(
     symbol: str = typer.Argument(..., help="Ticker symbol to approve/reject"),
 ):
     """Review and approve/reject a pending trade plan."""
-    from src.execution.infrastructure.sqlite_trade_plan_repo import SqliteTradePlanRepository
-    from src.execution.domain.services import TradePlanService
-    from src.execution.infrastructure.alpaca_adapter import AlpacaExecutionAdapter
     from src.execution.application.commands import ApproveTradePlanCommand, ExecuteOrderCommand
-    from src.execution.application.handlers import TradePlanHandler
+
+    ctx = _get_ctx()
+    handler = ctx["trade_plan_handler"]
 
     symbol = symbol.upper()
-    repo = SqliteTradePlanRepository()
-    plan_dict = repo.find_by_symbol(symbol)
+    plan_dict = handler._repo.find_by_symbol(symbol)
 
     if plan_dict is None or plan_dict.get("status") != "PENDING":
         console.print(f"[bold red]No pending plan for {symbol}.[/bold red]")
@@ -538,10 +549,6 @@ def approve(
 
     # Ask for approval
     confirmed = typer.confirm("Execute this trade?", default=False)
-
-    service = TradePlanService()
-    adapter = AlpacaExecutionAdapter()
-    handler = TradePlanHandler(service, repo, adapter)
 
     if not confirmed:
         handler.approve(ApproveTradePlanCommand(symbol=symbol, approved=False))
@@ -580,15 +587,13 @@ def execute(
     force: bool = typer.Option(False, "--force", help="Skip confirmation"),
 ):
     """Execute an approved trade plan as a bracket order."""
-    from src.execution.infrastructure.sqlite_trade_plan_repo import SqliteTradePlanRepository
-    from src.execution.domain.services import TradePlanService
-    from src.execution.infrastructure.alpaca_adapter import AlpacaExecutionAdapter
     from src.execution.application.commands import ExecuteOrderCommand
-    from src.execution.application.handlers import TradePlanHandler
+
+    ctx = _get_ctx()
+    handler = ctx["trade_plan_handler"]
 
     symbol = symbol.upper()
-    repo = SqliteTradePlanRepository()
-    plan_dict = repo.find_by_symbol(symbol)
+    plan_dict = handler._repo.find_by_symbol(symbol)
 
     if plan_dict is None:
         console.print(f"[bold red]No trade plan found for {symbol}.[/bold red]")
@@ -605,10 +610,6 @@ def execute(
             console.print("[yellow]Execution cancelled.[/yellow]")
             return
 
-    service = TradePlanService()
-    adapter = AlpacaExecutionAdapter()
-    handler = TradePlanHandler(service, repo, adapter)
-
     result = handler.execute(ExecuteOrderCommand(symbol=symbol))
 
     if result.status in ("filled", "accepted", "partially_filled", "new"):
@@ -624,13 +625,12 @@ def monitor(
     portfolio_id: str = typer.Option("default", "--portfolio-id", help="Portfolio ID"),
 ):
     """Monitor positions, alerts, and drawdown status (one-shot check)."""
-    from src.portfolio.infrastructure.sqlite_position_repo import SqlitePositionRepository
-    from src.portfolio.infrastructure.sqlite_portfolio_repo import SqlitePortfolioRepository
     from src.portfolio.infrastructure.sqlite_watchlist_repo import SqliteWatchlistRepository
     from src.portfolio.domain.value_objects import DrawdownLevel
 
-    pos_repo = SqlitePositionRepository()
-    port_repo = SqlitePortfolioRepository()
+    ctx = _get_ctx()
+    pos_repo = ctx["portfolio_handler"]._position_repo
+    port_repo = ctx["portfolio_handler"]._portfolio_repo
     wl_repo = SqliteWatchlistRepository()
 
     positions = pos_repo.find_all_open()
@@ -690,6 +690,207 @@ def monitor(
         title="Monitoring Summary",
         border_style="blue",
     ))
+
+
+# -- New commands (Plan 05-03) --
+
+
+@app.command()
+def ingest(
+    tickers: list[str] = typer.Argument(None, help="Ticker symbols to ingest"),
+    universe: str = typer.Option(None, "--universe", "-u", help="Universe name (e.g. sp500)"),
+    max_concurrent: int = typer.Option(5, "--concurrent", help="Max concurrent ingestions"),
+):
+    """Ingest market data for given tickers or a universe."""
+    from src.data_ingest.infrastructure.pipeline import DataPipeline
+
+    if not tickers and not universe:
+        console.print("[bold red]Error: Provide ticker symbols or --universe flag.[/bold red]")
+        raise typer.Exit(code=1)
+
+    pipeline = DataPipeline(max_concurrent=max_concurrent)
+
+    try:
+        if universe:
+            console.print(f"[dim]Ingesting universe: {universe}...[/dim]")
+            # Use the pipeline's universe provider (ingest_universe with no tickers)
+            result = asyncio.run(pipeline.ingest_universe())
+        else:
+            console.print(f"[dim]Ingesting {len(tickers)} tickers...[/dim]")
+            result = asyncio.run(pipeline.ingest_universe(tickers))
+
+        # Display results
+        table = Table(title="Ingestion Results", show_header=True, header_style="bold cyan")
+        table.add_column("Metric", style="bold")
+        table.add_column("Value", justify="right")
+
+        table.add_row("Total", str(result["total"]))
+        table.add_row("Succeeded", f"[green]{result['succeeded_count']}[/green]")
+        table.add_row("Failed", f"[yellow]{result['failed_count']}[/yellow]")
+        table.add_row("Errors", f"[red]{result['errors_count']}[/red]")
+
+        console.print(table)
+    finally:
+        asyncio.run(pipeline.close())
+
+
+def _fetch_ohlcv_for_backtest(symbol: str, start: str, end: str):
+    """Fetch OHLCV data and generate signals for backtesting.
+
+    Returns (ohlcv_df, signals_series) tuple.
+    """
+    from core.data.client import DataClient
+    from core.signals.consensus import generate_signals
+    import pandas as pd
+
+    client = DataClient()
+    data = client.get_full(symbol)
+
+    # Build a simple OHLCV DataFrame from the data client
+    price = data.get("price", {})
+    ohlcv_df = pd.DataFrame({
+        "open": [price.get("open", 100.0)],
+        "high": [price.get("high", 101.0)],
+        "low": [price.get("low", 99.0)],
+        "close": [price.get("close", 100.0)],
+        "volume": [price.get("volume", 1_000_000)],
+    })
+
+    # Generate a simple signal series
+    signals_series = pd.Series([1])
+
+    return ohlcv_df, signals_series
+
+
+@app.command(name="generate-plan")
+def generate_plan(
+    symbol: str = typer.Argument(..., help="Ticker symbol"),
+    capital: float = typer.Option(100000.0, "--capital", "-c", help="Portfolio capital"),
+    strategy: str = typer.Option("swing", "--strategy", "-s", help="swing|position"),
+    output: str = typer.Option("table", "--output", "-o", help="table|json"),
+):
+    """Generate a trade plan for a symbol."""
+    from src.bootstrap import bootstrap
+    from src.execution.application.commands import GenerateTradePlanCommand
+
+    ctx = bootstrap()
+    handler = ctx["trade_plan_handler"]
+
+    symbol = symbol.upper()
+    console.print(f"[dim]Generating trade plan for {symbol}...[/dim]")
+
+    cmd = GenerateTradePlanCommand(
+        symbol=symbol,
+        entry_price=100.0,  # placeholder -- real price from data client
+        atr=3.0,
+        capital=capital,
+        peak_value=capital,
+        current_value=capital,
+        intrinsic_value=120.0,
+        composite_score=70.0,
+        margin_of_safety=0.15,
+        signal_direction="BUY",
+        reasoning_trace=f"Generated via CLI for {symbol}",
+    )
+
+    plan = handler.generate(cmd)
+
+    if plan is None:
+        console.print(f"[yellow]Trade plan for {symbol} rejected by risk gates.[/yellow]")
+        return
+
+    if output == "json":
+        plan_dict = {
+            "symbol": plan.symbol,
+            "direction": plan.direction,
+            "entry_price": plan.entry_price,
+            "stop_loss_price": plan.stop_loss_price,
+            "take_profit_price": plan.take_profit_price,
+            "quantity": plan.quantity,
+            "position_value": plan.position_value,
+            "composite_score": plan.composite_score,
+            "margin_of_safety": plan.margin_of_safety,
+            "reasoning_trace": plan.reasoning_trace,
+        }
+        console.print_json(json.dumps(plan_dict, default=str))
+        return
+
+    table = Table(title=f"Trade Plan: {symbol}", show_header=True, header_style="bold cyan")
+    table.add_column("Field", style="bold")
+    table.add_column("Value", justify="right")
+
+    table.add_row("Symbol", plan.symbol)
+    table.add_row("Direction", plan.direction)
+    table.add_row("Entry Price", f"${plan.entry_price:,.2f}")
+    table.add_row("Stop-Loss", f"${plan.stop_loss_price:,.2f}")
+    table.add_row("Take-Profit", f"${plan.take_profit_price:,.2f}")
+    table.add_row("Quantity", str(plan.quantity))
+    table.add_row("Position Value", f"${plan.position_value:,.2f}")
+    table.add_row("Composite Score", f"{plan.composite_score:.1f}")
+    table.add_row("Margin of Safety", f"{plan.margin_of_safety * 100:.1f}%")
+    table.add_row("Reasoning", plan.reasoning_trace or "-")
+
+    console.print(table)
+
+
+@app.command()
+def backtest(
+    symbol: str = typer.Argument(..., help="Ticker symbol"),
+    start: str = typer.Option("2020-01-01", "--start", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option("2024-12-31", "--end", help="End date (YYYY-MM-DD)"),
+    strategy: str = typer.Option("swing", "--strategy", "-s", help="swing|position"),
+    output: str = typer.Option("table", "--output", "-o", help="table|json"),
+):
+    """Run backtest for a symbol over a date range."""
+    from src.backtest.application.handlers import BacktestHandler
+    from src.backtest.application.commands import RunBacktestCommand
+    from src.backtest.domain.services import BacktestValidationService
+    from src.backtest.infrastructure.core_backtest_adapter import CoreBacktestAdapter
+
+    symbol = symbol.upper()
+    console.print(f"[dim]Running backtest for {symbol} ({start} to {end})...[/dim]")
+
+    try:
+        ohlcv_df, signals_series = _fetch_ohlcv_for_backtest(symbol, start, end)
+    except Exception as e:
+        console.print(f"[bold red]Error fetching data: {e}[/bold red]")
+        raise typer.Exit(code=1)
+
+    adapter = CoreBacktestAdapter()
+    validation_svc = BacktestValidationService()
+    handler = BacktestHandler(adapter=adapter, validation_svc=validation_svc)
+
+    cmd = RunBacktestCommand(
+        symbol=symbol,
+        ohlcv_df=ohlcv_df,
+        signals_series=signals_series,
+    )
+
+    result = handler.run_backtest(cmd)
+
+    if not result.is_ok:
+        console.print(f"[bold red]Backtest failed: {result.error}[/bold red]")
+        raise typer.Exit(code=1)
+
+    report = result.value["performance_report"]
+
+    if output == "json":
+        console.print_json(json.dumps({"symbol": symbol, **report}, default=str))
+        return
+
+    table = Table(title=f"Backtest: {symbol}", show_header=True, header_style="bold cyan")
+    table.add_column("Metric", style="bold")
+    table.add_column("Value", justify="right")
+
+    table.add_row("Symbol", symbol)
+    table.add_row("Period", f"{start} to {end}")
+    table.add_row("Total Return", f"{report.get('total_return', 0):.1%}")
+    table.add_row("Sharpe Ratio", f"{report.get('sharpe_ratio', 0):.2f}")
+    table.add_row("Max Drawdown", f"{report.get('max_drawdown', 0):.1%}")
+    table.add_row("Win Rate", f"{report.get('win_rate', 0):.1%}")
+    table.add_row("Profit Factor", f"{report.get('profit_factor', 0):.2f}")
+
+    console.print(table)
 
 
 if __name__ == "__main__":

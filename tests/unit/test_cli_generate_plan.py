@@ -6,11 +6,14 @@ from cli.main import app
 
 runner = CliRunner()
 
+# Patch at source module since cli/main.py uses lazy import inside function body
+_BOOTSTRAP = "src.bootstrap.bootstrap"
+
 
 class TestGeneratePlanCommand:
     """Tests for the 'trading generate-plan' CLI command."""
 
-    @patch("cli.main.bootstrap")
+    @patch(_BOOTSTRAP)
     def test_generate_plan_displays_plan(self, mock_bootstrap):
         """'trading generate-plan AAPL' displays plan details."""
         mock_plan = MagicMock()
@@ -37,7 +40,7 @@ class TestGeneratePlanCommand:
         assert "AAPL" in result.output
         assert "150" in result.output
 
-    @patch("cli.main.bootstrap")
+    @patch(_BOOTSTRAP)
     def test_generate_plan_rejected(self, mock_bootstrap):
         """Rejected plan shows rejection message."""
         mock_handler = MagicMock()
