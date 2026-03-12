@@ -68,11 +68,11 @@ def get_signal(
             )
         )
 
-    # Map strength: handler returns "STRONG"/"MODERATE"/"WEAK" string
+    # Map strength: handler returns 0-100 float or "STRONG"/"MODERATE"/"WEAK" string
     # SignalResponse.strength expects float 0-1
     strength_raw = data.get("strength", "MODERATE")
     if isinstance(strength_raw, (int, float)):
-        strength_val = float(strength_raw)
+        strength_val = min(1.0, max(0.0, float(strength_raw) / 100.0))
     else:
         strength_map = {"STRONG": 0.9, "MODERATE": 0.5, "WEAK": 0.2}
         strength_val = strength_map.get(str(strength_raw).upper(), 0.5)

@@ -269,3 +269,25 @@ class TestSignalMethodologyVotes:
         allowed = {"Bullish", "Bearish", "Neutral"}
         for vote in data["methodology_votes"]:
             assert vote["direction"] in allowed, f"Vote direction '{vote['direction']}' not informational"
+
+
+class TestSignalStrengthNormalization:
+    """Test numeric strength is normalized from 0-100 to 0-1 scale."""
+
+    def test_numeric_strength_divided_by_100(self, client_and_mocks):
+        """Numeric strength=25.0 from handler must become 0.25 in response (not fail Pydantic le=1)."""
+        client, handler = client_and_mocks
+        numeric_result = {
+            **MOCK_SIGNAL_RESULT,
+            "strength": 25.0,  # domain returns 0-100 scale
+        }
+        handler.handle.return_value = Ok(numeric_result)
+
+        resp = client.get(
+            "/api/v1/signals/AAPL",
+            headers={"Authorization": f"Bearer {make_jwt_token()}"},
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["strength"] == 0.25, f"Expected 0.25 (25.0/100), got {body['strength']}"
