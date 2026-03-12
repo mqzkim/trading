@@ -2,7 +2,7 @@
 
 # Strategy regime weights
 WEIGHTS = {
-    "swing": {"fundamental": 0.35, "technical": 0.40, "sentiment": 0.25},
+    "swing": {"fundamental": 0.40, "technical": 0.40, "sentiment": 0.20},
     "position": {"fundamental": 0.50, "technical": 0.30, "sentiment": 0.20},
 }
 DEFAULT_STRATEGY = "swing"

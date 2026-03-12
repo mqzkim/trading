@@ -192,8 +192,41 @@ class ScoreSymbolHandler:
     def _get_technical(self, symbol: str) -> dict:
         if self._technical_client:
             return self._technical_client.get(symbol)
+        # Fallback: fetch OHLCV, compute indicators, return raw values for sub-scoring
+        import math
+
+        from core.data.client import DataClient  # type: ignore[import-untyped]
+        from core.data.indicators import compute_all  # type: ignore[import-untyped]
         from core.scoring.technical import compute_technical_score  # type: ignore[import-untyped]
-        return compute_technical_score(symbol)  # type: ignore[call-arg]
+
+        client = DataClient()
+        df = client.get_price_history(symbol, days=756)
+        ind = compute_all(df)
+        result = compute_technical_score(df, ind)
+
+        # Merge raw indicator values so _compute_technical_with_subscores() detects them
+        def _last(s) -> float | None:  # type: ignore[type-arg]
+            v = s.dropna()
+            if len(v) == 0:
+                return None
+            val = float(v.iloc[-1])
+            return None if math.isnan(val) else val
+
+        result["rsi"] = _last(ind["rsi14"])
+        result["macd_histogram"] = _last(ind["macd_histogram"])
+        result["close"] = float(df["close"].iloc[-1]) if len(df) > 0 else None
+        result["ma50"] = _last(ind["ma50"])
+        result["ma200"] = _last(ind["ma200"])
+        result["adx"] = _last(ind["adx14"])
+
+        # OBV change percentage (60-day lookback, same as TechnicalIndicatorAdapter)
+        obv = ind["obv"].dropna()
+        if len(obv) >= 60 and float(obv.iloc[-60]) != 0:
+            result["obv_change_pct"] = (float(obv.iloc[-1]) - float(obv.iloc[-60])) / abs(float(obv.iloc[-60])) * 100
+        else:
+            result["obv_change_pct"] = None
+
+        return result
 
     def _get_sentiment(self, symbol: str) -> dict:
         if self._sentiment_client:

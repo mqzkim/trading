@@ -91,51 +91,38 @@ def score(
     output: str = typer.Option("table", "--output", "-o", help="table|json"),
 ):
     """Compute composite score for a symbol."""
-    from core.data.client import DataClient
-    from core.data.market import get_vix, get_sp500_vs_200ma, get_yield_curve_slope
-    from core.regime.classifier import classify
-    from core.scoring.composite import score_symbol
-    from core.orchestrator import _estimate_fundamental_score, _estimate_technical_score
+    from src.scoring.application.commands import ScoreSymbolCommand
 
     symbol = symbol.upper()
     console.print(f"[dim]Fetching data for {symbol}...[/dim]")
 
-    try:
-        client = DataClient()
-        data = client.get_full(symbol)
-    except Exception as e:
-        console.print(f"[bold red]Error fetching data: {e}[/bold red]")
+    ctx = _get_ctx()
+    handler = ctx["score_handler"]
+    cmd = ScoreSymbolCommand(symbol=symbol, strategy=strategy)
+    result_wrapper = handler.handle(cmd)
+
+    if not result_wrapper.is_ok():
+        console.print(f"[bold red]Scoring failed: {result_wrapper.unwrap_err()}[/bold red]")
         raise typer.Exit(code=1)
 
-    indicators = data.get("indicators", {})
-    price = data.get("price", {})
-    close = price.get("close", 0.0)
-    adx_val = indicators.get("adx14", 15.0) or 15.0
+    result = result_wrapper.unwrap()
 
-    # Regime for context
+    # Regime is informational context, not part of scoring
+    regime_name = "N/A"
     try:
+        from core.data.market import get_vix, get_sp500_vs_200ma, get_yield_curve_slope
+        from core.regime.classifier import classify
         vix = get_vix()
         sp500_ratio = get_sp500_vs_200ma()
         yield_curve = get_yield_curve_slope()
-        regime_result = classify(vix, sp500_ratio, adx_val, yield_curve)
+        regime_result = classify(vix, sp500_ratio, 20.0, yield_curve)
         regime_name = regime_result["regime"]
     except Exception:
         regime_name = "Transition"
 
-    fund = data.get("fundamentals", {}).get("highlights", {})
-    fundamental_result = {
-        "safety_passed": True,
-        "fundamental_score": _estimate_fundamental_score(fund),
-    }
-    technical_result = {
-        "technical_score": _estimate_technical_score(indicators, close),
-    }
-    sentiment_result = {"sentiment_score": 50.0}
-
-    result = score_symbol(symbol, fundamental_result, technical_result, sentiment_result, strategy)
-
     if output == "json":
-        console.print_json(json.dumps(result, default=str))
+        json_result = {k: v for k, v in result.items() if k != "event"}
+        console.print_json(json.dumps(json_result, default=str))
         return
 
     table = Table(title=f"Composite Score: {symbol}", show_header=True, header_style="bold cyan")
