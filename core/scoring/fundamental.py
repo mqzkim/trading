@@ -46,6 +46,68 @@ def piotroski_f_score(h: dict[str, Any]) -> int:
     return min(score, 9)
 
 
+def mohanram_g_score(
+    roa: float,
+    cfo_to_assets: float,
+    cfo: float,
+    net_income: float,
+    roa_variance: float,
+    sales_growth_variance: float,
+    rd_to_assets: float,
+    capex_to_assets: float,
+    ad_to_assets: float,
+    sector_median_roa: float,
+    sector_median_cfo_to_assets: float,
+    sector_median_roa_variance: float,
+    sector_median_sales_growth_variance: float,
+    sector_median_rd_to_assets: float,
+    sector_median_capex_to_assets: float,
+    sector_median_ad_to_assets: float,
+) -> int:
+    """Mohanram G-Score (0-8) for growth stock quality.
+
+    Returns integer score 0-8. Higher = better growth quality.
+    Only meaningful for growth stocks (PBR > 3).
+
+    Criteria:
+      G1: ROA > sector median
+      G2: CFO/Assets > sector median
+      G3: CFO > net income (earnings quality)
+      G4: ROA variance < sector median (stability)
+      G5: Sales growth variance < sector median (stability)
+      G6: R&D/Assets > sector median (growth investment)
+      G7: CapEx/Assets > sector median (growth investment)
+      G8: Advertising/Assets > sector median (growth investment)
+
+    Reference: Mohanram (2004)
+    """
+    score = 0
+
+    # Profitability (3 points)
+    if roa > sector_median_roa:
+        score += 1  # G1
+    if cfo_to_assets > sector_median_cfo_to_assets:
+        score += 1  # G2
+    if cfo > net_income:
+        score += 1  # G3
+
+    # Earnings stability (2 points) -- LOWER variance is better
+    if roa_variance < sector_median_roa_variance:
+        score += 1  # G4
+    if sales_growth_variance < sector_median_sales_growth_variance:
+        score += 1  # G5
+
+    # Growth investment / accounting conservatism (3 points)
+    if rd_to_assets > sector_median_rd_to_assets:
+        score += 1  # G6
+    if capex_to_assets > sector_median_capex_to_assets:
+        score += 1  # G7
+    if ad_to_assets > sector_median_ad_to_assets:
+        score += 1  # G8
+
+    return score
+
+
 def _safe(v: Any, default: float = 0.0) -> float:
     if v is None or (isinstance(v, float) and math.isnan(v)):
         return default

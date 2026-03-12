@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from core.scoring.safety import altman_z_score, beneish_m_score
-from core.scoring.fundamental import piotroski_f_score, compute_fundamental_score
+from core.scoring.fundamental import piotroski_f_score, compute_fundamental_score, mohanram_g_score
 
 from src.scoring.domain.value_objects import SafetyGate
 
@@ -149,6 +149,37 @@ class CoreScoringAdapter:
             Z > 1.81 AND M < -1.78
         """
         return SafetyGate(z_score=z_score, m_score=m_score)
+
+    def compute_mohanram_g(self, data: dict[str, Any]) -> int:
+        """Compute Mohanram G-Score (0-8) from financial data dict.
+
+        Args:
+            data: Dict with keys: roa, cfo_to_assets, cfo, net_income,
+                roa_variance, sales_growth_variance, rd_to_assets,
+                capex_to_assets, ad_to_assets, and sector_median_* versions.
+                Missing R&D/advertising/capex default to 0.0 (conservative).
+
+        Returns:
+            Integer 0-8. Higher = better growth quality.
+        """
+        return mohanram_g_score(
+            roa=data.get("roa", 0.0),
+            cfo_to_assets=data.get("cfo_to_assets", 0.0),
+            cfo=data.get("cfo", 0.0),
+            net_income=data.get("net_income", 0.0),
+            roa_variance=data.get("roa_variance", 0.0),
+            sales_growth_variance=data.get("sales_growth_variance", 0.0),
+            rd_to_assets=data.get("rd_to_assets", 0.0),
+            capex_to_assets=data.get("capex_to_assets", 0.0),
+            ad_to_assets=data.get("ad_to_assets", 0.0),
+            sector_median_roa=data.get("sector_median_roa", 0.0),
+            sector_median_cfo_to_assets=data.get("sector_median_cfo_to_assets", 0.0),
+            sector_median_roa_variance=data.get("sector_median_roa_variance", 0.0),
+            sector_median_sales_growth_variance=data.get("sector_median_sales_growth_variance", 0.0),
+            sector_median_rd_to_assets=data.get("sector_median_rd_to_assets", 0.0),
+            sector_median_capex_to_assets=data.get("sector_median_capex_to_assets", 0.0),
+            sector_median_ad_to_assets=data.get("sector_median_ad_to_assets", 0.0),
+        )
 
     def compute_full_fundamental(
         self, highlights: dict[str, Any], valuation: dict[str, Any]

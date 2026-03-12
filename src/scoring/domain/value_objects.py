@@ -40,10 +40,13 @@ class FundamentalScore(ValueObject):
     f_score: float | None = None    # Piotroski (0-9)
     z_score: float | None = None    # Altman
     m_score: float | None = None    # Beneish
+    g_score: int | None = None      # Mohanram G-Score (0-8), growth stocks only
 
     def _validate(self) -> None:
         if not 0 <= self.value <= 100:
             raise ValueError(f"FundamentalScore must be 0-100, got {self.value}")
+        if self.g_score is not None and not 0 <= self.g_score <= 8:
+            raise ValueError(f"G-Score must be 0-8, got {self.g_score}")
 
 
 @dataclass(frozen=True)
