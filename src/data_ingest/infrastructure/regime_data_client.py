@@ -25,8 +25,11 @@ class RegimeDataClient:
         """Fetch current regime indicator values.
 
         Returns a dict with keys: date, vix, sp500_close, sp500_ma200,
-        sp500_ratio, yield_10y, yield_3m, yield_spread_bps.
+        sp500_ratio, yield_10y, yield_3m, yield_spread_bps,
+        adx, yield_spread.
         """
+        from core.data.indicators import adx as compute_adx
+
         sp500_df = yf.Ticker("^GSPC").history(period="1y")
         vix_df = yf.Ticker("^VIX").history(period="5d")
         tnx_df = yf.Ticker("^TNX").history(period="5d")
@@ -41,6 +44,13 @@ class RegimeDataClient:
         yield_3m = float(irx_df["Close"].iloc[-1])
         yield_spread_bps = (yield_10y - yield_3m) * 100
 
+        # Compute ADX(14) from S&P500 OHLCV
+        ohlcv = sp500_df.rename(
+            columns={"High": "high", "Low": "low", "Close": "close"}
+        )
+        adx_series = compute_adx(ohlcv, 14)
+        adx_value = float(adx_series.iloc[-1])
+
         return {
             "date": date.today(),
             "vix": vix,
@@ -50,6 +60,8 @@ class RegimeDataClient:
             "yield_10y": yield_10y,
             "yield_3m": yield_3m,
             "yield_spread_bps": yield_spread_bps,
+            "adx": adx_value,
+            "yield_spread": yield_spread_bps / 100,
         }
 
     def fetch_regime_history(self, years: int = 2) -> pd.DataFrame:

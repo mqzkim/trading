@@ -78,7 +78,7 @@ def bootstrap(
     # -- Handlers (wired with repos) --
     score_handler = ScoreSymbolHandler(score_repo=score_repo)
     signal_handler = GenerateSignalHandler(signal_repo=signal_repo)
-    regime_handler = DetectRegimeHandler(regime_repo=regime_repo)
+    regime_handler = DetectRegimeHandler(regime_repo=regime_repo, bus=bus)
     portfolio_handler = PortfolioManagerHandler(
         portfolio_repo=portfolio_repo,
         position_repo=position_repo,
