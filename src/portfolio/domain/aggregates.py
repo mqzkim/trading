@@ -52,10 +52,13 @@ class Portfolio(Entity[str]):
 
     @property
     def drawdown(self) -> float:
-        """현재 낙폭 (0~1). peak_value를 갱신하며 계산."""
+        """현재 낙폭 (0~1). peak_value를 갱신하며 계산.
+
+        포지션이 없을 때는 initial_value를 현재 가치로 사용 (현금 보유 상태).
+        """
         if self.peak_value == 0:
             return 0.0
-        current = self.total_value
+        current = self.total_value_or_initial
         if current > self.peak_value:
             self.peak_value = current
         return (self.peak_value - current) / self.peak_value

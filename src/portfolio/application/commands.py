@@ -18,6 +18,7 @@ class OpenPositionCommand:
     win_loss_ratio: float = 2.0     # 평균 수익/손실 비율
     atr: Optional[float] = None     # ATR(21), None이면 stop 없음
     atr_multiplier: float = 2.5
+    intrinsic_value: Optional[float] = None  # Take-profit 계산용
 
 
 @dataclass(frozen=True)

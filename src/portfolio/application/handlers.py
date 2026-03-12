@@ -6,12 +6,12 @@ from datetime import date
 from src.shared.domain import Err, Ok, Result
 from src.portfolio.domain import (
     ATRStop,
-    DrawdownLevel,
     IPortfolioRepository,
     IPositionRepository,
     Portfolio,
     Position,
     PortfolioRiskService,
+    TakeProfitLevels,
 )
 
 from .commands import ClosePositionCommand, OpenPositionCommand
@@ -71,8 +71,8 @@ class PortfolioManagerHandler:
         if sizing["shares"] == 0:
             return Err(PortfolioError("Kelly sizing 결과 0주 — 진입 불가", "KELLY_ZERO"))
 
-        # 3. 낙폭 방어 체크 (CAUTION 이상 또는 단일 종목 8% 초과 차단)
-        if not portfolio.can_open_position(cmd.symbol, sizing["weight"]):
+        # 3. 낙폭 방어 + 단일 종목 8% + 섹터 25% 체크
+        if not portfolio.can_open_position(cmd.symbol, sizing["weight"], sector=cmd.sector):
             dd = portfolio.drawdown_level.value
             return Err(PortfolioError(f"낙폭 방어 발동 ({dd}) — 신규 진입 불가", "DRAWDOWN_BLOCK"))
 
@@ -97,7 +97,7 @@ class PortfolioManagerHandler:
         self._position_repo.save(position)
         self._portfolio_repo.save(portfolio)
 
-        return Ok({
+        result_data: dict = {
             "symbol": cmd.symbol.upper(),
             "shares": sizing["shares"],
             "weight": sizing["weight"],
@@ -105,7 +105,17 @@ class PortfolioManagerHandler:
             "total_value": position.market_value,
             "kelly": sizing["kelly"],
             "stop_price": atr_stop.stop_price if atr_stop else None,
-        })
+        }
+
+        # 6. Take-profit 레벨 (intrinsic_value가 있을 때만)
+        if cmd.intrinsic_value is not None:
+            tp = TakeProfitLevels(
+                entry_price=cmd.entry_price,
+                intrinsic_value=cmd.intrinsic_value,
+            )
+            result_data["take_profit_levels"] = tp.levels
+
+        return Ok(result_data)
 
     def close_position(self, cmd: ClosePositionCommand) -> Result:
         """포지션 청산 유스케이스.
