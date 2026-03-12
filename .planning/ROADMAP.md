@@ -59,7 +59,7 @@ Plans:
   2. Data quality layer detects and reports missing values, outliers, and stale data before any scoring proceeds
   3. `ingest --market kr` fetches KOSPI/KOSDAQ OHLCV and fundamentals (PER/PBR/DIV) from pykrx for a given Korean ticker
   4. Regime detection data sources (VIX, S&P 500 index, yield curve) are ingested and stored in the analytics DB
-**Plans:** 1/3 plans executed
+**Plans:** 3 plans
 
 Plans:
 - [ ] 06-01-PLAN.md -- Fix edgartools ticker bug, extend Ticker/Symbol VOs for Korean format, business-day staleness
@@ -75,11 +75,11 @@ Plans:
   2. Technical composite score (0-100) is computed from the 5 indicators with configurable weights
   3. Overall CompositeScore now combines fundamental (40%), technical (40%), and sentiment (20% placeholder) sub-scores
   4. Scoring a ticker with strong fundamentals but bearish technicals produces a visibly lower composite than one with aligned signals
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 07-01: TBD
-- [ ] 07-02: TBD
+- [ ] 07-01-PLAN.md -- TechnicalScore VO extension, TechnicalScoringService domain service, STRATEGY_WEIGHTS 40/40/20, infrastructure adapter
+- [ ] 07-02-PLAN.md -- Wire TechnicalScoringService into handler, CLI score sub-score display with explanations
 
 ### Phase 8: Market Regime Detection
 **Goal**: The system knows the current market regime (Bull/Bear/Sideways/Crisis) and automatically adjusts its behavior -- scoring weights shift, signals adapt, and users can see regime history
