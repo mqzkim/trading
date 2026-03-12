@@ -137,11 +137,11 @@ Plans:
   3. `GET /api/v1/signals/{ticker}` returns consensus signal with per-strategy votes -- but never includes position sizing or buy/sell recommendations (information only)
   4. Requests without valid JWT are rejected; free-tier users are rate-limited more aggressively than pro-tier users
   5. API key management endpoint allows creating, revoking, and listing API keys
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 11-01: TBD
-- [ ] 11-02: TBD
+- [ ] 11-01-PLAN.md -- JWT auth, tiered rate limiting, API key management, schemas, config
+- [ ] 11-02-PLAN.md -- QuantScore, RegimeRadar, SignalFusion data endpoints via DDD handlers
 
 ## Progress
 
