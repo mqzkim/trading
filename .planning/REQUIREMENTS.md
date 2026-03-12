@@ -42,7 +42,7 @@
 ## Category 6: Execution (EXEC)
 
 - [x] **EXEC-01**: Trade Plan 생성 — entry/stop/target/size/reasoning 포함 구조화된 트레이드 플랜
-- [ ] **EXEC-02**: Human Approval CLI — 주문 전 사람 승인 필수 워크플로우 (Y/N + 수정 가능)
+- [x] **EXEC-02**: Human Approval CLI — 주문 전 사람 승인 필수 워크플로우 (Y/N + 수정 가능)
 - [x] **EXEC-03**: Alpaca Paper Trading — alpaca-py SDK 기반 모의 트레이딩 주문 실행
 - [x] **EXEC-04**: Bracket Order — entry + stop-loss + take-profit 일괄 주문
 
@@ -51,7 +51,7 @@
 - [x] **INTF-01**: CLI Dashboard — 포트폴리오 뷰, P&L, 포지션 현황, 드로다운 상태
 - [x] **INTF-02**: Stock Screener CLI — 스코어 기반 종목 선별/랭킹 인터랙티브 뷰
 - [x] **INTF-03**: Watchlist 관리 — 관심종목 CRUD + 알림 설정
-- [ ] **INTF-04**: 모니터링 알림 — stop hit, target reached, drawdown tier 변경 알림
+- [x] **INTF-04**: 모니터링 알림 — stop hit, target reached, drawdown tier 변경 알림
 
 ## Category 8: Backtesting (BACK)
 
@@ -96,13 +96,13 @@
 | BACK-01 | Phase 3: Decision Engine | Complete |
 | BACK-02 | Phase 3: Decision Engine | Complete |
 | EXEC-01 | Phase 4: Execution and Interface | Complete |
-| EXEC-02 | Phase 4: Execution and Interface | Pending |
+| EXEC-02 | Phase 4: Execution and Interface | Complete |
 | EXEC-03 | Phase 4: Execution and Interface | Complete |
 | EXEC-04 | Phase 4: Execution and Interface | Complete |
 | INTF-01 | Phase 4: Execution and Interface | Complete |
 | INTF-02 | Phase 4: Execution and Interface | Complete |
 | INTF-03 | Phase 4: Execution and Interface | Complete |
-| INTF-04 | Phase 4: Execution and Interface | Pending |
+| INTF-04 | Phase 4: Execution and Interface | Complete |
 
 ---
 *Approved: 2026-03-12*
