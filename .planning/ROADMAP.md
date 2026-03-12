@@ -46,9 +46,9 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 **Plans:** 3 plans
 
 Plans:
-- [ ] 05-01-PLAN.md -- SyncEventBus + DBFactory + Composition Root (infrastructure primitives)
-- [ ] 05-02-PLAN.md -- DuckDB screener fix, cross-context import fix, G-Score wiring, event creation
-- [ ] 05-03-PLAN.md -- Missing CLI commands (ingest, generate-plan, backtest) + event bus wiring
+- [x] 05-01-PLAN.md -- SyncEventBus + DBFactory + Composition Root (infrastructure primitives)
+- [x] 05-02-PLAN.md -- DuckDB screener fix, cross-context import fix, G-Score wiring, event creation
+- [x] 05-03-PLAN.md -- Missing CLI commands (ingest, generate-plan, backtest) + event bus wiring
 
 ### Phase 6: Live Data Pipeline & Korean Data
 **Goal**: Users can ingest real market data from live APIs (yfinance, SEC EDGAR, pykrx) with automatic quality validation, for both US and Korean equities
@@ -59,11 +59,12 @@ Plans:
   2. Data quality layer detects and reports missing values, outliers, and stale data before any scoring proceeds
   3. `ingest --market kr` fetches KOSPI/KOSDAQ OHLCV and fundamentals (PER/PBR/DIV) from pykrx for a given Korean ticker
   4. Regime detection data sources (VIX, S&P 500 index, yield curve) are ingested and stored in the analytics DB
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
+- [ ] 06-01-PLAN.md -- Fix edgartools ticker bug, extend Ticker/Symbol VOs for Korean format, business-day staleness
+- [ ] 06-02-PLAN.md -- pykrx Korean market adapter, DuckDB kr_fundamentals table, pipeline --market kr, CLI wiring
+- [ ] 06-03-PLAN.md -- Regime data client (VIX/S&P500/yield), DuckDB regime_data table, CLI ingest --regime
 
 ### Phase 7: Technical Scoring Engine
 **Goal**: Users see a composite score that blends fundamental quality with technical momentum -- each sub-score is individually visible and explained
@@ -153,7 +154,7 @@ Note: Phases 7 and 8 both depend on Phase 6 (not on each other). Phase 9 depends
 | 3. Decision Engine | v1.0 | 3/3 | Complete | 2026-03-12 |
 | 4. Execution and Interface | v1.0 | 3/3 | Complete | 2026-03-12 |
 | 5. Tech Debt & Infrastructure Foundation | v1.1 | 3/3 | Complete | 2026-03-12 |
-| 6. Live Data Pipeline & Korean Data | v1.1 | 0/2 | Not started | - |
+| 6. Live Data Pipeline & Korean Data | v1.1 | 0/3 | Not started | - |
 | 7. Technical Scoring Engine | v1.1 | 0/2 | Not started | - |
 | 8. Market Regime Detection | v1.1 | 0/2 | Not started | - |
 | 9. Multi-Strategy Signal Fusion | v1.1 | 0/3 | Not started | - |
