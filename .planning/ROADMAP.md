@@ -25,7 +25,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 
 - [x] **Phase 5: Tech Debt & Infrastructure Foundation** - Resolve 16 tech debt items, build event bus + composition root + DB factory
 - [ ] **Phase 6: Live Data Pipeline & Korean Data** - Validate US live data, add data quality layer, build Korean market data adapter
-- [x] **Phase 7: Technical Scoring Engine** - Integrate 5 technical indicators into DDD scoring, combine with fundamental scores (completed 2026-03-12)
+- [ ] **Phase 7: Technical Scoring Engine** - Integrate 5 technical indicators into DDD scoring, combine with fundamental scores, wire CLI through DDD handler
 - [ ] **Phase 8: Market Regime Detection** - Wire regime classifier with live data, publish regime events, auto-adjust scoring weights
 - [ ] **Phase 9: Multi-Strategy Signal Fusion** - Implement 4 strategies, build consensus engine, add regime-weighted aggregation
 - [ ] **Phase 10: Korean Broker Integration** - KIS broker adapter with paper trading, KRW currency handling
@@ -75,11 +75,11 @@ Plans:
   2. Technical composite score (0-100) is computed from the 5 indicators with configurable weights
   3. Overall CompositeScore now combines fundamental (40%), technical (40%), and sentiment (20% placeholder) sub-scores
   4. Scoring a ticker with strong fundamentals but bearish technicals produces a visibly lower composite than one with aligned signals
-**Plans:** 2/2 plans complete
+**Plans:** 2 plans
 
 Plans:
 - [ ] 07-01-PLAN.md -- TechnicalScore VO extension, TechnicalScoringService domain service, STRATEGY_WEIGHTS 40/40/20, infrastructure adapter
-- [ ] 07-02-PLAN.md -- Wire TechnicalScoringService into handler, CLI score sub-score display with explanations
+- [ ] 07-02-PLAN.md -- Rewire CLI score through ScoreSymbolHandler (DDD path), update legacy weights, end-to-end sub-score display
 
 ### Phase 8: Market Regime Detection
 **Goal**: The system knows the current market regime (Bull/Bear/Sideways/Crisis) and automatically adjusts its behavior -- scoring weights shift, signals adapt, and users can see regime history
@@ -154,8 +154,8 @@ Note: Phases 7 and 8 both depend on Phase 6 (not on each other). Phase 9 depends
 | 3. Decision Engine | v1.0 | 3/3 | Complete | 2026-03-12 |
 | 4. Execution and Interface | v1.0 | 3/3 | Complete | 2026-03-12 |
 | 5. Tech Debt & Infrastructure Foundation | v1.1 | 3/3 | Complete | 2026-03-12 |
-| 6. Live Data Pipeline & Korean Data | 1/3 | In Progress|  | - |
-| 7. Technical Scoring Engine | 2/2 | Complete   | 2026-03-12 | - |
+| 6. Live Data Pipeline & Korean Data | v1.1 | 1/3 | In Progress | - |
+| 7. Technical Scoring Engine | v1.1 | 0/2 | Replanned | - |
 | 8. Market Regime Detection | v1.1 | 0/2 | Not started | - |
 | 9. Multi-Strategy Signal Fusion | v1.1 | 0/3 | Not started | - |
 | 10. Korean Broker Integration | v1.1 | 0/1 | Not started | - |
