@@ -70,45 +70,32 @@ class TestTierKeyFunc:
 
 
 class TestGetTierLimit:
-    """Test get_tier_limit reads tier from JWT."""
+    """Test get_tier_limit reads tier from cached user key.
+
+    get_tier_limit(key) receives the rate-limit key (user_id) and
+    looks up the tier from _user_tier_cache (populated by _tier_key_func).
+    """
 
     def test_returns_pro_limit_for_pro_user(self):
-        import commercial.api.config as config_mod
+        from commercial.api.middleware.rate_limit import get_tier_limit, _user_tier_cache
 
-        config_mod.api_settings.JWT_SECRET_KEY = TEST_JWT_SECRET
-        config_mod.api_settings.JWT_ALGORITHM = TEST_JWT_ALGORITHM
+        _user_tier_cache["user-pro"] = "pro"
 
-        from commercial.api.middleware.rate_limit import get_tier_limit
-
-        token = make_jwt_token(user_id="user-pro", tier="pro")
-        request = MagicMock()
-        request.headers = {"Authorization": f"Bearer {token}"}
-
-        result = get_tier_limit(request)
+        result = get_tier_limit("user-pro")
         assert result == "100/minute"
 
     def test_returns_free_limit_for_free_user(self):
-        import commercial.api.config as config_mod
+        from commercial.api.middleware.rate_limit import get_tier_limit, _user_tier_cache
 
-        config_mod.api_settings.JWT_SECRET_KEY = TEST_JWT_SECRET
-        config_mod.api_settings.JWT_ALGORITHM = TEST_JWT_ALGORITHM
+        _user_tier_cache["user-free"] = "free"
 
-        from commercial.api.middleware.rate_limit import get_tier_limit
-
-        token = make_jwt_token(user_id="user-free", tier="free")
-        request = MagicMock()
-        request.headers = {"Authorization": f"Bearer {token}"}
-
-        result = get_tier_limit(request)
+        result = get_tier_limit("user-free")
         assert result == "10/minute"
 
-    def test_returns_free_limit_without_auth(self):
+    def test_returns_free_limit_for_unknown_key(self):
         from commercial.api.middleware.rate_limit import get_tier_limit
 
-        request = MagicMock()
-        request.headers = {}
-
-        result = get_tier_limit(request)
+        result = get_tier_limit("unknown-user")
         assert result == "10/minute"
 
 

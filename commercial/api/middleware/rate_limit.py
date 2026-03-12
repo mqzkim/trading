@@ -23,6 +23,7 @@ TIER_LIMITS: dict[str, str] = {
 def _tier_key_func(request: Request) -> str:
     """Extract user ID from JWT for per-user rate tracking.
 
+    Also populates _user_tier_cache so get_tier_limit() can look up the tier.
     Falls back to remote address for unauthenticated requests.
     """
     auth = request.headers.get("Authorization", "")
@@ -33,27 +34,27 @@ def _tier_key_func(request: Request) -> str:
                 api_settings.JWT_SECRET_KEY,
                 algorithms=[api_settings.JWT_ALGORITHM],
             )
-            return payload.get("sub", get_remote_address(request))
+            user_id = payload.get("sub", get_remote_address(request))
+            tier = payload.get("tier", "free")
+            _user_tier_cache[user_id] = tier
+            return user_id
         except jwt.InvalidTokenError:
             pass
     return get_remote_address(request)
 
 
-def get_tier_limit(request: Request) -> str:
-    """Read tier from JWT to return the appropriate limit string."""
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
-        try:
-            payload = jwt.decode(
-                auth[7:],
-                api_settings.JWT_SECRET_KEY,
-                algorithms=[api_settings.JWT_ALGORITHM],
-            )
-            tier = payload.get("tier", "free")
-            return TIER_LIMITS.get(tier, TIER_LIMITS["free"])
-        except jwt.InvalidTokenError:
-            pass
-    return TIER_LIMITS["free"]
+def get_tier_limit(key: str) -> str:
+    """Dynamic limit function for slowapi @limiter.limit() decorator.
+
+    Receives the rate-limit key (user_id) from _tier_key_func.
+    Looks up the user's tier from the stored mapping.
+    """
+    tier = _user_tier_cache.get(key, "free")
+    return TIER_LIMITS.get(tier, TIER_LIMITS["free"])
+
+
+# Lightweight cache: maps user_id -> tier string (populated by _tier_key_func)
+_user_tier_cache: dict[str, str] = {}
 
 
 limiter = Limiter(key_func=_tier_key_func)
