@@ -202,3 +202,115 @@ class TestDuckDBStoreFinancials:
             "SELECT COUNT(*) FROM financials WHERE ticker = 'AAPL'"
         ).fetchone()
         assert all_rows[0] == 3
+
+
+class TestDuckDBStoreRegimeData:
+    """Tests for regime_data table storage and retrieval."""
+
+    @pytest.fixture()
+    def store(self):
+        s = DuckDBStore()
+        s.connect(":memory:")
+        yield s
+        s.close()
+
+    def test_create_tables_includes_regime_data(self) -> None:
+        """_create_tables should create regime_data table."""
+        store = DuckDBStore()
+        store.connect(":memory:")
+        try:
+            tables = store._conn.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = 'main'"
+            ).fetchall()
+            table_names = {t[0] for t in tables}
+            assert "regime_data" in table_names
+        finally:
+            store.close()
+
+    def test_store_regime_data(self, store: DuckDBStore) -> None:
+        """store_regime_data inserts regime snapshot records."""
+        df = pd.DataFrame({
+            "date": [date(2026, 3, 10), date(2026, 3, 11)],
+            "vix": [18.5, 19.0],
+            "sp500_close": [5800.0, 5810.0],
+            "sp500_ma200": [5600.0, 5605.0],
+            "sp500_ratio": [1.0357, 1.0366],
+            "yield_10y": [4.25, 4.28],
+            "yield_3m": [4.10, 4.12],
+            "yield_spread_bps": [15.0, 16.0],
+        })
+        store.store_regime_data(df)
+
+        result = store._conn.execute("SELECT COUNT(*) FROM regime_data").fetchone()
+        assert result[0] == 2
+
+    def test_get_regime_data_no_filter(self, store: DuckDBStore) -> None:
+        """get_regime_data with no filter returns all rows ordered by date."""
+        df = pd.DataFrame({
+            "date": [date(2026, 3, 12), date(2026, 3, 10), date(2026, 3, 11)],
+            "vix": [20.0, 18.5, 19.0],
+            "sp500_close": [5820.0, 5800.0, 5810.0],
+            "sp500_ma200": [5610.0, 5600.0, 5605.0],
+            "sp500_ratio": [1.037, 1.036, 1.037],
+            "yield_10y": [4.30, 4.25, 4.28],
+            "yield_3m": [4.13, 4.10, 4.12],
+            "yield_spread_bps": [17.0, 15.0, 16.0],
+        })
+        store.store_regime_data(df)
+
+        result = store.get_regime_data()
+        assert len(result) == 3
+        # Check ordered by date ascending
+        dates = result["date"].tolist()
+        assert dates == sorted(dates)
+
+    def test_get_regime_data_with_date_range(self, store: DuckDBStore) -> None:
+        """get_regime_data with start/end filters correctly."""
+        df = pd.DataFrame({
+            "date": [date(2026, 3, 10), date(2026, 3, 11), date(2026, 3, 12)],
+            "vix": [18.5, 19.0, 20.0],
+            "sp500_close": [5800.0, 5810.0, 5820.0],
+            "sp500_ma200": [5600.0, 5605.0, 5610.0],
+            "sp500_ratio": [1.036, 1.037, 1.034],
+            "yield_10y": [4.25, 4.28, 4.30],
+            "yield_3m": [4.10, 4.12, 4.13],
+            "yield_spread_bps": [15.0, 16.0, 17.0],
+        })
+        store.store_regime_data(df)
+
+        result = store.get_regime_data(
+            start_date=date(2026, 3, 11),
+            end_date=date(2026, 3, 11),
+        )
+        assert len(result) == 1
+        assert result["vix"].iloc[0] == 19.0
+
+    def test_regime_data_upsert(self, store: DuckDBStore) -> None:
+        """Duplicate date INSERT OR REPLACE updates existing row."""
+        df1 = pd.DataFrame({
+            "date": [date(2026, 3, 10)],
+            "vix": [18.5],
+            "sp500_close": [5800.0],
+            "sp500_ma200": [5600.0],
+            "sp500_ratio": [1.036],
+            "yield_10y": [4.25],
+            "yield_3m": [4.10],
+            "yield_spread_bps": [15.0],
+        })
+        df2 = pd.DataFrame({
+            "date": [date(2026, 3, 10)],
+            "vix": [22.0],  # updated value
+            "sp500_close": [5750.0],
+            "sp500_ma200": [5600.0],
+            "sp500_ratio": [1.027],
+            "yield_10y": [4.25],
+            "yield_3m": [4.10],
+            "yield_spread_bps": [15.0],
+        })
+        store.store_regime_data(df1)
+        store.store_regime_data(df2)
+
+        result = store.get_regime_data()
+        assert len(result) == 1
+        assert result["vix"].iloc[0] == 22.0
