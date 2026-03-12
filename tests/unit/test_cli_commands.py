@@ -1,6 +1,4 @@
 """Unit tests for CLI commands using Typer's test runner."""
-import json
-import pytest
 from typer.testing import CliRunner
 from unittest.mock import patch, MagicMock
 from cli.main import app
@@ -164,22 +162,62 @@ class TestScoreCommand:
 
 
 class TestSignalCommand:
-    @patch(f"{_CONSENSUS}.generate_signals", return_value=_mock_signal_result())
-    @patch(f"{_CLASSIFIER}.classify", return_value=_mock_regime_result())
-    @patch(f"{_MARKET}.get_yield_curve_slope", return_value=50.0)
-    @patch(f"{_MARKET}.get_sp500_vs_200ma", return_value=1.05)
-    @patch(f"{_MARKET}.get_vix", return_value=15.0)
-    @patch(f"{_DATA_CLIENT}")
-    def test_signal_command(self, mock_dc, mock_vix, mock_sp, mock_yc, mock_cls, mock_sig):
-        """'trading signal AAPL' prints consensus signal."""
-        mock_instance = MagicMock()
-        mock_instance.get_full.return_value = _mock_data()
-        mock_dc.return_value = mock_instance
+    def test_signal_command(self):
+        """'trading signal AAPL' prints consensus signal via DDD handler."""
+        from src.shared.domain import Ok
 
-        result = runner.invoke(app, ["signal", "AAPL"])
+        mock_regime_handler = MagicMock()
+        mock_regime_handler.handle.return_value = Ok({
+            "regime_type": "Bull",
+            "confidence": 0.55,
+            "vix": 15.0, "adx": 28.0, "yield_spread": 0.5,
+            "sp500_above_ma200": True, "sp500_deviation_pct": 5.2,
+            "detected_at": "2026-03-12T10:00:00+00:00",
+            "confirmed_days": 5, "is_confirmed": True,
+        })
+
+        mock_score_handler = MagicMock()
+        mock_score_handler.handle.return_value = Ok({
+            "symbol": "AAPL", "composite_score": 72.5,
+            "risk_adjusted_score": 72.5, "safety_passed": True,
+            "fundamental_score": 70, "technical_score": 75,
+        })
+
+        mock_signal_handler = MagicMock()
+        mock_signal_handler.handle.return_value = Ok({
+            "symbol": "AAPL", "direction": "BUY", "strength": 73.0,
+            "consensus_count": 3, "methodology_count": 4,
+            "composite_score": 72.5, "margin_of_safety": 0.0,
+            "methodology_scores": {
+                "CAN_SLIM": 75.0, "MAGIC_FORMULA": 80.0,
+                "DUAL_MOMENTUM": 55.0, "TREND_FOLLOWING": 70.0,
+            },
+            "methodology_directions": {
+                "CAN_SLIM": "BUY", "MAGIC_FORMULA": "BUY",
+                "DUAL_MOMENTUM": "HOLD", "TREND_FOLLOWING": "BUY",
+            },
+            "strategy_weights": {
+                "CAN_SLIM": 0.20, "MAGIC_FORMULA": 0.20,
+                "DUAL_MOMENTUM": 0.30, "TREND_FOLLOWING": 0.30,
+            },
+            "reasoning_trace": "AAPL: BUY\n  Composite Score: 72.5/100",
+            "regime_type": "Bull",
+            "safety_passed": True,
+        })
+
+        ctx = {
+            "regime_handler": mock_regime_handler,
+            "score_handler": mock_score_handler,
+            "signal_handler": mock_signal_handler,
+        }
+
+        with patch("cli.main._get_ctx", return_value=ctx), \
+             patch("cli.main._build_signal_symbol_data", return_value={}):
+            result = runner.invoke(app, ["signal", "AAPL"])
         assert result.exit_code == 0
-        assert "BULLISH" in result.output
-        assert "canslim" in result.output
+        assert "BUY" in result.output
+        assert "CAN SLIM" in result.output
+        assert "Signal Consensus: AAPL" in result.output
 
 
 class TestAnalyzeCommand:

@@ -6,14 +6,13 @@ and omits them for backward compat when regime_type is None.
 """
 from __future__ import annotations
 
-import pytest
 from src.signals.domain.value_objects import (
     SignalDirection,
     MethodologyType,
     MethodologyResult,
 )
 from src.signals.application.handlers import GenerateSignalHandler
-from src.signals.domain.services import SIGNAL_STRATEGY_WEIGHTS, DEFAULT_SIGNAL_WEIGHTS
+from src.signals.domain.services import SIGNAL_STRATEGY_WEIGHTS
 
 
 def _make_results() -> list[MethodologyResult]:

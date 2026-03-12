@@ -80,9 +80,17 @@ def bootstrap(
 
     regime_adjuster = ConcreteRegimeWeightAdjuster()
 
+    # -- Signal adapter (wraps core/signals/ evaluators) --
+    from src.signals.infrastructure.core_signal_adapter import CoreSignalAdapter
+
+    signal_adapter = CoreSignalAdapter()
+
     # -- Handlers (wired with repos) --
     score_handler = ScoreSymbolHandler(score_repo=score_repo, regime_adjuster=regime_adjuster)
-    signal_handler = GenerateSignalHandler(signal_repo=signal_repo)
+    signal_handler = GenerateSignalHandler(
+        signal_repo=signal_repo,
+        signal_adapter=signal_adapter,
+    )
     regime_handler = DetectRegimeHandler(regime_repo=regime_repo, bus=bus)
     portfolio_handler = PortfolioManagerHandler(
         portfolio_repo=portfolio_repo,

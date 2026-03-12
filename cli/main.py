@@ -257,79 +257,172 @@ def score(
         console.print(tech_table)
 
 
+def _build_signal_symbol_data(symbol: str) -> dict:
+    """Fetch data needed by 4 strategy evaluators."""
+    try:
+        from core.data.client import DataClient
+
+        client = DataClient()
+        data = client.get_full(symbol)
+    except Exception:
+        return {}
+
+    indicators = data.get("indicators", {})
+    financials = data.get("financials", {})
+    return {
+        # CAN SLIM inputs
+        "eps_growth_qoq": financials.get("eps_growth_qoq"),
+        "eps_cagr_3y": financials.get("eps_cagr_3y"),
+        "near_52w_high": indicators.get("near_52w_high", False),
+        "volume_ratio": indicators.get("volume_ratio", 1.0),
+        "relative_strength": indicators.get("relative_strength", 50),
+        "institutional_increase": financials.get("institutional_increase", False),
+        # market_uptrend will be injected by handler from regime_type
+        # Magic Formula inputs
+        "earnings_yield": financials.get("earnings_yield"),
+        "return_on_capital": financials.get("return_on_capital"),
+        "ey_percentile": financials.get("ey_percentile", 50.0),
+        "roc_percentile": financials.get("roc_percentile", 50.0),
+        # Dual Momentum inputs
+        "return_12m": indicators.get("return_12m"),
+        "return_12m_benchmark": indicators.get("return_12m_benchmark"),
+        "tbill_rate": indicators.get("tbill_rate", 0.04),
+        # Trend Following inputs
+        "above_ma50": indicators.get("above_ma50", False),
+        "above_ma200": indicators.get("above_ma200", False),
+        "adx": indicators.get("adx14", 15.0) or 15.0,
+        "at_20d_high": indicators.get("at_20d_high", False),
+    }
+
+
+def _render_signal_output(
+    data: dict, regime_type: str | None, regime_confidence: float | None,
+) -> None:
+    """Render Rich Panel + Table + reasoning for signal output."""
+    direction = data["direction"]
+    dir_color = {"BUY": "green", "SELL": "red", "HOLD": "yellow"}.get(direction, "white")
+    consensus_count = data.get("consensus_count", 0)
+    methodology_count = data.get("methodology_count", 4)
+
+    # Panel header
+    subtitle = ""
+    if regime_type:
+        conf_str = f" ({regime_confidence:.0%} confidence)" if regime_confidence else ""
+        subtitle = f"Regime: {regime_type}{conf_str}"
+
+    console.print(Panel(
+        f"[bold {dir_color}]{direction}[/bold {dir_color}] ({consensus_count}/{methodology_count} strategies agree)",
+        title=f"Signal Consensus: {data['symbol']}",
+        subtitle=subtitle,
+    ))
+
+    # Strategy breakdown table
+    weights = data.get("strategy_weights", {})
+    scores = data.get("methodology_scores", {})
+    methodology_directions = data.get("methodology_directions", {})
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Strategy", style="bold")
+    table.add_column("Signal", justify="center")
+    table.add_column("Score", justify="right")
+    table.add_column("Weight", justify="right")
+
+    for method_key in ["CAN_SLIM", "MAGIC_FORMULA", "DUAL_MOMENTUM", "TREND_FOLLOWING"]:
+        display_name = method_key.replace("_", " ").title()
+        if display_name == "Can Slim":
+            display_name = "CAN SLIM"
+        score_val = scores.get(method_key, 0.0)
+        weight_val = weights.get(method_key, 0.25)
+        sig = methodology_directions.get(method_key, "N/A")
+        sig_color = {"BUY": "green", "SELL": "red", "HOLD": "yellow"}.get(sig, "white")
+        score_color = "green" if score_val >= 60 else ("yellow" if score_val >= 40 else "red")
+        table.add_row(
+            display_name,
+            f"[{sig_color}]{sig}[/{sig_color}]",
+            f"[{score_color}]{score_val:.1f}[/{score_color}]",
+            f"{weight_val:.0%}",
+        )
+
+    # Weighted strength summary
+    strength = data.get("strength", 0)
+    table.add_row("", "", "", "")
+    table.add_row("[bold]Weighted Strength[/bold]", "", f"[bold]{strength:.1f}[/bold]", "")
+    console.print(table)
+
+    # Composite score info
+    composite = data.get("composite_score")
+    if composite is not None:
+        safety = data.get("safety_passed", True)
+        safety_str = "[green]PASS[/green]" if safety else "[red]FAIL[/red]"
+        console.print(f"  Composite Score: {composite:.1f}/100 | Safety Gate: {safety_str}")
+
+    # Full reasoning chain below table (SIGNAL-07)
+    reasoning_trace = data.get("reasoning_trace", "")
+    if reasoning_trace:
+        console.print()
+        console.print(Panel(reasoning_trace, title="Reasoning Chain", border_style="dim"))
+
+
 @app.command()
 def signal(
     symbol: str = typer.Argument(..., help="Ticker symbol (e.g. AAPL)"),
     output: str = typer.Option("table", "--output", "-o", help="table|json"),
 ):
     """Generate 4-strategy consensus signal for a symbol."""
-    from core.data.client import DataClient
-    from core.data.market import get_vix, get_sp500_vs_200ma, get_yield_curve_slope
-    from core.regime.classifier import classify
-    from core.signals.consensus import generate_signals
-
+    ctx = _get_ctx()
     symbol = symbol.upper()
     console.print(f"[dim]Generating signals for {symbol}...[/dim]")
 
-    try:
-        client = DataClient()
-        data = client.get_full(symbol)
-    except Exception as e:
-        console.print(f"[bold red]Error fetching data: {e}[/bold red]")
+    # 1. Get regime from DDD handler (sentinel zeros trigger auto-fetch)
+    from src.regime.application.commands import DetectRegimeCommand
+
+    regime_result = ctx["regime_handler"].handle(
+        DetectRegimeCommand(vix=0.0, sp500_price=0.0, sp500_ma200=0.0, adx=0.0, yield_spread=0.0)
+    )
+    regime_type = None
+    regime_confidence = None
+    if regime_result.is_ok():
+        regime_data = regime_result.unwrap()
+        regime_type = regime_data.get("regime_type")
+        regime_confidence = regime_data.get("confidence")
+
+    # 2. Get composite score from DDD handler
+    from src.scoring.application.commands import ScoreSymbolCommand
+
+    score_result = ctx["score_handler"].handle(ScoreSymbolCommand(symbol=symbol))
+    composite_score = None
+    safety_passed = True
+    if score_result.is_ok():
+        score_data = score_result.unwrap()
+        composite_score = score_data.get("composite_score")
+        safety_passed = score_data.get("safety_passed", True)
+
+    # 3. Build symbol_data for signal adapter
+    symbol_data = _build_signal_symbol_data(symbol)
+
+    # 4. Generate signal through DDD handler
+    from src.signals.application.commands import GenerateSignalCommand
+
+    cmd = GenerateSignalCommand(
+        symbol=symbol,
+        composite_score=composite_score,
+        safety_passed=safety_passed,
+        regime_type=regime_type,
+        symbol_data=symbol_data,
+    )
+    result = ctx["signal_handler"].handle(cmd)
+
+    if result.is_err():
+        console.print(f"[bold red]Error: {result.error}[/bold red]")
         raise typer.Exit(code=1)
 
-    indicators = data.get("indicators", {})
-    adx_val = indicators.get("adx14", 15.0) or 15.0
-
-    try:
-        vix = get_vix()
-        sp500_ratio = get_sp500_vs_200ma()
-        yield_curve = get_yield_curve_slope()
-        regime_result = classify(vix, sp500_ratio, adx_val, yield_curve)
-        regime_name = regime_result["regime"]
-    except Exception:
-        regime_name = "Transition"
-
-    result = generate_signals(symbol, data, regime_name)
+    data = result.unwrap()
 
     if output == "json":
-        console.print_json(json.dumps(result, default=str))
+        console.print_json(json.dumps(data, default=str))
         return
 
-    # Consensus header
-    consensus = result.get("consensus", "NEUTRAL")
-    agreement = result.get("agreement", 0)
-    color = {"BULLISH": "green", "BEARISH": "red", "NEUTRAL": "yellow"}.get(consensus, "white")
-    console.print(Panel(
-        f"[bold {color}]{consensus}[/bold {color}] (Agreement: {agreement}/4)",
-        title=f"Signal Consensus: {symbol}",
-        subtitle=f"Regime: {regime_name}",
-    ))
-
-    # Per-strategy table
-    methods = result.get("methods", {})
-    table = Table(show_header=True, header_style="bold cyan")
-    table.add_column("Strategy", style="bold")
-    table.add_column("Signal", justify="center")
-    table.add_column("Score", justify="right")
-    table.add_column("Max", justify="right")
-
-    for name, m in methods.items():
-        sig = m.get("signal", "N/A")
-        sig_color = {"BUY": "green", "SELL": "red", "HOLD": "yellow"}.get(sig, "white")
-        table.add_row(
-            name,
-            f"[{sig_color}]{sig}[/{sig_color}]",
-            str(m.get("score", "N/A")),
-            str(m.get("score_max", "N/A")),
-        )
-
-    table.add_row("", "", "", "")
-    table.add_row(
-        "[bold]Weighted Score[/bold]", "", f"[bold]{result.get('weighted_score', 0):.3f}[/bold]", "1.000"
-    )
-
-    console.print(table)
+    # 5. Rich output -- Panel + Table + reasoning
+    _render_signal_output(data, regime_type, regime_confidence)
 
 
 @app.command()
