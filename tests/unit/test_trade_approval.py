@@ -1,12 +1,11 @@
 """Tests for TradePlanHandler — generate, approve, execute flow."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
 from src.execution.domain.value_objects import (
-    BracketSpec,
     OrderResult,
     TradePlan,
     TradePlanStatus,

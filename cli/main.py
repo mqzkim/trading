@@ -498,5 +498,199 @@ def watchlist_list():
     console.print(table)
 
 
+@app.command()
+def approve(
+    symbol: str = typer.Argument(..., help="Ticker symbol to approve/reject"),
+):
+    """Review and approve/reject a pending trade plan."""
+    from src.execution.infrastructure.sqlite_trade_plan_repo import SqliteTradePlanRepository
+    from src.execution.domain.services import TradePlanService
+    from src.execution.infrastructure.alpaca_adapter import AlpacaExecutionAdapter
+    from src.execution.application.commands import ApproveTradePlanCommand, ExecuteOrderCommand
+    from src.execution.application.handlers import TradePlanHandler
+
+    symbol = symbol.upper()
+    repo = SqliteTradePlanRepository()
+    plan_dict = repo.find_by_symbol(symbol)
+
+    if plan_dict is None or plan_dict.get("status") != "PENDING":
+        console.print(f"[bold red]No pending plan for {symbol}.[/bold red]")
+        raise typer.Exit(code=1)
+
+    # Display trade plan details
+    table = Table(title=f"Trade Plan: {symbol}", show_header=True, header_style="bold cyan")
+    table.add_column("Field", style="bold")
+    table.add_column("Value", justify="right")
+
+    table.add_row("Symbol", plan_dict["symbol"])
+    table.add_row("Direction", plan_dict["direction"])
+    table.add_row("Entry Price", f"${plan_dict['entry_price']:,.2f}")
+    table.add_row("Stop-Loss", f"${plan_dict['stop_loss_price']:,.2f}")
+    table.add_row("Take-Profit", f"${plan_dict['take_profit_price']:,.2f}")
+    table.add_row("Quantity", str(plan_dict["quantity"]))
+    table.add_row("Position Value", f"${plan_dict['position_value']:,.2f}")
+    table.add_row("Composite Score", f"{plan_dict.get('composite_score', 0):.1f}")
+    mos = plan_dict.get("margin_of_safety", 0)
+    table.add_row("Margin of Safety", f"{mos * 100:.1f}%")
+    table.add_row("Reasoning", plan_dict.get("reasoning_trace", "-") or "-")
+
+    console.print(table)
+
+    # Ask for approval
+    confirmed = typer.confirm("Execute this trade?", default=False)
+
+    service = TradePlanService()
+    adapter = AlpacaExecutionAdapter()
+    handler = TradePlanHandler(service, repo, adapter)
+
+    if not confirmed:
+        handler.approve(ApproveTradePlanCommand(symbol=symbol, approved=False))
+        console.print("[yellow]Trade plan rejected.[/yellow]")
+        return
+
+    # Ask if user wants to modify parameters
+    modify = typer.confirm("Modify quantity or stop-loss?", default=False)
+    mod_qty = None
+    mod_stop = None
+    if modify:
+        mod_qty_str = typer.prompt("New quantity", default=str(plan_dict["quantity"]))
+        mod_qty = int(mod_qty_str) if mod_qty_str != str(plan_dict["quantity"]) else None
+        mod_stop_str = typer.prompt("New stop-loss price", default=str(plan_dict["stop_loss_price"]))
+        mod_stop = float(mod_stop_str) if mod_stop_str != str(plan_dict["stop_loss_price"]) else None
+
+    handler.approve(ApproveTradePlanCommand(
+        symbol=symbol,
+        approved=True,
+        modified_quantity=mod_qty,
+        modified_stop_loss=mod_stop,
+    ))
+
+    # Execute the order
+    exec_result = handler.execute(ExecuteOrderCommand(symbol=symbol))
+
+    if exec_result.status in ("filled", "accepted", "partially_filled", "new"):
+        console.print(f"[bold green]Order submitted: {exec_result.order_id}[/bold green]")
+    else:
+        console.print(f"[bold red]Order failed: {exec_result.error_message or exec_result.status}[/bold red]")
+
+
+@app.command()
+def execute(
+    symbol: str = typer.Argument(..., help="Ticker symbol to execute"),
+    force: bool = typer.Option(False, "--force", help="Skip confirmation"),
+):
+    """Execute an approved trade plan as a bracket order."""
+    from src.execution.infrastructure.sqlite_trade_plan_repo import SqliteTradePlanRepository
+    from src.execution.domain.services import TradePlanService
+    from src.execution.infrastructure.alpaca_adapter import AlpacaExecutionAdapter
+    from src.execution.application.commands import ExecuteOrderCommand
+    from src.execution.application.handlers import TradePlanHandler
+
+    symbol = symbol.upper()
+    repo = SqliteTradePlanRepository()
+    plan_dict = repo.find_by_symbol(symbol)
+
+    if plan_dict is None:
+        console.print(f"[bold red]No trade plan found for {symbol}.[/bold red]")
+        raise typer.Exit(code=1)
+
+    if plan_dict.get("status") not in ("APPROVED", "MODIFIED"):
+        console.print(f"[bold red]Trade plan for {symbol} is not approved (status={plan_dict.get('status')}).[/bold red]")
+        raise typer.Exit(code=1)
+
+    if not force:
+        console.print(f"[dim]Executing {plan_dict['direction']} {plan_dict['quantity']} {symbol} @ ${plan_dict['entry_price']:,.2f}[/dim]")
+        confirmed = typer.confirm("Confirm execution?", default=False)
+        if not confirmed:
+            console.print("[yellow]Execution cancelled.[/yellow]")
+            return
+
+    service = TradePlanService()
+    adapter = AlpacaExecutionAdapter()
+    handler = TradePlanHandler(service, repo, adapter)
+
+    result = handler.execute(ExecuteOrderCommand(symbol=symbol))
+
+    if result.status in ("filled", "accepted", "partially_filled", "new"):
+        console.print(f"[bold green]Order submitted: {result.order_id}[/bold green]")
+        if result.filled_price:
+            console.print(f"[dim]Filled at ${result.filled_price:,.2f}[/dim]")
+    else:
+        console.print(f"[bold red]Order failed: {result.error_message or result.status}[/bold red]")
+
+
+@app.command()
+def monitor(
+    portfolio_id: str = typer.Option("default", "--portfolio-id", help="Portfolio ID"),
+):
+    """Monitor positions, alerts, and drawdown status (one-shot check)."""
+    from src.portfolio.infrastructure.sqlite_position_repo import SqlitePositionRepository
+    from src.portfolio.infrastructure.sqlite_portfolio_repo import SqlitePortfolioRepository
+    from src.portfolio.infrastructure.sqlite_watchlist_repo import SqliteWatchlistRepository
+    from src.portfolio.domain.value_objects import DrawdownLevel
+
+    pos_repo = SqlitePositionRepository()
+    port_repo = SqlitePortfolioRepository()
+    wl_repo = SqliteWatchlistRepository()
+
+    positions = pos_repo.find_all_open()
+    portfolio = port_repo.find_by_id(portfolio_id)
+    watchlist = wl_repo.find_all()
+
+    alert_count = 0
+
+    # Check positions for stop conditions
+    for pos in positions:
+        if pos.atr_stop:
+            stop_price = pos.atr_stop.stop_price
+            # v1: use entry_price as proxy (real price fetch enhancement planned)
+            if pos.entry_price <= stop_price:
+                console.print(
+                    f"[bold red]STOP ALERT: {pos.symbol} entry ${pos.entry_price:,.2f} "
+                    f"<= stop ${stop_price:,.2f}[/bold red]"
+                )
+                alert_count += 1
+
+    # Check portfolio drawdown
+    if portfolio:
+        dd_level = portfolio.drawdown_level
+        if dd_level != DrawdownLevel.NORMAL:
+            dd_pct = portfolio.drawdown * 100
+            console.print(
+                f"[bold red]DRAWDOWN ALERT: {dd_level.value.upper()} "
+                f"({dd_pct:.1f}%)[/bold red]"
+            )
+            alert_count += 1
+    else:
+        dd_level = DrawdownLevel.NORMAL
+
+    # Check watchlist price alerts
+    for entry in watchlist:
+        if entry.alert_above is not None:
+            console.print(
+                f"[dim]Watchlist alert: {entry.symbol} above ${entry.alert_above:,.2f} (monitoring)[/dim]"
+            )
+        if entry.alert_below is not None:
+            console.print(
+                f"[dim]Watchlist alert: {entry.symbol} below ${entry.alert_below:,.2f} (monitoring)[/dim]"
+            )
+
+    # Summary panel
+    dd_color = {
+        DrawdownLevel.NORMAL: "green",
+        DrawdownLevel.CAUTION: "yellow",
+        DrawdownLevel.WARNING: "red",
+        DrawdownLevel.CRITICAL: "bold red",
+    }.get(dd_level, "white")
+
+    console.print(Panel(
+        f"[bold]{len(positions)}[/bold] positions monitored  |  "
+        f"[bold]{alert_count}[/bold] alerts active  |  "
+        f"Drawdown: [{dd_color}]{dd_level.value.upper()}[/{dd_color}]",
+        title="Monitoring Summary",
+        border_style="blue",
+    ))
+
+
 if __name__ == "__main__":
     app()
