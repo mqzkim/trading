@@ -35,7 +35,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 </details>
 
-### 🚧 v1.2 Production Trading & Dashboard (In Progress)
+### v1.2 Production Trading & Dashboard (In Progress)
 
 **Milestone Goal:** Automate the full pipeline, add live trading with safety infrastructure, and provide a web dashboard for operational visibility -- transforming the CLI tool into a production trading system.
 
@@ -57,12 +57,12 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
   3. Pipeline startup compares SQLite position records against Alpaca broker positions and reports any divergences before proceeding
   4. After a 20% drawdown triggers cooldown, restarting the process preserves the 30-day cooling period -- cooldown state survives restarts
   5. User can trigger kill switch from CLI that cancels all open orders and halts the pipeline immediately
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 12-01: TBD
-- [ ] 12-02: TBD
-- [ ] 12-03: TBD
+- [ ] 12-01-PLAN.md -- Domain types, settings, and cooldown persistence (ExecutionMode, CooldownState, ICooldownRepository, SqliteCooldownRepository)
+- [ ] 12-02-PLAN.md -- SafeExecutionAdapter with order polling and bracket leg verification (fix mock fallback, decorator adapter, bootstrap wiring)
+- [ ] 12-03-PLAN.md -- Position reconciliation and kill switch CLI (PositionReconciliationService, trade kill, trade sync)
 
 ### Phase 13: Automated Pipeline Scheduler
 **Goal**: Full screening-to-execution pipeline runs daily after market close in paper mode, with market calendar awareness and fault tolerance
@@ -147,7 +147,7 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 9. Multi-Strategy Signal Fusion | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 10. Korean Broker Integration | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 11. Commercial FastAPI REST API | v1.1 | 3/3 | Complete | 2026-03-13 |
-| 12. Safety Infrastructure | v1.2 | 0/? | Not started | - |
+| 12. Safety Infrastructure | v1.2 | 0/3 | Not started | - |
 | 13. Automated Pipeline Scheduler | v1.2 | 0/? | Not started | - |
 | 14. Strategy and Budget Approval | v1.2 | 0/? | Not started | - |
 | 15. Live Trading Activation | v1.2 | 0/? | Not started | - |
