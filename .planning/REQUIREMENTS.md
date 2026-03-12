@@ -1,7 +1,7 @@
 # Requirements: Intrinsic Alpha Trader
 
 **Defined:** 2026-03-12
-**Core Value:** Every recommendation must be explainable and risk-controlled — capital preservation and positive expectancy over maximizing returns.
+**Core Value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
 
 ## v1.1 Requirements
 
@@ -16,7 +16,7 @@ Requirements for Stabilization & Expansion milestone. Each maps to roadmap phase
 - [ ] **INFRA-05**: 누락 CLI 명령어 추가 (ingest, generate-plan, backtest)
 - [ ] **INFRA-06**: G-Score 블렌딩 및 레짐 조정 DDD 핸들러 배선
 - [ ] **INFRA-07**: 도메인 이벤트 EventBus 발행 배선
-- [ ] **INFRA-08**: Cross-context 직접 import 수정 (execution → portfolio)
+- [ ] **INFRA-08**: Cross-context 직접 import 수정 (execution -> portfolio)
 - [ ] **INFRA-09**: 나머지 tech debt 항목 해결 (v1.0 감사 기준)
 
 ### Data Pipeline
@@ -50,7 +50,7 @@ Requirements for Stabilization & Expansion milestone. Each maps to roadmap phase
 - [ ] **SIGNAL-03**: Dual Momentum (절대 + 상대) 시그널 구현
 - [ ] **SIGNAL-04**: Trend Following (20/55일 고점 돌파 + ADX) 구현
 - [ ] **SIGNAL-05**: 4전략 합의 시그널 (3/4 동의 = 강한 시그널) 배선
-- [ ] **SIGNAL-06**: 레짐 가중 전략 합산 (Bull→모멘텀 강화, Bear→퀄리티 강화)
+- [ ] **SIGNAL-06**: 레짐 가중 전략 합산 (Bull->모멘텀 강화, Bear->퀄리티 강화)
 - [ ] **SIGNAL-07**: 전략별 추론 체인 출력 (왜 BUY/HOLD/SELL인지 설명)
 
 ### Korean Broker
@@ -150,4 +150,4 @@ Deferred to future release. Tracked but not in current roadmap.
 
 ---
 *Requirements defined: 2026-03-12*
-*Last updated: 2026-03-12 after initial definition*
+*Last updated: 2026-03-12 after roadmap creation*
