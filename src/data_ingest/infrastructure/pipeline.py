@@ -12,9 +12,10 @@ from typing import Any
 import pandas as pd
 
 from src.data_ingest.domain.events import DataIngestedEvent, QualityCheckFailedEvent
-from src.data_ingest.domain.value_objects import DataQualityReport
+from src.data_ingest.domain.value_objects import DataQualityReport, MarketType
 from src.data_ingest.infrastructure.duckdb_store import DuckDBStore
 from src.data_ingest.infrastructure.edgartools_client import EdgartoolsClient
+from src.data_ingest.infrastructure.pykrx_client import PyKRXClient
 from src.data_ingest.infrastructure.quality_checker import QualityChecker
 from src.data_ingest.infrastructure.universe_provider import UniverseProvider
 from src.data_ingest.infrastructure.yfinance_client import YFinanceClient
@@ -42,6 +43,7 @@ class DataPipeline:
         *,
         yfinance_client: YFinanceClient | None = None,
         edgartools_client: EdgartoolsClient | None = None,
+        pykrx_client: PyKRXClient | None = None,
         duckdb_store: DuckDBStore | None = None,
         quality_checker: QualityChecker | None = None,
         event_bus: AsyncEventBus | None = None,
@@ -51,6 +53,7 @@ class DataPipeline:
 
         self._yfinance = yfinance_client or YFinanceClient(self._semaphore)
         self._edgartools = edgartools_client or EdgartoolsClient(self._semaphore)
+        self._pykrx = pykrx_client
         self._store = duckdb_store or DuckDBStore()
         self._quality = quality_checker or QualityChecker()
         self._event_bus = event_bus or AsyncEventBus()
@@ -64,16 +67,25 @@ class DataPipeline:
         """Expose event bus for subscribing handlers."""
         return self._event_bus
 
-    async def ingest_ticker(self, ticker: str) -> DataQualityReport | None:
+    async def ingest_ticker(
+        self, ticker: str, market: MarketType = MarketType.US
+    ) -> DataQualityReport | None:
         """Ingest a single ticker: fetch, validate, store, publish.
 
         Args:
-            ticker: Stock symbol (e.g., "AAPL").
+            ticker: Stock symbol (e.g., "AAPL" for US, "005930" for KR).
+            market: Market type (US or KR). Determines data source routing.
 
         Returns:
             DataQualityReport if ingestion completed (pass or fail),
             None if an unrecoverable error occurred.
         """
+        if market == MarketType.KR:
+            return await self._ingest_kr_ticker(ticker)
+        return await self._ingest_us_ticker(ticker)
+
+    async def _ingest_us_ticker(self, ticker: str) -> DataQualityReport | None:
+        """US market ingestion path: yfinance + edgartools."""
         try:
             # 1. Fetch OHLCV
             async with self._semaphore:
@@ -128,16 +140,75 @@ class DataPipeline:
             return ohlcv_report
 
         except Exception:
-            logger.error("Failed to ingest %s", ticker, exc_info=True)
+            logger.error("Failed to ingest US ticker %s", ticker, exc_info=True)
+            return None
+
+    async def _ingest_kr_ticker(self, ticker: str) -> DataQualityReport | None:
+        """Korean market ingestion path: pykrx for OHLCV + fundamentals."""
+        if self._pykrx is None:
+            self._pykrx = PyKRXClient(self._semaphore)
+
+        try:
+            # 1. Fetch Korean OHLCV
+            ohlcv_df = await self._pykrx.fetch_ohlcv(ticker)
+
+            # 2. Validate OHLCV (use max_stale_days=5 for Korean holiday tolerance)
+            ohlcv_report = self._quality.validate_ohlcv(
+                ticker, ohlcv_df, max_stale_days=5
+            )
+            if not ohlcv_report.passed:
+                await self._event_bus.publish(
+                    QualityCheckFailedEvent(
+                        ticker=ticker,
+                        failures=ohlcv_report.failures,
+                    )
+                )
+                logger.warning(
+                    "OHLCV quality check failed for KR ticker %s: %s",
+                    ticker,
+                    ohlcv_report.failures,
+                )
+                return ohlcv_report
+
+            # 3. Fetch Korean fundamentals
+            fund_df = await self._pykrx.fetch_fundamentals(ticker)
+
+            # 4. Store OHLCV (same table as US, just different ticker format)
+            store_df = self._prepare_ohlcv_for_storage(ticker, ohlcv_df)
+            self._store.store_ohlcv(ticker, store_df)
+
+            # 5. Store Korean fundamentals in separate table
+            if not fund_df.empty:
+                kr_store_df = self._prepare_kr_fundamentals_for_storage(
+                    ticker, fund_df
+                )
+                self._store.store_kr_fundamentals(ticker, kr_store_df)
+
+            # 6. Publish success event
+            await self._event_bus.publish(
+                DataIngestedEvent(
+                    ticker=ticker,
+                    ohlcv_rows=len(ohlcv_df),
+                    financial_quarters=len(fund_df),
+                )
+            )
+
+            return ohlcv_report
+
+        except Exception:
+            logger.error("Failed to ingest KR ticker %s", ticker, exc_info=True)
             return None
 
     async def ingest_universe(
-        self, tickers: list[str] | None = None
+        self,
+        tickers: list[str] | None = None,
+        market: MarketType = MarketType.US,
     ) -> dict[str, Any]:
         """Ingest multiple tickers concurrently.
 
         Args:
             tickers: List of ticker symbols. If None, uses UniverseProvider.
+            market: Market type for routing (US or KR).
 
         Returns:
             Summary dict with succeeded, failed, errors lists and counts.
@@ -146,7 +217,7 @@ class DataPipeline:
             universe_df = self._universe.get_universe()
             tickers = universe_df["ticker"].tolist()
 
-        tasks = [self.ingest_ticker(t) for t in tickers]
+        tasks = [self.ingest_ticker(t, market=market) for t in tickers]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         succeeded: list[str] = []
@@ -202,6 +273,36 @@ class DataPipeline:
 
         # Select only the columns DuckDB expects, in order
         expected = ["ticker", "date", "open", "high", "low", "close", "volume"]
+        return result[expected]
+
+    @staticmethod
+    def _prepare_kr_fundamentals_for_storage(
+        ticker: str, df: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Convert Korean fundamentals DataFrame to DuckDB table schema format.
+
+        PyKRXClient returns DataFrame with DatetimeIndex and columns
+        (bps, per, pbr, eps, div_yield, dps). DuckDB needs flat DataFrame with
+        columns (ticker, date, bps, per, pbr, eps, div_yield, dps).
+        """
+        result = df.copy()
+
+        # Move date from index to column
+        if "date" not in result.columns:
+            result = result.reset_index()
+            if "Date" in result.columns:
+                result = result.rename(columns={"Date": "date"})
+            elif "index" in result.columns:
+                result = result.rename(columns={"index": "date"})
+
+        # Add ticker column if missing
+        if "ticker" not in result.columns:
+            result.insert(0, "ticker", ticker)
+
+        # Normalize column names to lowercase
+        result.columns = [c.lower() for c in result.columns]
+
+        expected = ["ticker", "date", "bps", "per", "pbr", "eps", "div_yield", "dps"]
         return result[expected]
 
     async def close(self) -> None:

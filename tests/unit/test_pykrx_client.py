@@ -2,12 +2,10 @@
 from __future__ import annotations
 
 import asyncio
-import time
-from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from datetime import datetime
+from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
 from src.data_ingest.infrastructure.pykrx_client import PyKRXClient
 

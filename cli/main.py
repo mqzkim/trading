@@ -713,16 +713,25 @@ def ingest(
         raise typer.Exit(code=1)
 
     from src.data_ingest.infrastructure.pipeline import DataPipeline
+    from src.data_ingest.domain.value_objects import MarketType
 
-    pipeline = DataPipeline(max_concurrent=max_concurrent)
+    market_type = MarketType.KR if market.lower() == "kr" else MarketType.US
+
+    # Lazy-import PyKRXClient only when needed (Korean market)
+    pykrx_client = None
+    if market_type == MarketType.KR:
+        from src.data_ingest.infrastructure.pykrx_client import PyKRXClient
+        pykrx_client = PyKRXClient()
+
+    pipeline = DataPipeline(max_concurrent=max_concurrent, pykrx_client=pykrx_client)
 
     try:
         if universe:
             console.print(f"[dim]Ingesting universe: {universe}...[/dim]")
-            result = asyncio.run(pipeline.ingest_universe())
+            result = asyncio.run(pipeline.ingest_universe(market=market_type))
         else:
             console.print(f"[dim]Ingesting {len(tickers)} tickers...[/dim]")
-            result = asyncio.run(pipeline.ingest_universe(tickers))
+            result = asyncio.run(pipeline.ingest_universe(tickers, market=market_type))
 
         # Display results
         table = Table(title="Ingestion Results", show_header=True, header_style="bold cyan")

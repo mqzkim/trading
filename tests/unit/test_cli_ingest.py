@@ -2,8 +2,7 @@
 from datetime import date
 
 import pandas as pd
-import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 from typer.testing import CliRunner
 from cli.main import app
 
@@ -25,7 +24,7 @@ class TestIngestCommand:
         mock_pipeline = MagicMock()
         mock_pipeline_cls.return_value = mock_pipeline
 
-        async def mock_ingest(tickers):
+        async def mock_ingest(tickers, market=None):
             return {
                 "total": 2,
                 "succeeded": ["AAPL", "MSFT"],
@@ -52,7 +51,7 @@ class TestIngestCommand:
         mock_pipeline = MagicMock()
         mock_pipeline_cls.return_value = mock_pipeline
 
-        async def mock_ingest():
+        async def mock_ingest(market=None):
             return {
                 "total": 400,
                 "succeeded": ["AAPL"],
@@ -85,7 +84,7 @@ class TestIngestCommand:
         mock_pipeline = MagicMock()
         mock_pipeline_cls.return_value = mock_pipeline
 
-        async def mock_ingest(tickers):
+        async def mock_ingest(tickers, market=None):
             return {
                 "total": 3,
                 "succeeded": ["AAPL"],
@@ -171,7 +170,7 @@ class TestIngestRegimeCommand:
         mock_pipeline = MagicMock()
         mock_pipeline_cls.return_value = mock_pipeline
 
-        async def mock_ingest(tickers):
+        async def mock_ingest(tickers, market=None):
             return {
                 "total": 1,
                 "succeeded": ["AAPL"],

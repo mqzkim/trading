@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
-import pytest
 
 from src.data_ingest.domain.value_objects import DataQualityReport, MarketType
 from src.data_ingest.infrastructure.pipeline import DataPipeline
@@ -160,8 +159,12 @@ class TestPipelineKoreanMarket:
 
         asyncio.run(pipeline.ingest_ticker("005930", market=MarketType.KR))
 
-        call_kwargs = mock_quality.validate_ohlcv.call_args
-        assert call_kwargs[1].get("max_stale_days") == 5 or call_kwargs[0][2] if len(call_kwargs[0]) > 2 else False
+        call_args = mock_quality.validate_ohlcv.call_args
+        # max_stale_days can be passed as positional arg [2] or keyword
+        if "max_stale_days" in call_args.kwargs:
+            assert call_args.kwargs["max_stale_days"] == 5
+        else:
+            assert len(call_args.args) >= 3 and call_args.args[2] == 5
 
     def test_us_ticker_unchanged(self) -> None:
         """ingest_ticker with US market (default) still uses yfinance."""
