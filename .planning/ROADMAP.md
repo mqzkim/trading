@@ -43,12 +43,12 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
   3. CLI commands `ingest`, `generate-plan`, and `backtest` execute end-to-end and produce visible output
   4. Screener queries return scored results with valuations -- the DuckDB/SQLite store mismatch is resolved
   5. G-Score blending and regime adjustment produce different composite scores when toggled on/off via CLI
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
-- [ ] 05-03: TBD
+- [ ] 05-01-PLAN.md -- SyncEventBus + DBFactory + Composition Root (infrastructure primitives)
+- [ ] 05-02-PLAN.md -- DuckDB screener fix, cross-context import fix, G-Score wiring, event creation
+- [ ] 05-03-PLAN.md -- Missing CLI commands (ingest, generate-plan, backtest) + event bus wiring
 
 ### Phase 6: Live Data Pipeline & Korean Data
 **Goal**: Users can ingest real market data from live APIs (yfinance, SEC EDGAR, pykrx) with automatic quality validation, for both US and Korean equities
@@ -152,7 +152,7 @@ Note: Phases 7 and 8 both depend on Phase 6 (not on each other). Phase 9 depends
 | 2. Analysis Core | v1.0 | 3/3 | Complete | 2026-03-12 |
 | 3. Decision Engine | v1.0 | 3/3 | Complete | 2026-03-12 |
 | 4. Execution and Interface | v1.0 | 3/3 | Complete | 2026-03-12 |
-| 5. Tech Debt & Infrastructure Foundation | v1.1 | 0/3 | Not started | - |
+| 5. Tech Debt & Infrastructure Foundation | v1.1 | 0/3 | Planned | - |
 | 6. Live Data Pipeline & Korean Data | v1.1 | 0/2 | Not started | - |
 | 7. Technical Scoring Engine | v1.1 | 0/2 | Not started | - |
 | 8. Market Regime Detection | v1.1 | 0/2 | Not started | - |
