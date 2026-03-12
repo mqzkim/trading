@@ -158,6 +158,6 @@ Note: Phases 7 and 8 both depend on Phase 6 (not on each other). Phase 9 depends
 | 6. Live Data Pipeline & Korean Data | v1.1 | 1/3 | In Progress | - |
 | 7. Technical Scoring Engine | v1.1 | 2/3 | Gap Closure | - |
 | 8. Market Regime Detection | v1.1 | 2/3 | Gap Closure | - |
-| 9. Multi-Strategy Signal Fusion | v1.1 | 0/2 | Not started | - |
+| 9. Multi-Strategy Signal Fusion | v1.1 | 1/2 | In Progress | - |
 | 10. Korean Broker Integration | v1.1 | 0/1 | Not started | - |
 | 11. Commercial FastAPI REST API | v1.1 | 0/2 | Not started | - |

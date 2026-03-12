@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
-status: completed
-stopped_at: Completed 08-03-PLAN.md
-last_updated: "2026-03-12T11:10:11.616Z"
-last_activity: 2026-03-12 -- Completed Plan 08-03 (Regime Adjuster Wiring Gap Closure)
+status: in-progress
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-03-12T12:11:00.000Z"
+last_activity: 2026-03-12 -- Completed Plan 09-01 (Regime-Weighted Signal Fusion)
 progress:
   total_phases: 7
   completed_phases: 4
-  total_plans: 10
-  completed_plans: 12
+  total_plans: 12
+  completed_plans: 13
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 8 -- Market Regime Detection
+**Current focus:** Phase 9 -- Multi-Strategy Signal Fusion
 
 ## Current Position
 
-Phase: 8 of 11 (Market Regime Detection)
-Plan: 3 of 3 in current phase
-Status: Phase 08 Complete (including gap closure)
-Last activity: 2026-03-12 -- Completed Plan 08-03 (Regime Adjuster Wiring Gap Closure)
+Phase: 9 of 11 (Multi-Strategy Signal Fusion)
+Plan: 1 of 2 in current phase
+Status: Plan 09-01 complete, 09-02 pending
+Last activity: 2026-03-12 -- Completed Plan 09-01 (Regime-Weighted Signal Fusion)
 
 Progress: [██████████] 100%
 
@@ -61,6 +61,7 @@ Progress: [██████████] 100%
 | Phase 08 P01 | 6min | 2 tasks | 7 files |
 | Phase 08 P02 | 5min | 3 tasks | 6 files |
 | Phase 08 P03 | 4min | 2 tasks | 3 files |
+| Phase 09 P01 | 4min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -102,6 +103,10 @@ Recent decisions affecting current work:
 - [Phase 08]: ConcreteRegimeWeightAdjuster caches regime via on_regime_changed() for implicit adjust_weights()
 - [Phase 08]: CLI regime --history accesses handler._regime_repo directly (no separate query handler)
 - [Phase 08]: Single regime_adjuster instance shared between EventBus subscription and ScoreSymbolHandler injection (not two separate instances)
+- [Phase 09]: SIGNAL_STRATEGY_WEIGHTS uses string keys (not RegimeType import) to preserve cross-context DDD boundary
+- [Phase 09]: Regime affects only strength computation, not consensus direction logic (3/4 threshold unchanged)
+- [Phase 09]: market_uptrend derived as True for Bull/Sideways, False for Bear/Crisis
+- [Phase 09]: methodology_directions dict added to handler result for structured CLI consumption
 
 ### Pending Todos
 
@@ -118,6 +123,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T11:03:47Z
-Stopped at: Completed 08-03-PLAN.md
+Last session: 2026-03-12T12:11:00Z
+Stopped at: Completed 09-01-PLAN.md
 Resume file: None

@@ -45,13 +45,13 @@ Requirements for Stabilization & Expansion milestone. Each maps to roadmap phase
 
 ### Signal Fusion
 
-- [ ] **SIGNAL-01**: CAN SLIM 7개 기준 스코어링 구현
-- [ ] **SIGNAL-02**: Magic Formula (Earnings Yield + ROC) 랭킹 구현
-- [ ] **SIGNAL-03**: Dual Momentum (절대 + 상대) 시그널 구현
-- [ ] **SIGNAL-04**: Trend Following (20/55일 고점 돌파 + ADX) 구현
+- [x] **SIGNAL-01**: CAN SLIM 7개 기준 스코어링 구현
+- [x] **SIGNAL-02**: Magic Formula (Earnings Yield + ROC) 랭킹 구현
+- [x] **SIGNAL-03**: Dual Momentum (절대 + 상대) 시그널 구현
+- [x] **SIGNAL-04**: Trend Following (20/55일 고점 돌파 + ADX) 구현
 - [ ] **SIGNAL-05**: 4전략 합의 시그널 (3/4 동의 = 강한 시그널) 배선
-- [ ] **SIGNAL-06**: 레짐 가중 전략 합산 (Bull->모멘텀 강화, Bear->퀄리티 강화)
-- [ ] **SIGNAL-07**: 전략별 추론 체인 출력 (왜 BUY/HOLD/SELL인지 설명)
+- [x] **SIGNAL-06**: 레짐 가중 전략 합산 (Bull->모멘텀 강화, Bear->퀄리티 강화)
+- [x] **SIGNAL-07**: 전략별 추론 체인 출력 (왜 BUY/HOLD/SELL인지 설명)
 
 ### Korean Broker
 
@@ -126,13 +126,13 @@ Deferred to future release. Tracked but not in current roadmap.
 | REGIME-03 | Phase 8 | Complete |
 | REGIME-04 | Phase 8 | Complete |
 | REGIME-05 | Phase 8 | Complete |
-| SIGNAL-01 | Phase 9 | Pending |
-| SIGNAL-02 | Phase 9 | Pending |
-| SIGNAL-03 | Phase 9 | Pending |
-| SIGNAL-04 | Phase 9 | Pending |
+| SIGNAL-01 | Phase 9 | Complete |
+| SIGNAL-02 | Phase 9 | Complete |
+| SIGNAL-03 | Phase 9 | Complete |
+| SIGNAL-04 | Phase 9 | Complete |
 | SIGNAL-05 | Phase 9 | Pending |
-| SIGNAL-06 | Phase 9 | Pending |
-| SIGNAL-07 | Phase 9 | Pending |
+| SIGNAL-06 | Phase 9 | Complete |
+| SIGNAL-07 | Phase 9 | Complete |
 | KR-01 | Phase 10 | Pending |
 | KR-02 | Phase 10 | Pending |
 | KR-03 | Phase 10 | Pending |
