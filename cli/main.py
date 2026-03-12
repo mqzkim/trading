@@ -30,56 +30,142 @@ def version():
 
 @app.command()
 def regime(
+    history: int = typer.Option(0, "--history", help="Show N days of regime history"),
     output: str = typer.Option("table", "--output", "-o", help="table|json"),
 ):
     """Detect the current market regime."""
-    from core.data.market import get_vix, get_sp500_vs_200ma, get_yield_curve_slope
-    from core.regime.classifier import classify
-    from core.regime.weights import get_weights, get_risk_adjustment
+    ctx = _get_ctx()
+    handler = ctx["regime_handler"]
 
-    try:
-        vix = get_vix()
-        sp500_ratio = get_sp500_vs_200ma()
-        yield_curve = get_yield_curve_slope()
-    except Exception as e:
-        console.print(f"[bold red]Error fetching market data: {e}[/bold red]")
+    if history > 0:
+        # History mode: query saved regimes from repository
+        from datetime import datetime, timedelta, timezone
+
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(days=history)
+        regimes = handler._regime_repo.find_by_date_range(start, end)
+
+        if output == "json":
+            import json as json_mod
+
+            data = [
+                {
+                    "regime_type": r.regime_type.value,
+                    "confidence": r.confidence,
+                    "confirmed_days": r.confirmed_days,
+                    "is_confirmed": r.is_confirmed,
+                    "detected_at": r.detected_at.isoformat(),
+                }
+                for r in regimes
+            ]
+            console.print_json(json_mod.dumps(data))
+            return
+
+        # Table output for history
+        table = Table(
+            title=f"Regime History (past {history} days)",
+            show_header=True,
+            header_style="bold cyan",
+        )
+        table.add_column("Date", style="dim")
+        table.add_column("Regime", style="bold")
+        table.add_column("Confidence", justify="right")
+        table.add_column("Confirmed Days", justify="right")
+        table.add_column("Status")
+
+        for r in regimes:
+            regime_color = {
+                "Bull": "green",
+                "Bear": "red",
+                "Sideways": "yellow",
+                "Crisis": "bold red",
+            }.get(r.regime_type.value, "white")
+            status = (
+                "[green]Confirmed[/green]"
+                if r.is_confirmed
+                else "[dim]Pending[/dim]"
+            )
+            table.add_row(
+                r.detected_at.strftime("%Y-%m-%d"),
+                f"[{regime_color}]{r.regime_type.value}[/{regime_color}]",
+                f"{r.confidence:.0%}",
+                str(r.confirmed_days),
+                status,
+            )
+
+        console.print(table)
+        if not regimes:
+            console.print(
+                "[dim]No regime data found for this period. "
+                "Run 'regime' command first to detect.[/dim]"
+            )
+        return
+
+    # Current regime detection
+    from src.regime.application.commands import DetectRegimeCommand
+
+    cmd = DetectRegimeCommand(
+        vix=0.0, sp500_price=0.0, sp500_ma200=0.0, adx=0.0, yield_spread=0.0,
+    )
+
+    console.print("[dim]Fetching market data for regime detection...[/dim]")
+    result_wrapper = handler.handle(cmd)
+
+    if not result_wrapper.is_ok():
+        console.print(
+            f"[bold red]Regime detection failed: {result_wrapper.error}[/bold red]"
+        )
         raise typer.Exit(code=1)
 
-    result = classify(vix, sp500_ratio, adx=20.0, yield_curve_bps=yield_curve)
-    weights = get_weights(result["regime"])
-    risk_adj = get_risk_adjustment(result["regime"])
+    result = result_wrapper.value
 
     if output == "json":
-        console.print_json(json.dumps({
-            "regime": result["regime"],
-            "confidence": result["confidence"],
-            "vix": vix,
-            "sp500_vs_200ma": sp500_ratio,
-            "yield_curve_bps": yield_curve,
-            "strategy_weights": weights,
-            "risk_adjustment": risk_adj,
-            "warning": result.get("warning"),
-        }))
+        console.print_json(json.dumps(result, default=str))
         return
 
     # Table output
-    table = Table(title="Market Regime Detection", show_header=True, header_style="bold cyan")
+    regime_type = result["regime_type"]
+    regime_color = {
+        "Bull": "green",
+        "Bear": "red",
+        "Sideways": "yellow",
+        "Crisis": "bold red",
+    }.get(regime_type, "white")
+
+    table = Table(
+        title="Market Regime Detection",
+        show_header=True,
+        header_style="bold cyan",
+    )
     table.add_column("Indicator", style="bold")
     table.add_column("Value", justify="right")
 
-    table.add_row("Regime", f"[bold yellow]{result['regime']}[/bold yellow]")
+    table.add_row(
+        "Regime",
+        f"[{regime_color}]{regime_type}[/{regime_color}]",
+    )
     table.add_row("Confidence", f"{result['confidence']:.0%}")
-    table.add_row("VIX", f"{vix:.2f}")
-    table.add_row("S&P 500 / 200MA", f"{sp500_ratio:.4f}")
-    table.add_row("Yield Curve (bps)", f"{yield_curve:.1f}")
-    table.add_row("Risk Adjustment", f"{risk_adj:.1f}x")
+    table.add_row("VIX", f"{result['vix']:.2f}")
+    table.add_row("ADX", f"{result['adx']:.1f}")
+    table.add_row("Yield Spread", f"{result['yield_spread']:.2f}%")
+    table.add_row(
+        "S&P 500 vs MA200",
+        f"{result['sp500_deviation_pct']:+.2f}%"
+        + (" (above)" if result["sp500_above_ma200"] else " (below)"),
+    )
+    table.add_row("Confirmed Days", str(result["confirmed_days"]))
+    table.add_row(
+        "Status",
+        "[green]Confirmed[/green]"
+        if result["is_confirmed"]
+        else "[dim]Pending[/dim]",
+    )
 
-    # Strategy weights sub-table
-    weight_parts = [f"{k}: {v:.0%}" for k, v in weights.items()]
-    table.add_row("Strategy Weights", " | ".join(weight_parts))
-
-    if result.get("warning"):
-        table.add_row("Warning", f"[bold red]{result['warning']}[/bold red]")
+    if regime_type in ("Bear", "Crisis"):
+        table.add_row(
+            "Warning",
+            f"[bold red]{regime_type} regime -- consider defensive positioning[/bold red]",
+        )
 
     console.print(table)
 
