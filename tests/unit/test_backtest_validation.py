@@ -271,3 +271,190 @@ class TestExtractTradeReturns:
         # Should have returns for completed trades (SELL entries have 'return' field)
         sell_count = sum(1 for t in result["trade_log"] if t["action"] == "SELL")
         assert len(returns) == sell_count
+
+
+# ===========================================================================
+# Task 2: Application Commands
+# ===========================================================================
+
+class TestRunBacktestCommand:
+    """RunBacktestCommand validates symbol non-empty."""
+
+    def test_valid_command(self):
+        from src.backtest.application.commands import RunBacktestCommand
+        ohlcv = _make_ohlcv(10)
+        signals = _make_signals(10)
+        cmd = RunBacktestCommand(symbol="AAPL", ohlcv_df=ohlcv, signals_series=signals)
+        assert cmd.symbol == "AAPL"
+        assert cmd.initial_capital == 100_000.0
+
+    def test_command_stores_dataframes(self):
+        from src.backtest.application.commands import RunBacktestCommand
+        ohlcv = _make_ohlcv(10)
+        signals = _make_signals(10)
+        cmd = RunBacktestCommand(symbol="AAPL", ohlcv_df=ohlcv, signals_series=signals)
+        assert len(cmd.ohlcv_df) == 10
+        assert len(cmd.signals_series) == 10
+
+
+class TestRunWalkForwardCommand:
+    """RunWalkForwardCommand validates n_splits >= 2."""
+
+    def test_valid_command(self):
+        from src.backtest.application.commands import RunWalkForwardCommand
+        ohlcv = _make_ohlcv(100)
+        signals = _make_signals(100)
+        cmd = RunWalkForwardCommand(
+            symbol="MSFT", ohlcv_df=ohlcv, signals_series=signals, n_splits=3
+        )
+        assert cmd.n_splits == 3
+        assert cmd.train_ratio == 0.7
+
+
+# ===========================================================================
+# Task 2: BacktestHandler
+# ===========================================================================
+
+class TestBacktestHandlerRunBacktest:
+    """BacktestHandler.run_backtest returns Ok with PerformanceReport including profit_factor."""
+
+    def test_run_backtest_returns_ok_with_profit_factor(self):
+        from src.backtest.application.commands import RunBacktestCommand
+        from src.backtest.application.handlers import BacktestHandler
+        from src.backtest.domain.services import BacktestValidationService
+        from src.backtest.infrastructure.core_backtest_adapter import CoreBacktestAdapter
+
+        adapter = CoreBacktestAdapter()
+        svc = BacktestValidationService()
+        handler = BacktestHandler(adapter=adapter, validation_svc=svc)
+
+        ohlcv = _make_ohlcv(50)
+        signals = _make_signals(50)
+        cmd = RunBacktestCommand(symbol="TEST", ohlcv_df=ohlcv, signals_series=signals)
+        result = handler.run_backtest(cmd)
+
+        assert result.is_ok()
+        data = result.unwrap()
+        assert data["symbol"] == "TEST"
+        assert "performance_report" in data
+        assert "profit_factor" in data["performance_report"]
+
+    def test_run_backtest_equity_summary(self):
+        from src.backtest.application.commands import RunBacktestCommand
+        from src.backtest.application.handlers import BacktestHandler
+        from src.backtest.domain.services import BacktestValidationService
+        from src.backtest.infrastructure.core_backtest_adapter import CoreBacktestAdapter
+
+        adapter = CoreBacktestAdapter()
+        svc = BacktestValidationService()
+        handler = BacktestHandler(adapter=adapter, validation_svc=svc)
+
+        ohlcv = _make_ohlcv(50)
+        signals = _make_signals(50)
+        cmd = RunBacktestCommand(symbol="TEST", ohlcv_df=ohlcv, signals_series=signals)
+        result = handler.run_backtest(cmd)
+
+        data = result.unwrap()
+        assert "equity_curve_summary" in data
+        assert "start" in data["equity_curve_summary"]
+        assert "end" in data["equity_curve_summary"]
+        assert "length" in data["equity_curve_summary"]
+
+
+class TestBacktestHandlerWalkForward:
+    """BacktestHandler.run_walk_forward returns Ok with IS/OOS reports and overfitting_score."""
+
+    def test_run_walk_forward_returns_ok(self):
+        from src.backtest.application.commands import RunWalkForwardCommand
+        from src.backtest.application.handlers import BacktestHandler
+        from src.backtest.domain.services import BacktestValidationService
+        from src.backtest.infrastructure.core_backtest_adapter import CoreBacktestAdapter
+
+        adapter = CoreBacktestAdapter()
+        svc = BacktestValidationService()
+        handler = BacktestHandler(adapter=adapter, validation_svc=svc)
+
+        ohlcv = _make_ohlcv(100)
+        signals = _make_signals(100)
+        cmd = RunWalkForwardCommand(
+            symbol="WF", ohlcv_df=ohlcv, signals_series=signals, n_splits=3
+        )
+        result = handler.run_walk_forward(cmd)
+
+        assert result.is_ok()
+        data = result.unwrap()
+        assert data["symbol"] == "WF"
+        assert data["n_splits"] == 3
+        assert "oos_report" in data
+        assert "is_report" in data
+        assert "overfitting_score" in data
+        assert "profit_factor" in data["oos_report"]
+        assert "profit_factor" in data["is_report"]
+
+
+# ===========================================================================
+# Task 2: DuckDBBacktestStore
+# ===========================================================================
+
+class TestDuckDBBacktestStore:
+    """DuckDB persistence for backtest results."""
+
+    def test_save_and_find_latest(self):
+        import duckdb
+        from src.backtest.infrastructure.duckdb_backtest_store import DuckDBBacktestStore
+
+        conn = duckdb.connect(":memory:")
+        store = DuckDBBacktestStore(conn)
+
+        config = {"symbol": "AAPL", "initial_capital": 100_000}
+        report = {"sharpe_ratio": 1.5, "profit_factor": 2.0}
+        store.save("AAPL", config, report)
+
+        latest = store.find_latest("AAPL")
+        assert latest is not None
+        assert latest["symbol"] == "AAPL"
+        assert latest["config"]["symbol"] == "AAPL"
+        assert latest["report"]["profit_factor"] == 2.0
+
+    def test_find_latest_returns_none_for_unknown(self):
+        import duckdb
+        from src.backtest.infrastructure.duckdb_backtest_store import DuckDBBacktestStore
+
+        conn = duckdb.connect(":memory:")
+        store = DuckDBBacktestStore(conn)
+        assert store.find_latest("UNKNOWN") is None
+
+    def test_find_all(self):
+        import duckdb
+        from src.backtest.infrastructure.duckdb_backtest_store import DuckDBBacktestStore
+
+        conn = duckdb.connect(":memory:")
+        store = DuckDBBacktestStore(conn)
+
+        store.save("AAPL", {"k": "v1"}, {"sharpe": 1.0})
+        store.save("MSFT", {"k": "v2"}, {"sharpe": 1.5})
+        store.save("GOOGL", {"k": "v3"}, {"sharpe": 2.0})
+
+        results = store.find_all()
+        assert len(results) == 3
+        symbols = {r["symbol"] for r in results}
+        assert symbols == {"AAPL", "MSFT", "GOOGL"}
+
+    def test_save_multiple_for_same_symbol(self):
+        import duckdb
+        from src.backtest.infrastructure.duckdb_backtest_store import DuckDBBacktestStore
+
+        conn = duckdb.connect(":memory:")
+        store = DuckDBBacktestStore(conn)
+
+        store.save("AAPL", {"run": 1}, {"sharpe": 1.0})
+        store.save("AAPL", {"run": 2}, {"sharpe": 2.0})
+
+        latest = store.find_latest("AAPL")
+        assert latest is not None
+        # Latest should be the most recent save
+        assert latest["report"]["sharpe"] == 2.0
+
+        all_results = store.find_all()
+        aapl_results = [r for r in all_results if r["symbol"] == "AAPL"]
+        assert len(aapl_results) == 2
