@@ -15,8 +15,8 @@
 - [x] **SCOR-02**: Piotroski F-Score 계산 — 9항목 기본적 건전성 점수 (0-9)
 - [x] **SCOR-03**: Altman Z-Score 계산 — 부도 위험도 평가 (Safe/Grey/Distress)
 - [x] **SCOR-04**: Beneish M-Score 계산 — 이익 조작 가능성 탐지
-- [ ] **SCOR-05**: Mohanram G-Score 계산 — 성장주 품질 스코어 (0-8)
-- [ ] **SCOR-06**: Composite Score — 가중 평균 복합 스코어 (0-100) + regime 조정 가중치
+- [x] **SCOR-05**: Mohanram G-Score 계산 — 성장주 품질 스코어 (0-8)
+- [x] **SCOR-06**: Composite Score — 가중 평균 복합 스코어 (0-100) + regime 조정 가중치
 
 ## Category 3: Valuation (VALU)
 
@@ -79,8 +79,8 @@
 | SCOR-02 | Phase 1: Data Foundation | Complete |
 | SCOR-03 | Phase 1: Data Foundation | Complete |
 | SCOR-04 | Phase 1: Data Foundation | Complete |
-| SCOR-05 | Phase 2: Analysis Core | Pending |
-| SCOR-06 | Phase 2: Analysis Core | Pending |
+| SCOR-05 | Phase 2: Analysis Core | Complete |
+| SCOR-06 | Phase 2: Analysis Core | Complete |
 | VALU-01 | Phase 2: Analysis Core | Pending |
 | VALU-02 | Phase 2: Analysis Core | Pending |
 | VALU-03 | Phase 2: Analysis Core | Pending |
