@@ -12,6 +12,7 @@ from .value_objects import (
 )
 from .events import ValuationCompletedEvent
 from .repositories import IValuationRepository
+from .services import EnsembleValuationService
 
 __all__ = [
     "WACC",
@@ -22,4 +23,5 @@ __all__ = [
     "MarginOfSafety",
     "ValuationCompletedEvent",
     "IValuationRepository",
+    "EnsembleValuationService",
 ]
