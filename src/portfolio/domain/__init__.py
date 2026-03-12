@@ -11,6 +11,7 @@ from .value_objects import (
     PortfolioWeight,
     RiskTier,
     SectorWeight,
+    TakeProfitLevels,
 )
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     "ATRStop",
     "RiskTier",
     "DrawdownLevel",
+    "TakeProfitLevels",
     "Position",
     "Portfolio",
     "PositionOpenedEvent",

@@ -71,15 +71,35 @@ class Portfolio(Entity[str]):
             return DrawdownLevel.CAUTION
         return DrawdownLevel.NORMAL
 
-    def can_open_position(self, symbol: str, weight: float) -> bool:  # noqa: ARG002
+    @property
+    def total_value_or_initial(self) -> float:
+        """포지션 기준 총 가치, 없으면 초기 자본."""
+        tv = self.total_value
+        return tv if tv > 0 else self.initial_value
+
+    def sector_weight(self, sector: str) -> float:
+        """특정 섹터의 총 비중 (0.0 ~ 1.0)."""
+        total = self.total_value_or_initial
+        if total <= 0:
+            return 0.0
+        return sum(
+            p.market_value / total
+            for p in self.positions.values()
+            if p.sector == sector
+        )
+
+    def can_open_position(self, symbol: str, weight: float, *, sector: str = "unknown") -> bool:  # noqa: ARG002
         """신규 포지션 진입 가능 여부.
 
         낙폭이 CAUTION 이상이면 진입 차단.
         단일 종목 8% 초과 시 진입 차단.
+        섹터 비중 + 신규 비중이 25% 초과 시 진입 차단.
         """
         if self.drawdown_level != DrawdownLevel.NORMAL:
             return False
         if weight > MAX_SINGLE_WEIGHT:
+            return False
+        if self.sector_weight(sector) + weight > MAX_SECTOR_WEIGHT:
             return False
         return True
 
