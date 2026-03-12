@@ -154,6 +154,35 @@ def score(
 
     console.print(table)
 
+    # Technical Indicators sub-table (if sub-scores available)
+    sub_scores = result.get("technical_sub_scores", [])
+    if sub_scores:
+        tech_table = Table(
+            title="Technical Indicators",
+            show_header=True,
+            header_style="bold cyan",
+        )
+        tech_table.add_column("Indicator", style="bold")
+        tech_table.add_column("Score", justify="right")
+        tech_table.add_column("Explanation")
+
+        for sub in sub_scores:
+            score_val = sub.get("value", 0)
+            if score_val >= 60:
+                score_style = "green"
+            elif score_val >= 40:
+                score_style = "yellow"
+            else:
+                score_style = "red"
+
+            tech_table.add_row(
+                sub.get("name", "-"),
+                f"[{score_style}]{score_val:.1f}[/{score_style}]",
+                sub.get("explanation", "-"),
+            )
+
+        console.print(tech_table)
+
 
 @app.command()
 def signal(

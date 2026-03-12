@@ -17,6 +17,7 @@ from src.scoring.domain import (
     SentimentScore,
     SafetyFilterService,
     CompositeScoringService,
+    TechnicalScoringService,
     IScoreRepository,
     ScoreUpdatedEvent,
 )
@@ -47,6 +48,7 @@ class ScoreSymbolHandler:
         self._score_repo = score_repo
         self._safety = SafetyFilterService()
         self._composite = CompositeScoringService()
+        self._technical_scoring = TechnicalScoringService()
         self._fundamental_client = fundamental_client
         self._technical_client = technical_client
         self._sentiment_client = sentiment_client
@@ -92,7 +94,10 @@ class ScoreSymbolHandler:
             z_score=z_score,
             m_score=m_score,
         )
-        technical = TechnicalScore(value=technical_data.get("technical_score", 50))
+
+        # Technical sub-score computation: use raw indicator values if available
+        technical = self._compute_technical_with_subscores(technical_data)
+
         sentiment = SentimentScore(value=sentiment_data.get("sentiment_score", 50))
 
         # 4. 복합 점수 산출 (Domain Service)
@@ -132,7 +137,47 @@ class ScoreSymbolHandler:
             "m_score": fundamental.m_score,
             "event": event,
         }
+
+        # Add sub-score breakdown if available
+        if technical.sub_scores:
+            result["technical_sub_scores"] = [
+                {
+                    "name": s.name,
+                    "value": s.value,
+                    "explanation": s.explanation,
+                    "raw_value": s.raw_value,
+                }
+                for s in technical.sub_scores
+            ]
+
         return Ok(result)
+
+    def _compute_technical_with_subscores(self, technical_data: dict) -> TechnicalScore:
+        """Compute TechnicalScore with sub-scores from raw indicator values.
+
+        If raw indicator values (rsi, macd_histogram, etc.) are present in
+        technical_data, uses TechnicalScoringService to produce a full breakdown.
+        Otherwise falls back to a plain TechnicalScore(value=X) without sub-scores.
+        """
+        # Check if raw indicator values are available
+        has_indicators = any(
+            key in technical_data
+            for key in ("rsi", "macd_histogram", "adx", "obv_change_pct")
+        )
+
+        if has_indicators:
+            return self._technical_scoring.compute(
+                rsi=technical_data.get("rsi"),
+                macd_histogram=technical_data.get("macd_histogram"),
+                close=technical_data.get("close"),
+                ma50=technical_data.get("ma50"),
+                ma200=technical_data.get("ma200"),
+                adx=technical_data.get("adx"),
+                obv_change_pct=technical_data.get("obv_change_pct"),
+            )
+
+        # Fallback: no raw indicators, use composite score only
+        return TechnicalScore(value=technical_data.get("technical_score", 50))
 
     # ── Infrastructure 위임 (점진적 이전) ─────────────────────────
 
