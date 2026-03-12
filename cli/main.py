@@ -267,21 +267,21 @@ def _build_signal_symbol_data(symbol: str) -> dict:
         return {}
 
     indicators = data.get("indicators", {})
-    financials = data.get("financials", {})
+    fundamentals = data.get("fundamentals", {})
     return {
         # CAN SLIM inputs
-        "eps_growth_qoq": financials.get("eps_growth_qoq"),
-        "eps_cagr_3y": financials.get("eps_cagr_3y"),
+        "eps_growth_qoq": fundamentals.get("eps_growth_qoq"),
+        "eps_cagr_3y": fundamentals.get("eps_cagr_3y"),
         "near_52w_high": indicators.get("near_52w_high", False),
         "volume_ratio": indicators.get("volume_ratio", 1.0),
         "relative_strength": indicators.get("relative_strength", 50),
-        "institutional_increase": financials.get("institutional_increase", False),
+        "institutional_increase": fundamentals.get("institutional_increase", False),
         # market_uptrend will be injected by handler from regime_type
         # Magic Formula inputs
-        "earnings_yield": financials.get("earnings_yield"),
-        "return_on_capital": financials.get("return_on_capital"),
-        "ey_percentile": financials.get("ey_percentile", 50.0),
-        "roc_percentile": financials.get("roc_percentile", 50.0),
+        "earnings_yield": fundamentals.get("earnings_yield"),
+        "return_on_capital": fundamentals.get("return_on_capital"),
+        "ey_percentile": fundamentals.get("ey_percentile", 50.0),
+        "roc_percentile": fundamentals.get("roc_percentile", 50.0),
         # Dual Momentum inputs
         "return_12m": indicators.get("return_12m"),
         "return_12m_benchmark": indicators.get("return_12m_benchmark"),
@@ -1025,18 +1025,53 @@ def generate_plan(
     symbol = symbol.upper()
     console.print(f"[dim]Generating trade plan for {symbol}...[/dim]")
 
+    # Fetch real price + indicators from DataClient
+    from core.data.client import DataClient
+
+    client = DataClient()
+    full_data = client.get_full(symbol)
+    price_data = full_data.get("price", {})
+    indicator_data = full_data.get("indicators", {})
+    entry_price = price_data.get("close", 0.0)
+    atr = indicator_data.get("atr21", 0.0) or 3.0
+
+    # Get composite score from DDD handler
+    from src.scoring.application.commands import ScoreSymbolCommand
+
+    score_result = ctx["score_handler"].handle(ScoreSymbolCommand(symbol=symbol, strategy=strategy))
+    composite_score = 50.0
+    margin_of_safety = 0.0
+    if score_result.is_ok():
+        score_data = score_result.unwrap()
+        composite_score = score_data.get("composite_score", 50.0)
+        margin_of_safety = score_data.get("margin_of_safety", 0.0)
+
+    # Get signal direction from DDD handler
+    from src.signals.application.commands import GenerateSignalCommand as GenSignalCmd
+
+    signal_result = ctx["signal_handler"].handle(GenSignalCmd(symbol=symbol, composite_score=composite_score))
+    signal_direction = "HOLD"
+    reasoning_trace = f"Generated via CLI for {symbol}"
+    if signal_result.is_ok():
+        signal_data = signal_result.unwrap()
+        signal_direction = signal_data.get("direction", "HOLD")
+        reasoning_trace = signal_data.get("reasoning_trace", reasoning_trace)
+
+    # Estimate intrinsic value from margin of safety
+    intrinsic_value = entry_price * (1.0 + margin_of_safety) if margin_of_safety > 0 else entry_price * 1.2
+
     cmd = GenerateTradePlanCommand(
         symbol=symbol,
-        entry_price=100.0,  # placeholder -- real price from data client
-        atr=3.0,
+        entry_price=entry_price,
+        atr=atr,
         capital=effective_capital,
-        peak_value=capital,
-        current_value=capital,
-        intrinsic_value=120.0,
-        composite_score=70.0,
-        margin_of_safety=0.15,
-        signal_direction="BUY",
-        reasoning_trace=f"Generated via CLI for {symbol}",
+        peak_value=effective_capital,
+        current_value=effective_capital,
+        intrinsic_value=intrinsic_value,
+        composite_score=composite_score,
+        margin_of_safety=margin_of_safety,
+        signal_direction=signal_direction,
+        reasoning_trace=reasoning_trace,
     )
 
     plan = handler.generate(cmd)
