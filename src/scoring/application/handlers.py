@@ -186,9 +186,15 @@ class ScoreSymbolHandler:
         """기존 core/scoring/fundamental.py 호출 (임시)."""
         if self._fundamental_client:
             return self._fundamental_client.get(symbol)
-        # Fallback: 기존 로직 직접 import
+        # Fallback: fetch fundamentals via DataClient, pass dicts to compute_fundamental_score
+        from core.data.client import DataClient  # type: ignore[import-untyped]
         from core.scoring.fundamental import compute_fundamental_score  # type: ignore[import-untyped]
-        return compute_fundamental_score(symbol)  # type: ignore[arg-type, call-arg]
+
+        client = DataClient()
+        fund_data = client.get_fundamentals(symbol)
+        highlights = fund_data.get("highlights", {})
+        valuation = fund_data.get("valuation", {})
+        return compute_fundamental_score(highlights, valuation)
 
     def _get_technical(self, symbol: str) -> dict:
         if self._technical_client:
