@@ -314,3 +314,119 @@ class TestDuckDBStoreRegimeData:
         result = store.get_regime_data()
         assert len(result) == 1
         assert result["vix"].iloc[0] == 22.0
+
+
+class TestDuckDBStoreKRFundamentals:
+    """Tests for kr_fundamentals table storage and retrieval."""
+
+    @pytest.fixture()
+    def store(self):
+        s = DuckDBStore()
+        s.connect(":memory:")
+        yield s
+        s.close()
+
+    def test_create_tables_includes_kr_fundamentals(self) -> None:
+        """_create_tables should create kr_fundamentals table."""
+        store = DuckDBStore()
+        store.connect(":memory:")
+        try:
+            tables = store._conn.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = 'main'"
+            ).fetchall()
+            table_names = {t[0] for t in tables}
+            assert "kr_fundamentals" in table_names
+        finally:
+            store.close()
+
+    def test_store_kr_fundamentals(self, store: DuckDBStore) -> None:
+        """store_kr_fundamentals inserts Korean fundamental data."""
+        df = pd.DataFrame({
+            "ticker": ["005930", "005930"],
+            "date": [date(2026, 3, 10), date(2026, 3, 11)],
+            "bps": [50000.0, 50100.0],
+            "per": [12.5, 12.6],
+            "pbr": [1.2, 1.21],
+            "eps": [5000.0, 5010.0],
+            "div_yield": [1.8, 1.79],
+            "dps": [1000.0, 1000.0],
+        })
+        store.store_kr_fundamentals("005930", df)
+
+        result = store._conn.execute(
+            "SELECT COUNT(*) FROM kr_fundamentals WHERE ticker = '005930'"
+        ).fetchone()
+        assert result[0] == 2
+
+    def test_get_kr_fundamentals(self, store: DuckDBStore) -> None:
+        """get_kr_fundamentals retrieves data for a Korean ticker."""
+        df = pd.DataFrame({
+            "ticker": ["005930", "005930", "005930"],
+            "date": [date(2026, 3, 10), date(2026, 3, 11), date(2026, 3, 12)],
+            "bps": [50000.0, 50100.0, 50200.0],
+            "per": [12.5, 12.6, 12.7],
+            "pbr": [1.2, 1.21, 1.22],
+            "eps": [5000.0, 5010.0, 5020.0],
+            "div_yield": [1.8, 1.79, 1.78],
+            "dps": [1000.0, 1000.0, 1000.0],
+        })
+        store.store_kr_fundamentals("005930", df)
+
+        result = store.get_kr_fundamentals("005930")
+        assert len(result) == 3
+        assert result["per"].tolist() == [12.5, 12.6, 12.7]
+
+    def test_get_kr_fundamentals_with_date_range(self, store: DuckDBStore) -> None:
+        """get_kr_fundamentals filters by date range."""
+        df = pd.DataFrame({
+            "ticker": ["005930", "005930", "005930"],
+            "date": [date(2026, 3, 10), date(2026, 3, 11), date(2026, 3, 12)],
+            "bps": [50000.0, 50100.0, 50200.0],
+            "per": [12.5, 12.6, 12.7],
+            "pbr": [1.2, 1.21, 1.22],
+            "eps": [5000.0, 5010.0, 5020.0],
+            "div_yield": [1.8, 1.79, 1.78],
+            "dps": [1000.0, 1000.0, 1000.0],
+        })
+        store.store_kr_fundamentals("005930", df)
+
+        result = store.get_kr_fundamentals(
+            "005930", start_date=date(2026, 3, 11), end_date=date(2026, 3, 11)
+        )
+        assert len(result) == 1
+        assert result["per"].iloc[0] == 12.6
+
+    def test_get_kr_fundamentals_empty_ticker(self, store: DuckDBStore) -> None:
+        """get_kr_fundamentals returns empty DataFrame for nonexistent ticker."""
+        result = store.get_kr_fundamentals("999999")
+        assert len(result) == 0
+
+    def test_kr_fundamentals_upsert(self, store: DuckDBStore) -> None:
+        """Duplicate (ticker, date) INSERT OR REPLACE updates existing row."""
+        df1 = pd.DataFrame({
+            "ticker": ["005930"],
+            "date": [date(2026, 3, 10)],
+            "bps": [50000.0],
+            "per": [12.5],
+            "pbr": [1.2],
+            "eps": [5000.0],
+            "div_yield": [1.8],
+            "dps": [1000.0],
+        })
+        df2 = pd.DataFrame({
+            "ticker": ["005930"],
+            "date": [date(2026, 3, 10)],
+            "bps": [51000.0],  # updated
+            "per": [13.0],  # updated
+            "pbr": [1.2],
+            "eps": [5000.0],
+            "div_yield": [1.8],
+            "dps": [1000.0],
+        })
+        store.store_kr_fundamentals("005930", df1)
+        store.store_kr_fundamentals("005930", df2)
+
+        result = store.get_kr_fundamentals("005930")
+        assert len(result) == 1
+        assert result["per"].iloc[0] == 13.0
