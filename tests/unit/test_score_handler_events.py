@@ -154,9 +154,9 @@ class TestGScoreWiring:
         data = result.unwrap()
         # Growth stock with g_score=6 should boost fundamental by (6/8)*15 = 11.25
         # Without g_score: fundamental=70, with: min(100, 70+11.25) = 81.25
-        # swing weights: f=0.35, t=0.40, s=0.25
-        # Without g_score: 0.35*70 + 0.40*65 + 0.25*60 = 24.5 + 26.0 + 15.0 = 65.5
-        # With g_score:    0.35*81.25 + 0.40*65 + 0.25*60 = 28.4375 + 26.0 + 15.0 = 69.4375 ~ 69.4
+        # swing weights (TECH-03): f=0.40, t=0.40, s=0.20
+        # Without g_score: 0.40*70 + 0.40*65 + 0.20*60 = 28.0 + 26.0 + 12.0 = 66.0
+        # With g_score:    0.40*81.25 + 0.40*65 + 0.20*60 = 32.5 + 26.0 + 12.0 = 70.5
         assert data["composite_score"] > 65.5, (
             f"Growth stock composite {data['composite_score']} should be boosted by G-Score"
         )
@@ -169,5 +169,5 @@ class TestGScoreWiring:
         assert result.is_ok()
         data = result.unwrap()
         # Normal stock: fundamental=75, technical=70, sentiment=55
-        # swing: 0.35*75 + 0.40*70 + 0.25*55 = 26.25 + 28.0 + 13.75 = 68.0
-        assert data["composite_score"] == 68.0
+        # swing (TECH-03): 0.40*75 + 0.40*70 + 0.20*55 = 30.0 + 28.0 + 11.0 = 69.0
+        assert data["composite_score"] == 69.0

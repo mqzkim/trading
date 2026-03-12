@@ -6,15 +6,25 @@ in core/scoring/. Does NOT rewrite scoring math -- only adapts interfaces.
 Wrapped functions:
   core.scoring.safety: altman_z_score, beneish_m_score
   core.scoring.fundamental: piotroski_f_score, compute_fundamental_score
+
+TechnicalIndicatorAdapter:
+  Bridges core.data.indicators to TechnicalScoringService (domain).
+  The ONLY place pandas touches the domain -- extracts float values from Series.
 """
 from __future__ import annotations
 
+import math
 from typing import Any
 
+import pandas as pd
+
+from core.data import indicators
+from core.data.client import DataClient
 from core.scoring.safety import altman_z_score, beneish_m_score
 from core.scoring.fundamental import piotroski_f_score, compute_fundamental_score, mohanram_g_score
 
-from src.scoring.domain.value_objects import SafetyGate
+from src.scoring.domain.value_objects import SafetyGate, TechnicalScore
+from src.scoring.domain.services import TechnicalScoringService
 
 
 class CoreScoringAdapter:
@@ -197,3 +207,93 @@ class CoreScoringAdapter:
             fundamental_score (composite 0-100).
         """
         return compute_fundamental_score(highlights, valuation)
+
+
+def _safe_last(s: pd.Series) -> float:
+    """Extract last non-NaN value from a pandas Series, or NaN if empty."""
+    v = s.dropna()
+    return float(v.iloc[-1]) if len(v) > 0 else float("nan")
+
+
+def _safe_float(val: float) -> float | None:
+    """Convert float to float|None, replacing NaN with None."""
+    if math.isnan(val):
+        return None
+    return val
+
+
+class TechnicalIndicatorAdapter:
+    """Infrastructure adapter bridging core/data/indicators to TechnicalScoringService.
+
+    This is the ONLY place where pandas touches the domain layer.
+    Extracts float values from pandas Series and passes only primitives to the
+    domain service.
+    """
+
+    def __init__(
+        self,
+        data_client: DataClient | None = None,
+        scoring_service: TechnicalScoringService | None = None,
+    ) -> None:
+        self._client = data_client or DataClient()
+        self._service = scoring_service or TechnicalScoringService()
+
+    def compute_technical_subscores(self, symbol: str, days: int = 756) -> TechnicalScore:
+        """Compute full technical score with sub-score breakdown for a symbol.
+
+        Flow:
+          1. Fetch OHLCV via DataClient
+          2. Compute all indicators via core.data.indicators.compute_all()
+          3. Extract last float value from each Series (handle NaN)
+          4. Compute OBV change percentage (60-day lookback)
+          5. Pass floats to TechnicalScoringService.compute()
+
+        Args:
+            symbol: Stock ticker (e.g., "AAPL")
+            days: Number of trading days of history to fetch
+
+        Returns:
+            TechnicalScore with 5 sub-scores and composite value
+        """
+        df = self._client.get_price_history(symbol, days)
+        ind = indicators.compute_all(df)
+
+        # Extract latest values as float | None
+        rsi = _safe_float(_safe_last(ind["rsi14"]))
+        macd_histogram = _safe_float(_safe_last(ind["macd_histogram"]))
+        close = _safe_float(float(df["close"].iloc[-1])) if len(df) > 0 else None
+        ma50 = _safe_float(_safe_last(ind["ma50"]))
+        ma200 = _safe_float(_safe_last(ind["ma200"]))
+        adx = _safe_float(_safe_last(ind["adx14"]))
+
+        # OBV change percentage (60-day lookback)
+        obv_series = ind["obv"]
+        obv_change_pct = self._compute_obv_change(obv_series)
+
+        return self._service.compute(
+            rsi=rsi,
+            macd_histogram=macd_histogram,
+            close=close,
+            ma50=ma50,
+            ma200=ma200,
+            adx=adx,
+            obv_change_pct=obv_change_pct,
+        )
+
+    @staticmethod
+    def _compute_obv_change(obv_series: pd.Series, lookback: int = 60) -> float | None:
+        """Compute OBV percentage change over lookback period.
+
+        Returns None if insufficient data.
+        """
+        clean = obv_series.dropna()
+        if len(clean) < lookback:
+            return None
+
+        obv_recent = float(clean.iloc[-1])
+        obv_past = float(clean.iloc[-lookback])
+
+        if obv_past == 0:
+            return None
+
+        return (obv_recent - obv_past) / abs(obv_past) * 100

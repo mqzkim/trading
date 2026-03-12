@@ -1,12 +1,15 @@
-"""Unit tests for Composite Score v2 — G-Score integration + RegimeWeightAdjuster Protocol.
+"""Unit tests for Composite Score v2 — G-Score integration + RegimeWeightAdjuster Protocol
++ TECH-03 weight verification (40/40/20).
 
 Tests cover:
   - CompositeScoringService.compute() with G-Score for growth stocks
   - CompositeScoringService.compute() backward compatibility for non-growth stocks
   - RegimeWeightAdjuster Protocol definition and NoOpRegimeAdjuster
   - Composite score 0-100 range after G-Score integration
+  - TECH-03: Swing strategy uses 40/40/20 weights
+  - TechnicalScore with sub-scores produces correct composite
 
-Reference: Phase 02-01 Plan, Task 2.
+Reference: Phase 02-01 Plan (Task 2), Phase 07-01 Plan (Task 2).
 """
 import pytest
 
@@ -190,3 +193,81 @@ class TestRegimeWeightAdjuster:
         # Also works without adjuster (defaults to NoOp)
         service_default = CompositeScoringService()
         assert service_default is not None
+
+
+# -- TECH-03: Swing weights 40/40/20 ------------------------------------------
+
+
+class TestCompositeSwingWeights:
+    """Tests verifying TECH-03: swing strategy uses 40/40/20 weights."""
+
+    def test_swing_40_40_20_exact_calculation(self) -> None:
+        """Swing: fundamental=80, technical=30, sentiment=50 -> 0.40*80+0.40*30+0.20*50=54.0."""
+        service = CompositeScoringService()
+        fund = FundamentalScore(value=80.0, f_score=7.0, z_score=3.0, m_score=-2.5)
+        tech = TechnicalScore(value=30.0)
+        sent = SentimentScore(value=50.0)
+
+        result = service.compute(
+            fundamental=fund,
+            technical=tech,
+            sentiment=sent,
+            strategy="swing",
+        )
+        # 0.40*80 + 0.40*30 + 0.20*50 = 32 + 12 + 10 = 54.0
+        assert result.value == 54.0
+
+    def test_swing_weights_in_composite_output(self) -> None:
+        """CompositeScore.weights reflects 40/40/20 for swing strategy."""
+        service = CompositeScoringService()
+        fund = FundamentalScore(value=70.0, f_score=7.0, z_score=3.0, m_score=-2.5)
+        tech = TechnicalScore(value=65.0)
+        sent = SentimentScore(value=55.0)
+
+        result = service.compute(
+            fundamental=fund,
+            technical=tech,
+            sentiment=sent,
+            strategy="swing",
+        )
+        assert result.weights is not None
+        assert result.weights["fundamental"] == 0.40
+        assert result.weights["technical"] == 0.40
+        assert result.weights["sentiment"] == 0.20
+
+    def test_technical_score_with_subscores_in_composite(self) -> None:
+        """TechnicalScore with sub-scores produces correct composite via CompositeScoringService."""
+        from src.scoring.domain.value_objects import TechnicalIndicatorScore
+
+        service = CompositeScoringService()
+        fund = FundamentalScore(value=70.0, f_score=7.0, z_score=3.0, m_score=-2.5)
+
+        rsi_sub = TechnicalIndicatorScore(name="RSI", value=60.0, explanation="test")
+        tech = TechnicalScore(value=65.0, rsi_score=rsi_sub)
+        sent = SentimentScore(value=50.0)
+
+        result = service.compute(
+            fundamental=fund,
+            technical=tech,
+            sentiment=sent,
+            strategy="swing",
+        )
+        # Composite uses tech.value (65.0) regardless of sub-scores
+        # 0.40*70 + 0.40*65 + 0.20*50 = 28 + 26 + 10 = 64.0
+        assert result.value == 64.0
+
+    def test_position_weights_unchanged(self) -> None:
+        """Position strategy still uses 50/30/20 weights (not affected by TECH-03)."""
+        service = CompositeScoringService()
+        fund = FundamentalScore(value=80.0, f_score=7.0, z_score=3.0, m_score=-2.5)
+        tech = TechnicalScore(value=30.0)
+        sent = SentimentScore(value=50.0)
+
+        result = service.compute(
+            fundamental=fund,
+            technical=tech,
+            sentiment=sent,
+            strategy="position",
+        )
+        # 0.50*80 + 0.30*30 + 0.20*50 = 40 + 9 + 10 = 59.0
+        assert result.value == 59.0
