@@ -5,6 +5,7 @@
 from .value_objects import (
     Symbol,
     FundamentalScore,
+    TechnicalIndicatorScore,
     TechnicalScore,
     SentimentScore,
     SafetyGate,
@@ -13,12 +14,18 @@ from .value_objects import (
     DEFAULT_STRATEGY,
 )
 from .events import ScoreUpdatedEvent
-from .services import CompositeScoringService, SafetyFilterService
+from .services import (
+    CompositeScoringService,
+    SafetyFilterService,
+    TechnicalScoringService,
+    TECHNICAL_INDICATOR_WEIGHTS,
+)
 from .repositories import IScoreRepository
 
 __all__ = [
     "Symbol",
     "FundamentalScore",
+    "TechnicalIndicatorScore",
     "TechnicalScore",
     "SentimentScore",
     "SafetyGate",
@@ -28,5 +35,7 @@ __all__ = [
     "ScoreUpdatedEvent",
     "CompositeScoringService",
     "SafetyFilterService",
+    "TechnicalScoringService",
+    "TECHNICAL_INDICATOR_WEIGHTS",
     "IScoreRepository",
 ]

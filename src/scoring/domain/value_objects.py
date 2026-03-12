@@ -10,9 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from src.shared.domain import ValueObject
 
-# 전략별 가중치 — 변경 불가 (검증된 배분)
+# 전략별 가중치 — TECH-03: swing default = 40/40/20
 STRATEGY_WEIGHTS: dict[str, dict[str, float]] = {
-    "swing":    {"fundamental": 0.35, "technical": 0.40, "sentiment": 0.25},
+    "swing":    {"fundamental": 0.40, "technical": 0.40, "sentiment": 0.20},
     "position": {"fundamental": 0.50, "technical": 0.30, "sentiment": 0.20},
 }
 DEFAULT_STRATEGY = "swing"
@@ -50,16 +50,49 @@ class FundamentalScore(ValueObject):
 
 
 @dataclass(frozen=True)
-class TechnicalScore(ValueObject):
-    """기술적 분석 점수 (0-100).
+class TechnicalIndicatorScore(ValueObject):
+    """단일 기술적 지표 서브 스코어 (0-100) + 설명.
 
-    구성: 200MA 추세, RSI, MACD, OBV
+    5개 지표(RSI, MACD, MA, ADX, OBV) 각각의 점수를 표현.
+    """
+    name: str           # e.g., "RSI", "MACD", "MA", "ADX", "OBV"
+    value: float        # 0-100
+    explanation: str    # e.g., "RSI at 65: bullish momentum"
+    raw_value: float | None = None  # 원본 지표값 (투명성 용도)
+
+    def _validate(self) -> None:
+        if not 0 <= self.value <= 100:
+            raise ValueError(f"{self.name} score must be 0-100, got {self.value}")
+
+
+@dataclass(frozen=True)
+class TechnicalScore(ValueObject):
+    """기술적 분석 복합 점수 (0-100) + 5개 서브 스코어.
+
+    구성: RSI, MACD, MA, ADX, OBV
+    하위 호환: TechnicalScore(value=X) 기존 사용법 유지 (서브 스코어 None).
     """
     value: float
+    rsi_score: TechnicalIndicatorScore | None = None
+    macd_score: TechnicalIndicatorScore | None = None
+    ma_score: TechnicalIndicatorScore | None = None
+    adx_score: TechnicalIndicatorScore | None = None
+    obv_score: TechnicalIndicatorScore | None = None
+    weights: dict[str, float] | None = None
 
     def _validate(self) -> None:
         if not 0 <= self.value <= 100:
             raise ValueError(f"TechnicalScore must be 0-100, got {self.value}")
+
+    @property
+    def sub_scores(self) -> list[TechnicalIndicatorScore]:
+        """Non-None 서브 스코어 리스트 반환."""
+        return [
+            s for s in [
+                self.rsi_score, self.macd_score, self.ma_score,
+                self.adx_score, self.obv_score,
+            ] if s is not None
+        ]
 
 
 @dataclass(frozen=True)
