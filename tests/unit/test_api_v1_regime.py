@@ -62,6 +62,9 @@ def client_and_mocks():
         get_regime_handler,
         get_context,
     )
+    from commercial.api.middleware.rate_limit import limiter
+
+    limiter.reset()
 
     ctx = mock_bootstrap_context()
     mock_handler = ctx["regime_handler"]

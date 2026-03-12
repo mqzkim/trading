@@ -47,6 +47,9 @@ def client_and_mocks():
 
     from commercial.api.main import app
     from commercial.api.dependencies import get_current_user, get_score_handler
+    from commercial.api.middleware.rate_limit import limiter
+
+    limiter.reset()
 
     ctx = mock_bootstrap_context()
     mock_handler = ctx["score_handler"]
