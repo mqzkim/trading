@@ -24,8 +24,8 @@ class Symbol(ValueObject):
     ticker: str
 
     def _validate(self) -> None:
-        if not self.ticker or not self.ticker.isupper():
-            raise ValueError(f"Invalid ticker: {self.ticker!r}. Must be uppercase.")
+        if not self.ticker or not (self.ticker.isupper() or self.ticker.isdigit()):
+            raise ValueError(f"Invalid ticker: {self.ticker!r}. Must be uppercase letters or digits.")
         if len(self.ticker) > 10:
             raise ValueError(f"Ticker too long: {self.ticker!r}")
 

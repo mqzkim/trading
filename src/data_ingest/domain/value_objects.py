@@ -8,22 +8,30 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import date, timedelta
+from enum import Enum
 
 from src.shared.domain import ValueObject
 
-_TICKER_RE = re.compile(r"^[A-Z]{1,10}$")
+_TICKER_RE = re.compile(r"^[A-Z0-9]{1,10}$")
+
+
+class MarketType(Enum):
+    """Market type for multi-market support."""
+
+    US = "us"
+    KR = "kr"
 
 
 @dataclass(frozen=True)
 class Ticker(ValueObject):
-    """Stock ticker symbol -- uppercase letters, 1-10 characters."""
+    """Stock ticker symbol -- uppercase letters or digits, 1-10 characters."""
 
     ticker: str
 
     def _validate(self) -> None:
         if not _TICKER_RE.match(self.ticker):
             raise ValueError(
-                f"Ticker must be 1-10 uppercase letters, got '{self.ticker}'"
+                f"Ticker must be 1-10 uppercase letters or digits, got '{self.ticker}'"
             )
 
 

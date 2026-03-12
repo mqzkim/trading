@@ -3,6 +3,7 @@ from .value_objects import (
     DataQualityReport,
     FilingDate,
     FinancialStatement,
+    MarketType,
     OHLCV,
     Ticker,
 )
@@ -13,6 +14,7 @@ __all__ = [
     "DataIngestedEvent",
     "FilingDate",
     "FinancialStatement",
+    "MarketType",
     "OHLCV",
     "QualityCheckFailedEvent",
     "Ticker",

@@ -68,7 +68,7 @@ class EdgartoolsClient:
         try:
             filings_10q = company.get_filings(form="10-Q").head(quarters)
             for filing in filings_10q:
-                record = self._extract_filing(filing, form_type="10-Q")
+                record = self._extract_filing(filing, form_type="10-Q", ticker=ticker)
                 if record is not None:
                     results.append(record)
                 time.sleep(_SEC_DELAY)
@@ -78,7 +78,7 @@ class EdgartoolsClient:
         return results
 
     def _extract_filing(
-        self, filing: Any, form_type: str
+        self, filing: Any, form_type: str, ticker: str = ""
     ) -> dict[str, Any] | None:
         """Extract financial metrics from a single filing.
 
@@ -151,7 +151,7 @@ class EdgartoolsClient:
             roe = net_income / equity
 
         return {
-            "ticker": str(filing_date),  # Will be overridden by caller context
+            "ticker": ticker,
             "filing_date": filing_date,
             "period_end": period_end,
             "form_type": form_type,
