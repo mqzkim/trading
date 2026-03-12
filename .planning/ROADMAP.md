@@ -46,12 +46,12 @@ Plans:
   3. EPV model produces normalized earnings-based valuations independent of growth assumptions
   4. Relative multiples (PER/PBR/EV-EBITDA) compare each stock against its sector peers, flagging those trading below sector median
   5. Ensemble valuation (DCF 40% + EPV 35% + Relative 25%) produces a single intrinsic value with confidence score, and margin of safety calculation correctly identifies stocks trading 20%+ below intrinsic value
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
+- [ ] 02-01-PLAN.md — G-Score (SCOR-05) + composite score update with regime interface (SCOR-06)
+- [ ] 02-02-PLAN.md — Valuation domain VOs/events + DCF/EPV/Relative pure math (VALU-01, VALU-02, VALU-03)
+- [ ] 02-03-PLAN.md — Ensemble valuation + margin of safety + infrastructure wiring (VALU-04, VALU-05)
 
 ### Phase 3: Decision Engine
 **Goal**: Users can generate ranked buy/hold/sell signals backed by validated positive expectancy, with mathematically sized positions and portfolio-level risk controls
@@ -94,7 +94,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data Foundation | 0/3 | Planned | - |
-| 2. Analysis Core | 0/3 | Not started | - |
+| 1. Data Foundation | 3/3 | Complete | 2026-03-12 |
+| 2. Analysis Core | 0/3 | Planned | - |
 | 3. Decision Engine | 0/3 | Not started | - |
 | 4. Execution and Interface | 0/3 | Not started | - |
