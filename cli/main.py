@@ -102,7 +102,7 @@ def score(
     result_wrapper = handler.handle(cmd)
 
     if not result_wrapper.is_ok():
-        console.print(f"[bold red]Scoring failed: {result_wrapper.unwrap_err()}[/bold red]")
+        console.print(f"[bold red]Scoring failed: {result_wrapper.error}[/bold red]")
         raise typer.Exit(code=1)
 
     result = result_wrapper.unwrap()

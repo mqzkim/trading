@@ -118,21 +118,24 @@ class TestRegimeCommand:
 
 
 class TestScoreCommand:
-    @patch(f"{_COMPOSITE}.score_symbol", return_value={"composite_score": 72.5, "risk_adjusted_score": 72.5, "safety_passed": True, "symbol": "AAPL", "fundamental_score": 70, "technical_score": 75, "sentiment_score": 50})
-    @patch(f"{_ORCHESTRATOR}._estimate_technical_score", return_value=75.0)
-    @patch(f"{_ORCHESTRATOR}._estimate_fundamental_score", return_value=70.0)
     @patch(f"{_CLASSIFIER}.classify", return_value=_mock_regime_result())
     @patch(f"{_MARKET}.get_yield_curve_slope", return_value=50.0)
     @patch(f"{_MARKET}.get_sp500_vs_200ma", return_value=1.05)
     @patch(f"{_MARKET}.get_vix", return_value=15.0)
-    @patch(f"{_DATA_CLIENT}")
-    def test_score_command(self, mock_dc, mock_vix, mock_sp, mock_yc, mock_cls, mock_fs, mock_ts, mock_ss):
-        """'trading score AAPL' prints score table."""
-        mock_instance = MagicMock()
-        mock_instance.get_full.return_value = _mock_data()
-        mock_dc.return_value = mock_instance
+    def test_score_command(self, mock_vix, mock_sp, mock_yc, mock_cls):
+        """'trading score AAPL' prints score table via DDD handler."""
+        from src.shared.domain import Ok
 
-        result = runner.invoke(app, ["score", "AAPL"])
+        mock_handler = MagicMock()
+        mock_handler.handle.return_value = Ok({
+            "symbol": "AAPL", "composite_score": 72.5,
+            "risk_adjusted_score": 72.5, "safety_passed": True,
+            "fundamental_score": 70, "technical_score": 75,
+            "sentiment_score": 50,
+        })
+
+        with patch("cli.main._get_ctx", return_value={"score_handler": mock_handler}):
+            result = runner.invoke(app, ["score", "AAPL"])
         assert result.exit_code == 0
         assert "AAPL" in result.output
         assert "72.5" in result.output
