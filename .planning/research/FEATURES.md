@@ -1,393 +1,589 @@
-# Feature Landscape
+# Feature Research: v1.1 New Capabilities
 
-**Domain:** AI-Assisted Fundamental Analysis & Valuation Trading System
-**Researched:** 2026-03-12 (enhanced with deep competitor analysis)
-**Confidence:** HIGH
+**Domain:** Quantitative Trading System -- Technical Scoring, Regime Detection, Multi-Strategy Signal Fusion, Korean Market, Commercial API
+**Researched:** 2026-03-12
+**Confidence:** HIGH (existing codebase verified + domain research)
 
-## Competitor Landscape Summary
-
-Before defining features, understand what exists and where the gaps are.
-
-### Commercial Platforms (Research-Only)
-
-| Platform | Strength | Weakness | Price |
-|----------|----------|----------|-------|
-| **Stock Rover** | 700+ metrics, Fair Value view (forward DCF), proprietary 0-100 rating engine, 150+ pre-built screeners, 10-year fundamental database | No execution, no position sizing, no risk management, no backtesting, no trade plans | $7.99-27.99/mo |
-| **Koyfin** | 500+ metrics, 10+ year historical screening, highest-rated by advisors (9/10 Kitces), 80K+ global companies | No valuation models (analyst estimates only), no execution, no risk tools | $0-49/mo |
-| **Alpha Spread** | Best-in-class automated DCF + relative valuation, multi-scenario (base/worst/best), sensitivity analysis, manual DCF calculator | Single-method ensemble only (DCF + relative), no scoring models, no execution, no risk management | $0-24.90/mo |
-| **Simply Wall St** | Visual Snowflake (5 axes, 30 checks), open-source analysis model, DCF + DDM + Excess Returns + AFFO models, 95K+ global stocks | Simplified scoring (binary pass/fail per check), no execution, no position sizing, no trade plans | $0-20/mo |
-| **Finviz** | Fast screener (67 filters, 8500+ stocks), heat maps, free tier is genuinely useful | Shallow fundamentals (no scoring models), no valuation, no execution, limited historical data (8 years max, Elite only) | $0-39.50/mo |
-| **GuruFocus** | Piotroski F-Score, Altman Z-Score, predictability rank, guru portfolio tracking, EPV calculator | Expensive ($499/yr premium), cluttered UI, no execution | $41.58-124.92/mo |
-
-### Quantitative Platforms (Code-First)
-
-| Platform | Strength | Weakness | Price |
-|----------|----------|----------|-------|
-| **QuantConnect** | Open-source LEAN engine, 400TB+ data, 20+ broker integrations, research notebooks, AI assistant (Mia), 300K+ users | Must code everything from scratch, steep learning curve, fundamental screening requires significant setup | $0-79/mo |
-| **QuantRocket** | Zipline backtester (Quantopian successor), JupyterLab, multiple data integrations | Expensive ($19-299/mo), less community than QuantConnect, self-hosted | $19-299/mo |
-| **Zipline-Reloaded** | Best for factor-based daily rebalancing, community-maintained Quantopian successor | Minimal maintenance, limited modern data integrations, no live trading built-in | Free (OSS) |
-
-### Open-Source AI Projects (Emerging)
-
-| Project | Strength | Weakness |
-|---------|----------|----------|
-| **OpenBB Platform** | 100+ data source integrations, Python-first, AI agent support, MCP server, growing ecosystem | Platform/toolkit not a system -- requires assembly, no opinionated strategy |
-| **virattt/ai-hedge-fund** (43K+ stars) | 18 specialized agents (Buffett/Graham/Damodaran personas), LangGraph orchestration, React frontend, backtesting | Educational proof-of-concept, not production-grade, depends on LLM for decisions (non-deterministic), requires financialdatasets.ai API |
-| **Automated-Fundamental-Analysis** | Rates stocks 0-100 on value/profitability/growth/price, sector-relative scoring | Simple script, no execution, no risk management, unmaintained |
-
-### The Gap Intrinsic Alpha Trader Fills
-
-**No existing retail-accessible tool combines ALL of:**
-1. Multi-score quality assessment (F-Score + Z-Score + M-Score + G-Score)
-2. Valuation ensemble (DCF + EPV + relative multiples) with disagreement detection
-3. Automatic position sizing (Fractional Kelly + ATR)
-4. Drawdown defense protocol (tiered escalation)
-5. End-to-end pipeline from data to monitored execution
-6. Full explainability at every step
-
-Stock Rover does research. Alpaca does execution. QuantConnect requires you to build everything. The virattt/ai-hedge-fund relies on LLMs for decisions (non-deterministic). Nobody provides the opinionated, deterministic, end-to-end pipeline with built-in risk management.
+**Scope:** This document covers ONLY new capabilities for v1.1. v1.0 features (fundamental scoring, valuation, basic signals, risk management, Alpaca paper trading, CLI dashboard) are already built with 352+ tests.
 
 ---
 
-## Table Stakes (Users Expect These)
+## Capability 1: Technical Scoring Engine (RSI, MACD, MA, ADX, OBV)
 
-Features users assume exist. Missing these = product feels incomplete. A fundamental-analysis-driven trading system without these is not credible.
+### What It Is
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| **Financial data ingestion** (OHLCV + financial statements) | Cannot analyze without data; every screener has this. Stock Rover has 700+ metrics, Koyfin has 500+, even free Finviz has 67 filters. | M | yfinance for prototyping, EODHD/FMP for production. Need 3+ years history for scoring models. Adjusted close prices mandatory. SEC EDGAR for filings (free, authoritative). |
-| **Fundamental scoring** (Piotroski F-Score, Altman Z-Score) | Core screening metrics. GuruFocus, finbox, fintel, Old School Value all offer automated F-Score screening. Equities Lab offers both F-Score and Z-Score testing. | M | F-Score (9 criteria) and Z-Score (bankruptcy risk) are the minimum viable scoring. Beneish M-Score and Mohanram G-Score add differentiation but are less commonly automated (only GuruFocus has M-Score readily available). |
-| **Stock screener / ranking** | Every platform from Finviz (free, 67 filters) to Koyfin (500+ metrics with 10-year historical) offers this. Users expect to filter a universe by criteria. Stock Rover's weighted rating (0-100) is the current best-in-class. | M | CLI table output sufficient for v1. Must support custom filter combos (e.g., F-Score >= 7 AND Z-Score > 2.5). Stock Rover's approach of weighting criteria and floating best matches to top is the right UX pattern. |
-| **Valuation model** (at least DCF) | Alpha Spread auto-calculates intrinsic value with multi-scenario DCF. Simply Wall St uses 4 DCF variants (2-Stage, DDM, Excess Returns, AFFO) selected by company type. Stock Rover has Fair Value view. Users expect automated valuation, not spreadsheets. | XL | Ensemble approach (DCF + EPV + relative multiples) is correct. Simply Wall St's model selection by company type (financials -> Excess Returns, REITs -> AFFO) is smart -- we should at minimum distinguish financial vs non-financial companies. Sensitivity analysis on growth rate and discount rate is table stakes for credibility per Alpha Spread. |
-| **Margin of safety calculation** | Fundamental to value investing since Graham. Every valuation tool (Alpha Spread, Simply Wall St, GuruFocus) shows premium/discount vs intrinsic value. | S | `(intrinsic_value - market_price) / intrinsic_value`. Target 20-30% minimum margin. Alpha Spread shows base/worst/best case scenarios -- showing the range is more honest than a single number. |
-| **Stop-loss and take-profit levels** | Any trading system without risk boundaries is irresponsible. ATR-based stops (2.5-3.5x ATR(21)) are industry standard for position trading. Trailing stops that lock in gains while protecting against declines are expected. | M | Need both initial stop and trailing stop logic. ATR-multiples for volatility adjustment (not fixed percentages) are the modern standard per 2025 best practices. |
-| **Position sizing** | Required to prevent ruin. Fractional Kelly (Half or Quarter Kelly) is the recommended practical approach -- full Kelly is too aggressive (max drawdown -24.6% at 2% risk per trade is the optimal balance per BacktestBase analysis). | M | Fractional Kelly (1/4 Kelly) already designed. Must integrate with ATR-based stop distance and portfolio-level constraints. |
-| **Backtesting** | No credible systematic strategy goes live without historical validation. QuantConnect (cloud, 400TB+ data), Zipline-Reloaded (factor-native), and bt (portfolio-level) are the established options. | XL | Must test full pipeline: screening -> scoring -> signal -> position sizing -> execution simulation. Walk-forward validation essential (Zipline-Reloaded is "factor-native" and best suited for daily selection/rebalancing models per Python backtesting landscape 2026 survey). |
-| **Trade plan generation** | Users expect structured output: what to buy, at what price, stop-loss, take-profit, position size. TradersPost auto-calculates exits; capitalise.ai generates plans from natural language. The bar is rising. | S | Text/JSON output combining signal, entry price, stop-loss, take-profit, position size, and reasoning. The "reasoning" part is the differentiator -- most tools give a number, we give the WHY. |
-| **Paper trading** | Every serious platform offers simulation before real money. Alpaca Paper Trading is free, supports bracket orders, sub-10ms latency via SIP streams, 99.9% uptime. The MCP server even allows LLM-driven trading. | M | Alpaca Paper Trading API via alpaca-py SDK. Must log all fills, slippage, and compare realized vs planned execution. Bracket orders (entry + stop + target as a single order) are the correct execution pattern. |
-| **Portfolio view** | Users need current holdings, exposure, P&L, risk metrics at a glance. PortfoliosLab shows drawdown charts, Sharpe ratio, beta, alpha. Stock Rover tracks performance vs benchmarks. | M | CLI dashboard showing positions, weights, sector exposure, unrealized P&L, drawdown from high-water mark. Rich/Textual library for formatted tables. |
-| **Alerting / monitoring** | Positions need monitoring. Stock Alarm supports 65,000+ assets with triggers on price, volume, RSI, MACD via push/email/SMS. Yahoo Finance provides free price alerts. The bar is low but expectations exist. | M | Price-based alerts (stop hit, target reached) plus fundamental alerts (earnings miss, guidance change, score degradation). Daily batch check is sufficient for mid-term holding period -- no need for real-time streaming. |
-| **Human approval workflow** | For a system targeting serious retail investors, automated execution without human review is a dealbreaker in v1. PROJECT.md constraint: "V1 requires explicit human approval before any live order." | S | Present trade plan, wait for explicit approval before order submission. Simple y/n CLI prompt is enough. Show full reasoning alongside the decision. |
-| **Watchlist management** | Track candidates before they hit entry price. Every screener and broker app has this. Stock Rover watchlists include fundamentals, ratings, and performance tracking. | S | CRUD on SQLite, monitor price vs. entry target. Track when screened candidates approach entry zone. |
+A rule-based scoring system that converts raw technical indicators into a normalized 0-100 TechnicalScore. The existing codebase already has a `TechnicalScore(ValueObject)` placeholder in `scoring/domain/value_objects.py` (value: float, 0-100) and strategy weights allocating 40% (swing) / 30% (position) to technical scoring. The scoring handler currently falls back to `core.scoring.technical.compute_technical_score`. This phase replaces the placeholder with a real, multi-indicator composite.
 
-### Complexity Key
-- **S (Small)**: 1-3 days, well-understood problem, few external dependencies
-- **M (Medium)**: 3-10 days, moderate complexity, some integration work
-- **L (Large)**: 10-20 days, significant complexity, multiple components
-- **XL (Extra Large)**: 20+ days, high complexity, multiple integrations, iterative refinement needed
+### Expected Behavior
 
----
+**Standard technical indicators and their roles:**
 
-## Differentiators (Competitive Advantage)
+| Indicator | Purpose | Standard Parameters | Signal Logic |
+|-----------|---------|---------------------|--------------|
+| RSI (Relative Strength Index) | Momentum oscillator, overbought/oversold | Period: 14 days | <30 = oversold (bullish), >70 = overbought (bearish), 30-70 = neutral |
+| MACD (Moving Average Convergence Divergence) | Trend direction + momentum | Fast: 12, Slow: 26, Signal: 9 | Histogram >0 + rising = bullish, <0 + falling = bearish, crossovers for entries |
+| Moving Averages (SMA/EMA) | Trend identification | 50-day (medium), 200-day (long-term) | Price > 200 EMA = uptrend, Golden Cross (50 > 200) = bullish, Death Cross = bearish |
+| ADX (Average Directional Index) | Trend strength (not direction) | Period: 14 days | <20 = no trend (sideways), 20-25 = weak, 25-40 = strong, >40 = very strong |
+| OBV (On-Balance Volume) | Volume-price confirmation | Cumulative | Rising OBV + rising price = confirmed, divergence = warning |
 
-Features that set the product apart. Not required for basic operation, but these are where Intrinsic Alpha Trader competes against generic screeners and robo-advisors.
-
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| **Explainable scoring with full audit trail** | Every score traces to specific data points. Stock Rover shows a 0-100 rating but buries the "why" behind a paywall. Simply Wall St shows binary pass/fail per check but not the underlying calculation. Alpha Spread shows model inputs but only for valuation. This system shows WHY at every layer: which F-Score criteria passed/failed, what drove the Z-Score, why the DCF disagreed with EPV. | M | Core differentiator per PROJECT.md: "Every recommendation must be explainable and risk-controlled." This is what Simply Wall St's open-source model aspires to but doesn't fully deliver in their product (simplified to colored Snowflake). |
-| **Safety filter hard gates** (Z-Score + M-Score) | Auto-reject companies with bankruptcy risk (Z < 1.81) or earnings manipulation (M > -1.78) before scoring begins. Most screeners treat these as optional filters. Stock Rover doesn't even expose M-Score. GuruFocus has both but as optional columns, not enforced gates. | S | Prevents the common retail mistake of buying "cheap" stocks that are cheap for good reason. The dual-gate pattern (bankruptcy risk + fraud risk) is unusual in retail tools. |
-| **Valuation ensemble with confidence bands** | No single valuation model is reliable. Alpha Spread does DCF + relative but in parallel, not as a weighted ensemble. Simply Wall St selects ONE model based on company type (2-Stage DCF, DDM, Excess Returns, AFFO). This system runs DCF + EPV + relative simultaneously and flags when models disagree significantly. | XL | EPV (no growth assumptions) acts as conservative floor. DCF (growth-dependent) acts as optimistic ceiling. When they converge, high conviction. When they diverge by >30%, low confidence -- stay away. This ensemble logic is how institutional analysts think but is not available in any retail tool. |
-| **Multi-methodology signal consensus** | CAN SLIM + Magic Formula + Dual Momentum + Trend Following running in parallel with regime-weighted aggregation. The virattt/ai-hedge-fund runs multiple "investor persona" agents but relies on LLMs (non-deterministic). This system uses deterministic rule-based strategies. | XL | 3/4 agreement for strong signal, regime-based weight adjustment. Deterministic > LLM-based for reproducibility and backtestability. |
-| **Regime-adaptive weighting** | Strategy weights shift based on market regime (bull/bear, low/high vol). No retail tool does this. QuantConnect users can code it, but it's not built-in. | L | Requires regime-detect skill (VIX, yield curve, breadth indicators). Changes how fundamental vs technical vs momentum scores are weighted. In bear markets, emphasize quality (Z-Score, health); in bull markets, emphasize growth (G-Score, earnings momentum). |
-| **Three-tier drawdown defense protocol** | Systematic risk escalation (10% warn -> 15% reduce -> 20% liquidate) with enforced cooling periods. No retail tool enforces this. Most give you a max drawdown metric after the fact (PortfoliosLab, Portfolio Visualizer). | M | Already designed in risk-auditor agent. Prevents the behavioral trap of "diamond hands" during crashes. The 2% per-trade risk level with Half Kelly produces optimal +95% returns with manageable -24.6% max drawdown per BacktestBase analysis. |
-| **Sector-neutral normalization** | All scores ranked within GICS sector before composite calculation. Stock Rover's 0-100 rating already does industry-relative ranking -- this is proven UX. Simply Wall St compares against sector peers. The key is making this automatic and transparent. | M | Requires sector classification data and minimum peer count (10+). Prevents tech always scoring higher on growth metrics than utilities. Stock Rover validates this approach commercially. |
-| **Beneish M-Score as hard gate** | Earnings manipulation detection. Only GuruFocus automates this among commercial platforms. Most retail investors have never heard of it. Catching fraud before it crashes saves portfolios. | S | 8-variable formula. Combined with Z-Score as dual safety gate. This two-gate pattern (bankruptcy + fraud) is genuinely differentiated for retail. |
-| **Mohanram G-Score** | Growth stock quality scoring complements value-focused F-Score. Bridges value and growth investing. Very few platforms automate this (virtually none in retail). | S | 8-point binary scoring. Extends the system beyond deep value into quality growth. Broadens addressable user base. |
-| **EPV (Earnings Power Value)** | Alternative to DCF that avoids growth assumptions. Bruce Greenwald's methodology. Available on Old School Value and MarketXLS but not automated in any major screener. | M | Normalized earnings / cost of capital. EPV acts as "what is this company worth if it never grows?" -- a conservative anchor that makes the ensemble more robust. |
-| **Daily automated screening workflow** | Scheduled daily scan of entire US market universe. Stock Rover does this with screener alerts. Alpha Spread has watchlist alerts. But neither generates trade plans from screening results. | M | Cron-style daily job: data refresh -> score -> rank -> filter -> generate trade plans for top N -> notify user. Transforms from "pull" (user queries) to "push" (system surfaces opportunities). |
-| **Score trend tracking** | Detect improving/deteriorating fundamentals over quarters. Simply Wall St shows historical Snowflake changes. Stock Rover shows 10-year trend data. But neither alerts on score degradation for held positions specifically. | M | Track F-Score, Z-Score changes across quarters. Alert when scores degrade below thresholds for held positions. "Your held stock XYZ's F-Score dropped from 8 to 5 this quarter" is actionable intelligence. |
-| **Bias checker** | Detect disposition effect, recency bias, overconcentration from trading history. No commercial platform actively diagnoses behavioral patterns. TradesViz journals track metrics but don't diagnose biases. | M | Needs months of decision history to detect patterns. "You've held 3 losing positions past their stop-loss in the last month -- disposition effect detected." Genuinely novel for retail. |
-| **Company-type-aware valuation model selection** | Simply Wall St's approach of selecting DCF variant by company type (financials -> Excess Returns, REITs -> AFFO, dividend payers -> DDM) is correct. Most tools apply one model to all companies. | M | Minimum: distinguish financial vs non-financial companies (Excess Returns vs 2-Stage DCF). Advanced: REITs (AFFO), utilities (DDM), growth (revenue-based DCF). Prevents applying inappropriate models. |
-
----
-
-## Anti-Features (Commonly Requested, Deliberately NOT Built)
-
-Features that seem good but create problems. Explicitly NOT building these, with reasoning.
-
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| **Full auto-execution in v1** | "Just let the AI trade for me" | Untested strategies with real money = guaranteed losses. Paper trading validation is non-negotiable. Auto-execution also creates regulatory and liability exposure. The virattt/ai-hedge-fund explicitly warns "not intended for real trading." | Paper trading first with human approval workflow. Graduate to semi-auto only after demonstrated positive expectancy over 3+ months. |
-| **Real-time intraday trading** | "More data = better decisions" | Mid-term holding (1-3 months) doesn't benefit from tick data. Intraday data is expensive, creates latency requirements, and encourages overtrading. Daily granularity is optimal for position trading. Alpaca SIP streams are available but unnecessary for this use case. | Daily EOD data with batch processing. ATR-based stops provide sufficient granularity for 1-3 month holds. |
-| **Social/sentiment from Reddit/Twitter** | "The crowd knows something" | Social sentiment is extremely noisy, easily manipulated, and has negative predictive value for mid-term holding periods. Meme stock detection fights the system's value investing thesis. 2025 research shows integration requires sophisticated NLP that adds massive complexity. | Analyst revision sentiment + insider trading patterns (structured, reliable data) instead of unstructured social media noise. SEC EDGAR insider transactions are free and reliable. |
-| **Options and derivatives** | "I want leverage and hedging" | Massive complexity increase (Greeks, expiry management, combinatorial strategies). Completely different risk model. Dilutes focus from the core stock-picking mission. Even QuantConnect treats options as a separate asset class. | Stock-only for MVP and v1. Protective puts only in v2+ as a separate bounded context, if portfolio hedging demand is validated. |
-| **Web GUI dashboard in v1** | "CLI is not user-friendly" | Building a web UI before the core engine is validated is premature optimization. The virattt/ai-hedge-fund spent significant effort on a React frontend that doesn't improve strategy quality. Web dashboards consume 40-60% of total effort. | CLI-first (Rich/Textual for formatted tables). Streamlit dashboard as first GUI in v1.x -- 10x faster to build than React/Next.js and sufficient for single-user operation. |
-| **Multi-market support (Korea, Europe)** | "I trade globally" | Different data sources, market hours, accounting standards, regulatory environments. Koyfin covers 80K+ global companies but is a research-only platform with no execution. Each market doubles integration effort. | US market only for MVP (best data availability, Alpaca supports US, most liquid market). Korean market as first expansion in v2. |
-| **ML-based price prediction** | "AI should predict where the price goes" | False precision creates false confidence. Overfitting risk is enormous. The virattt/ai-hedge-fund uses LLMs for decisions, making strategies non-reproducible and non-backtestable. Explainability nightmare -- contradicts core value. | Rule-based scoring with transparent formulas. Composite scores rank candidates, not predict prices. Deterministic > stochastic for this domain. |
-| **Prediction confidence percentages** | "Tell me the probability this stock goes up" | A "78% buy probability" implies calibrated probabilistic forecasting that scoring models do NOT provide. Dangerous false precision that encourages over-sizing positions. | Ordinal rankings (STRONG BUY / BUY / HOLD / SELL) with clear reasoning, not pseudo-probabilities. Ensemble agreement level (3/4 models agree = high conviction) is honest confidence communication. |
-| **Copy trading / social features** | "Let me follow top performers" | Orthogonal to explainable, risk-controlled value proposition. Encourages blind following without understanding. Simply Wall St has community features but they're disconnected from their analysis model. | Focus on explainability so users learn to make their own decisions. The audit trail IS the educational tool. |
-| **Portfolio optimization (mean-variance)** | "Optimize my Sharpe ratio" | Assumes normal distribution of returns (doesn't hold). Extremely sensitive to input estimation errors. Results in unstable, over-concentrated portfolios. Academic consensus increasingly favors constraints over optimization. | Simpler Fractional Kelly + max sector allocation limits (8% single stock, 25% sector). Constraints-based approach rather than optimization-based. |
-| **High-frequency execution optimization** | "Minimize execution cost with smart routing" | Position trading with limit orders has negligible market impact. Smart order routing only matters at institutional scale. QuantConnect supports FIX 5.0 for $5B+ monthly volume -- irrelevant for retail. | Simple limit orders via Alpaca API with basic slippage tracking. Bracket orders (entry + stop + target) are the correct execution pattern. |
-| **LLM-based decision making** | "Use GPT to analyze stocks" | Non-deterministic outputs make backtesting impossible. Different results on re-run. No audit trail of reasoning that's reproducible. The virattt/ai-hedge-fund's biggest weakness is LLM dependency. | Rule-based scoring is deterministic, backtestable, and explainable. LLMs can summarize/explain results (presentation layer) but must not make the investment decision (domain layer). |
-
----
-
-## Feature Dependencies
+**Composite technical score formula (industry standard approach):**
 
 ```
-[Data Ingestion Pipeline]
-    |
-    +--requires--> [Financial Data Sources (yfinance/EODHD/FMP + SEC EDGAR)]
-    |
-    +--feeds------> [Fundamental Scoring Engine]
-    |                   |
-    |                   +--requires--> [Safety Filters (Z-Score, M-Score)] -- HARD GATES
-    |                   +--requires--> [Sector Classification Data (GICS)]
-    |                   +--feeds-----> [Valuation Engine]
-    |                   |                  |
-    |                   |                  +--requires--> [Company Type Classification]
-    |                   |                  |              (financial/REIT/dividend/growth)
-    |                   |                  +--feeds--> [Signal Engine]
-    |                   |                                  |
-    |                   +--feeds------------------------> [Signal Engine]
-    |                                                      |
-    +--feeds------> [Technical Indicators]                 |
-    |                   +--feeds------------------------> [Signal Engine]
-    |                                                      |
-    +--feeds------> [Market Regime Detection]              |
-                        +--feeds (weights)---------------> [Signal Engine]
-                                                           |
-                                                           +--feeds--> [Trade Plan Generation]
-                                                                           |
-                                                                           +--requires--> [Position Sizing Engine]
-                                                                           |                  +--requires--> [Risk Management Engine]
-                                                                           |                  +--requires--> [Portfolio State]
-                                                                           |
-                                                                           +--feeds--> [Human Approval Workflow]
-                                                                                           |
-                                                                                           +--feeds--> [Order Execution (Alpaca)]
-                                                                                                           |
-                                                                                                           +--feeds--> [Portfolio Monitoring]
-                                                                                                           +--feeds--> [Alerting Engine]
-
-[Backtesting Engine]
-    +--requires--> [Data Ingestion Pipeline]
-    +--requires--> [Scoring Engine]
-    +--requires--> [Signal Engine]
-    +--requires--> [Position Sizing Engine]
-    +--validates-> [Strategy Parameters (before live)]
-
-[Performance Attribution]
-    +--requires--> [Portfolio Monitoring]
-    +--requires--> [Execution Logs]
-    +--enhances--> [Strategy Improvement Loop]
-
-[Daily Screening Workflow]
-    +--requires--> [Data Ingestion Pipeline]
-    +--requires--> [Scoring Engine]
-    +--requires--> [Signal Engine]
-    +--enhances--> [Trade Plan Generation]
-
-[Watchlist Management]
-    +--requires--> [Stock Screener / Ranking]
-    +--enhances--> [Monitoring / Alerting]
-
-[Bias Checker]
-    +--requires--> [Execution Logs (weeks of history)]
-    +--requires--> [Portfolio Monitoring]
-    +--enhances--> [Human Approval Workflow]
-
-[Score Trend Tracking]
-    +--requires--> [Scoring Engine (multi-quarter history)]
-    +--enhances--> [Alerting Engine]
-    +--enhances--> [Portfolio Monitoring]
+technical_score = (
+    rsi_score * 0.20           # Momentum state
+  + macd_score * 0.25          # Trend direction + momentum
+  + ma_trend_score * 0.25      # Price vs moving averages
+  + adx_score * 0.15           # Trend strength
+  + obv_score * 0.15           # Volume confirmation
+)
 ```
 
-### Dependency Notes
+Each sub-indicator produces a 0-100 score. The composite is also 0-100 and plugs directly into the existing `CompositeScore.compute()` method.
 
-- **Scoring Engine requires Data Ingestion:** Cannot calculate F-Score, Z-Score, M-Score without 3+ years of financial statements and price data. This is the absolute foundation.
-- **Safety filters are HARD GATES:** Z-Score and M-Score must execute before any further analysis. No point valuing a bankrupt or fraud-risk company.
-- **Valuation Engine requires company type classification:** Simply Wall St's model selection by company type is correct -- applying a standard 2-Stage DCF to a bank (which requires Excess Returns model) produces garbage. At minimum: financial vs non-financial distinction.
-- **Signal Engine requires Scoring + Valuation (minimum):** Basic signal = quality score + valuation gap. Technical indicators and regime detection enhance but don't block.
-- **Trade Plan requires Signal + Position Sizing + Risk:** A trade plan without size, stop, and target is just an opinion, not an actionable plan.
-- **Backtesting is parallel to but validates the live pipeline:** Same code path as live, replayed against historical data. Must be built alongside, not after, the scoring/signal pipeline. Zipline-Reloaded is the recommended engine for factor-based daily rebalancing.
-- **Performance Attribution requires live execution history:** Can only be built after paper trading generates sufficient data (weeks/months of trades).
-- **Bias Checker requires execution logs:** Needs months of user decisions to detect patterns.
-- **Regime Detection enhances but doesn't block Signal Engine:** Basic signals work without regime awareness.
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Dependency |
+|---------|--------------|------------|------------|
+| RSI calculation with standard 14-period | Every technical screener has RSI. Finviz, TradingView, Stock Rover all include it. | LOW | OHLCV data (existing `data_ingest` context) |
+| MACD with 12/26/9 parameters | Standard momentum indicator. No technical analysis tool omits MACD. | LOW | OHLCV data |
+| 50-day and 200-day moving averages | Golden Cross / Death Cross are universally referenced. Existing regime detection already uses S&P 200MA. | LOW | OHLCV data |
+| ADX trend strength | Already a value object in `regime/domain/value_objects.py` (`TrendStrength`). Reuse the same logic. | LOW | OHLCV data |
+| OBV volume confirmation | Standard volume indicator. Detects accumulation/distribution. | LOW | OHLCV data (needs volume field) |
+| Composite technical score (0-100) | The `TechnicalScore` VO already expects this. Existing `CompositeScore.compute()` weights it at 40% (swing) / 30% (position). | MEDIUM | All above indicators |
+| Sub-score breakdown in output | Matches existing explainability pattern -- F-Score shows 9 sub-criteria. Technical score should show 5 sub-scores. | LOW | Composite technical score |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity |
+|---------|-------------------|------------|
+| Regime-conditioned technical interpretation | RSI <30 in a bull market = buying opportunity. RSI <30 in a crisis = catching a falling knife. Context-aware interpretation. | MEDIUM |
+| Volume-price divergence detection | OBV divergence from price trend is a leading indicator. Alert when OBV weakens before price drops. | LOW |
+| Configurable weights per strategy | Swing traders weigh momentum (RSI, MACD) more. Position traders weigh trend (MA, ADX) more. Weights already exist in `STRATEGY_WEIGHTS`. | LOW |
+
+### Anti-Features
+
+| Feature | Why Problematic | Alternative |
+|---------|-----------------|-------------|
+| 50+ indicators (Bollinger, Stochastic, Ichimoku, etc.) | Indicator overload causes analysis paralysis and overfitting. 5 orthogonal indicators cover momentum, trend, strength, volume. | Stick to 5 core indicators. Add more only with backtest evidence. |
+| Intraday indicator updates | Mid-term holding (2 weeks+) does not benefit from minute-level RSI. Adds data cost and complexity. | Daily EOD calculation is sufficient. |
+| ML-optimized indicator weights | Overfits to historical regimes. Weights should be explainable. | Fixed, documented weights with optional strategy profiles. |
 
 ---
 
-## MVP Definition
+## Capability 2: Market Regime Detection (Bull/Bear/Sideways/Crisis)
 
-### Launch With (v1)
+### What It Is
 
-Minimum viable product -- validates that fundamental scoring + valuation ensemble produces actionable, risk-controlled trade plans.
+Already partially built. The DDD domain exists at `src/regime/` with:
+- `RegimeType` enum (Bull/Bear/Sideways/Crisis)
+- Value objects: `VIXLevel`, `TrendStrength` (ADX), `YieldCurve`, `SP500Position`
+- `RegimeDetectionService.detect()` with rule-based classification
+- `MarketRegime` entity with 3-day confirmation logic
+- `RegimeChangedEvent` for event-driven communication
+- SQLite persistence repository
 
-- [ ] **Data ingestion pipeline** -- yfinance for prototyping, OHLCV + financial statements for US market
-- [ ] **Safety filters** (Altman Z-Score >= 1.81, Beneish M-Score < -1.78) -- hard gates before any analysis
-- [ ] **Fundamental scoring** (Piotroski F-Score + composite scoring) -- core quality assessment
-- [ ] **Valuation engine** (DCF + EPV + relative multiples ensemble) -- identify undervalued companies
-- [ ] **Margin of safety calculation** -- premium/discount with 20-30% target
-- [ ] **Stock screener/ranker** -- filter US market universe by composite score, show top N
-- [ ] **Basic signal generation** -- combine fundamental score + valuation gap into BUY/HOLD signal
-- [ ] **Position sizing** (Fractional Kelly + ATR stops) -- right-sized positions with defined risk
-- [ ] **Trade plan generation** -- entry, stop, target, size, reasoning in structured output
-- [ ] **Human approval workflow** -- CLI prompt before any order submission
-- [ ] **Alpaca paper trading** -- execute approved plans in paper mode with bracket orders
-- [ ] **Basic CLI dashboard** -- portfolio view, P&L, current positions (Rich/Textual)
-- [ ] **Backtesting engine** (basic) -- walk-forward validation on historical data
-- [ ] **Watchlist management** -- track screened candidates, monitor vs entry targets
+**What is NOT built:** Data ingestion for regime indicators (VIX, S&P 500 200MA, yield curve), scheduled detection, and integration with scoring weights.
 
-### Add After Validation (v1.x)
+### Expected Behavior
 
-Features to add once core scoring/valuation pipeline is validated through paper trading results.
+**Regime classification rules (already coded, academically validated):**
 
-- [ ] **Daily automated screening** -- once manual screening confirms pipeline quality
-- [ ] **Regime detection** -- when paper trading shows strategy underperforms in specific conditions
-- [ ] **Multi-methodology signal consensus** (CAN SLIM, Magic Formula, Dual Momentum, Trend Following)
-- [ ] **Regime-adaptive weighting** -- connect regime detection to strategy weights
-- [ ] **Alerting engine** (price + fundamental alerts) -- once positions need monitoring
-- [ ] **Mohanram G-Score integration** -- extend to growth stock assessment
-- [ ] **Sector-neutral normalization** -- refine scoring precision
-- [ ] **Company-type-aware valuation model selection** -- financial vs non-financial distinction
-- [ ] **Score trend tracking** -- detect improving/deteriorating fundamentals
-- [ ] **Streamlit dashboard** -- first GUI when CLI friction is a bottleneck
-- [ ] **EODHD/FMP data source upgrade** -- when yfinance free tier limits are hit
-- [ ] **Explainable audit trail (enhanced)** -- detailed sub-score breakdown in reports
+| Regime | Conditions | Confidence |
+|--------|------------|------------|
+| Crisis | VIX > 40 OR Yield Curve < -0.5% | 0.6-1.0 (dual signal) |
+| Bear | VIX > 30 AND S&P 500 < 200MA | 0.5-0.9 |
+| Sideways | ADX < 20 (no clear trend) | 0.6 |
+| Bull | VIX < 20 AND S&P > 200MA AND ADX > 25 AND Yield Curve > 0 | 0.85 |
 
-### Future Consideration (v2+)
+**Regime-to-strategy weight mapping (documented but not wired):**
 
-Features requiring extensive execution history, representing market expansion, or adding qualitative layers.
+| Regime | Fundamental Weight | Technical Weight | Sentiment Weight | Rationale |
+|--------|-------------------|-----------------|-----------------|-----------|
+| Bull | 0.30 | 0.45 | 0.25 | Emphasize momentum/trend |
+| Bear | 0.55 | 0.25 | 0.20 | Emphasize quality/safety |
+| Sideways | 0.40 | 0.35 | 0.25 | Balanced |
+| Crisis | 0.60 | 0.20 | 0.20 | Maximum quality emphasis |
 
-- [ ] **SEC filing NLP analysis** (10-K/10-Q narrative) -- using EdgarTools + LLM for qualitative signals
-- [ ] **Performance attribution** -- decompose returns by factor with sufficient trade history
-- [ ] **Bias checker** -- detect behavioral patterns after months of decisions
-- [ ] **Semi-automated execution** -- human approves plan, system manages orders
-- [ ] **Korean market (KOSPI/KOSDAQ)** -- second market expansion
-- [ ] **Earnings call transcript analysis** -- tone change detection via FinBERT/LLM
-- [ ] **Options hedging** (protective puts only) -- separate bounded context
-- [ ] **Insider transaction monitoring** -- SEC EDGAR insider trading signals
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Dependency |
+|---------|--------------|------------|------------|
+| VIX data ingestion | VIX is the primary fear indicator. Must be sourced daily. yfinance provides ^VIX. | LOW | `data_ingest` context |
+| S&P 500 vs 200MA position | Already modeled as `SP500Position` VO. Need data feed for SPY/^GSPC + 200-day SMA. | LOW | `data_ingest` context |
+| Yield curve spread (10Y - 2Y) | `YieldCurve` VO exists. Need Treasury rate data feed (FRED API or yfinance ^TNX/^TWO). | LOW | New data source (FRED API or yfinance proxy) |
+| ADX for S&P 500 | `TrendStrength` VO exists. Same ADX calculation as technical scoring but for index. | LOW | Technical scoring engine (shared calculation) |
+| Current regime endpoint (CLI) | User needs to see current market state before making decisions. | LOW | Regime detection service |
+| Regime history (last 90 days) | Track regime transitions for pattern analysis. SQLite repo already exists. | LOW | SQLite persistence (existing) |
+| Regime-changed event emission | `RegimeChangedEvent` is defined but events are not published to EventBus (tech debt item). | LOW | EventBus wiring (tech debt fix) |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity |
+|---------|-------------------|------------|
+| Regime-conditioned scoring weights | Bull: emphasize momentum. Bear: emphasize quality. This is the `RegimeWeightAdjuster` Protocol already defined in `scoring/domain/services.py`. No retail tool does this automatically. | MEDIUM |
+| 3-day confirmation before regime change | Prevents whipsaw. Already coded in `MarketRegime.is_confirmed`. Just needs wiring. | LOW |
+| Regime-specific strategy recommendations | "Current regime is Bear. Trend Following performance is historically weak in bear markets. Consider reducing exposure." | LOW |
+| RegimeRadar commercial API | Unique commercial product -- no competitor offers regime detection as an API. | MEDIUM (after regime works locally) |
+
+### Anti-Features
+
+| Feature | Why Problematic | Alternative |
+|---------|-----------------|-------------|
+| HMM (Hidden Markov Model) for regime detection | Adds hmmlearn/scikit-learn dependency, requires training data, non-deterministic results. The rule-based approach with 4 indicators is more explainable and already coded. | Rule-based detection with VIX/S&P/ADX/YieldCurve. HMM only if rule-based proves insufficient after 6+ months of live validation. |
+| Sub-minute regime updates | Regimes don't change in minutes. VIX and S&P close prices are sufficient. Real-time streaming adds cost without value. | Daily detection (after market close) with 3-day confirmation. |
+| Micro-regimes (10+ states) | More states = more noise, more parameter tuning, harder to map to strategy adjustments. Academic consensus uses 2-4 states. | 4 regimes (Bull/Bear/Sideways/Crisis) is the sweet spot for actionability. |
+
+---
+
+## Capability 3: Multi-Strategy Signal Fusion (CAN SLIM, Magic Formula, Dual Momentum, Trend Following)
+
+### What It Is
+
+The DDD domain at `src/signals/` already defines:
+- `MethodologyType` enum: CAN_SLIM, MAGIC_FORMULA, DUAL_MOMENTUM, TREND_FOLLOWING
+- `MethodologyResult` VO: direction + score + reason per methodology
+- `ConsensusThreshold` VO: 3/4 agreement required
+- `SignalFusionService.fuse()`: produces consensus signal from 4 methodology results
+- `SignalDirection` enum: BUY/SELL/HOLD
+
+**What is NOT built:** The actual methodology implementations. The fusion logic exists but has no concrete strategy calculators to feed it.
+
+### Expected Behavior Per Strategy
+
+#### CAN SLIM (William O'Neil, Growth + Momentum)
+
+7 criteria scored individually, composite determines signal:
+
+| Letter | Criterion | Quantitative Rule | Data Source |
+|--------|-----------|-------------------|-------------|
+| C | Current quarterly EPS | EPS growth >= 25% YoY | Financial statements |
+| A | Annual earnings growth | 5-year EPS growth >= 25% CAGR | Financial statements |
+| N | New highs, new product/management | Price within 15% of 52-week high | OHLCV |
+| S | Supply and demand | Below-average share count + volume surge on up days | OHLCV + shares outstanding |
+| L | Leader or laggard | Relative strength rank >= 80 (top 20% of market) | OHLCV (relative performance) |
+| I | Institutional sponsorship | Institutional ownership 30-60% + increasing | Financial data (holders) |
+| M | Market direction | S&P 500 above 200 MA (bull market) | Regime detection context |
+
+**Score:** 0-7 criteria met. BUY when >= 5/7 AND market in Bull regime.
+
+#### Magic Formula (Joel Greenblatt, Quality + Value)
+
+Two rankings combined:
+
+| Metric | Formula | Data Source |
+|--------|---------|-------------|
+| Earnings Yield | EBIT / Enterprise Value | Financial statements |
+| Return on Capital | EBIT / (Net Fixed Assets + Working Capital) | Financial statements |
+
+**Score:** Rank all stocks by each metric. Sum ranks. Lower combined rank = better. Top 20-30 stocks in universe get BUY signal. Hold for 1 year, rebalance annually.
+
+#### Dual Momentum (Gary Antonacci, Absolute + Relative)
+
+Two-step momentum filter:
+
+| Step | Logic | Parameters |
+|------|-------|------------|
+| Absolute Momentum | Is 12-month return > T-bill return? | 12-month lookback vs risk-free rate |
+| Relative Momentum | Which asset class performed better? | US equity vs International equity (12-month return) |
+
+**Signal:** If absolute momentum positive AND US outperforms International, BUY US equity. If absolute momentum positive AND International outperforms, BUY International. If absolute momentum negative, go to bonds/cash. Applied at portfolio level, not individual stocks.
+
+#### Trend Following (Turtle-inspired, Price + ATR)
+
+Rule-based trend system:
+
+| Rule | Logic | Parameters |
+|------|-------|------------|
+| Entry | Price breaks above 20-day high (System 1) or 55-day high (System 2) | 20/55 day lookback |
+| Exit | Price breaks below 10-day low (System 1) or 20-day low (System 2) | 10/20 day lookback |
+| Position Size | 1% risk per trade, sized by ATR | ATR(21) for volatility normalization |
+| Trend Confirmation | ADX > 25 confirms trend | ADX period 14 |
+
+**Signal:** BUY when price > 20-day high AND ADX > 25. SELL when price < 10-day low.
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Dependency |
+|---------|--------------|------------|------------|
+| CAN SLIM scoring (7 criteria) | Iconic growth stock methodology. O'Neil's IBD uses it. Requires EPS growth, relative strength, institutional data. | MEDIUM | Financial statements + OHLCV (existing) + institutional ownership data (new) |
+| Magic Formula ranking (EBIT-based) | Greenblatt's methodology is widely published. Requires EBIT, enterprise value, net fixed assets. | MEDIUM | Financial statements (existing data pipeline) |
+| Dual Momentum signal (absolute + relative) | Antonacci's methodology is simple: 12-month return vs T-bill, US vs International. | LOW | OHLCV + risk-free rate (new data point) |
+| Trend Following signal (breakout + ADX) | Turtle-inspired rules. Uses 20/55-day highs and lows. | LOW | OHLCV (existing) + ADX (from technical scoring) |
+| Consensus fusion (3/4 agreement) | Already coded in `SignalFusionService.fuse()`. Just needs real methodology inputs. | LOW | All 4 methodology implementations |
+| Per-methodology reasoning trace | Each methodology should explain why it signaled BUY/HOLD/SELL. Matches existing explainability pattern. | LOW | Methodology implementations |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity |
+|---------|-------------------|------------|
+| Regime-weighted methodology aggregation | In Bull markets, weight Trend Following and Dual Momentum higher. In Bear markets, weight Magic Formula (quality) higher. Uses regime detection output. | MEDIUM |
+| Methodology agreement visualization | Show which strategies agree and why. "3/4 methods agree BUY: CAN SLIM (6/7 criteria), Magic Formula (rank 15/500), Trend Following (20-day breakout). Dual Momentum says HOLD (absolute momentum negative)." | LOW |
+| Methodology-specific backtest validation | Each methodology can be backtested independently before inclusion in fusion. | HIGH |
+| SignalFusion commercial API | Expose consensus signals as REST API. No competitor offers 4-strategy fusion as a service. | MEDIUM (after fusion works locally) |
+
+### Anti-Features
+
+| Feature | Why Problematic | Alternative |
+|---------|-----------------|-------------|
+| Dynamic methodology weight optimization | ML-optimized weights overfit to historical regimes. Fixed regime-based weight tables are more robust. | Predefined weight tables per regime (Bull/Bear/Sideways/Crisis). |
+| 10+ methodologies | More strategies does not mean better consensus. 4 orthogonal methods (growth, value, momentum, trend) cover the major factor families. | 4 methodologies covering 4 factor families. |
+| Individual stock picks from Dual Momentum | Dual Momentum is an asset-class-level strategy (US vs International vs Bonds). Forcing it to pick individual stocks distorts the methodology. | Use Dual Momentum for asset allocation overlay, not individual stock selection. |
+
+---
+
+## Capability 4: Korean Market Support (KOSPI/KOSDAQ + KIS Broker)
+
+### What It Is
+
+Expansion from US-only to US + Korean market. Requires:
+1. Korean market data ingestion (KOSPI/KOSDAQ OHLCV + financials)
+2. Korean brokerage integration (KIS OpenAPI for paper/live trading)
+3. Scoring/signal compatibility with Korean financial statement formats (K-IFRS)
+
+### Expected Behavior
+
+**KIS OpenAPI capabilities (REST-based, Linux-compatible):**
+
+| Feature | Endpoint | Rate Limit |
+|---------|----------|------------|
+| Domestic stock price | `/uapi/domestic-stock/v1/quotations/inquire-price` | 20 req/sec |
+| OHLCV history | `/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice` | 20 req/sec |
+| Order placement | `/uapi/domestic-stock/v1/trading/order-cash` | 20 req/sec |
+| Account balance | `/uapi/domestic-stock/v1/trading/inquire-balance` | 20 req/sec |
+| Mock trading | Separate base URL (port 29443 vs 9443) | Same limits |
+| WebSocket real-time | `/uapi/domestic-stock/v1/quotations/ws` | Streaming |
+
+**Korean market data specifics:**
+
+| Aspect | US Market (Current) | Korean Market (New) |
+|--------|--------------------|--------------------|
+| Ticker format | AAPL, MSFT (alphabetic) | 005930, 000660 (6-digit numeric) |
+| Exchange suffix | .US or none | .KS (KOSPI), .KQ (KOSDAQ) |
+| Accounting standard | US GAAP | K-IFRS (mostly aligned with IFRS) |
+| Currency | USD | KRW |
+| Trading hours | 09:30-16:00 ET | 09:00-15:30 KST |
+| Lot size | 1 share | 1 share |
+| Settlement | T+1 | T+2 |
+| Financial statement access | SEC EDGAR (free, authoritative) | DART (FSS disclosure, Korean equivalent) |
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Dependency |
+|---------|--------------|------------|------------|
+| KOSPI/KOSDAQ OHLCV ingestion | Cannot analyze Korean stocks without price data. yfinance supports KRX (suffix .KS/.KQ). EODHD supports KRX data. | MEDIUM | Data source adapter (new exchange mapping in `data_ingest`) |
+| Korean financial statement ingestion | F-Score, Z-Score require financial statements. K-IFRS is close to IFRS. DART API or EODHD fundamentals. | HIGH | K-IFRS to scoring model mapping (field name differences) |
+| KIS broker mock trading | Paper trading equivalent for Korean market. KIS provides a separate mock trading environment (port 29443). | MEDIUM | New broker adapter in `execution` context |
+| KIS order placement (market/limit) | Basic buy/sell for Korean stocks. REST API, OAuth-like token auth (24h refresh). | MEDIUM | Token refresh logic, order model adaptation |
+| Korean ticker resolution | Map 005930 to Samsung Electronics, support .KS/.KQ suffixes. | LOW | Ticker lookup table or API |
+| Currency handling (KRW) | Position sizing must handle KRW denominations. KRW lots are typically larger nominal values. | LOW | Currency-aware position sizing |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity |
+|---------|-------------------|------------|
+| Cross-market screening (US + KR) | Screen both markets simultaneously. Compare Samsung (005930.KS) vs Apple (AAPL) on same composite score. Sector-neutral normalization handles cross-market comparison. | MEDIUM |
+| KIS overseas trading | KIS supports US stock trading too (via overseas stock endpoints). Could become single-broker solution for both markets. | LOW |
+| DART financial disclosure integration | Korean SEC equivalent. Free API for Korean company filings. Authoritative source for K-IFRS financials. | HIGH |
+
+### Anti-Features
+
+| Feature | Why Problematic | Alternative |
+|---------|-----------------|-------------|
+| Real-time Korean market streaming | Same rationale as US -- daily EOD is sufficient for swing/position trading. | Daily batch ingestion. |
+| Korean market intraday trading | Project constraint: no day trading. Korean market T+2 settlement makes day trading even less suitable. | Swing/position trading only. |
+| Naver Finance scraping | Unreliable, unstructured, can break anytime. Not production-grade. | KIS API + EODHD/yfinance for data. |
+| Multi-currency portfolio optimization | Adds FX risk modeling complexity. KRW/USD hedging is a separate domain. | Track positions per currency. Simple FX conversion for display only. |
+
+---
+
+## Capability 5: Commercial REST API (QuantScore, RegimeRadar, SignalFusion)
+
+### What It Is
+
+FastAPI-based REST API exposing scoring, regime detection, and signal fusion as commercial products. Three tiers of service at different price points, with rate limiting and API key authentication. Legal boundary: "information provision" only (no buy/sell recommendations = no investment advisory license needed).
+
+### Expected Behavior
+
+**Three API products (from strategy-recommendation.md):**
+
+| Product | Endpoint Pattern | What It Returns | Legal Status |
+|---------|-----------------|-----------------|--------------|
+| QuantScore | `GET /api/v1/score/{symbol}` | Composite score (0-100), sub-scores, safety filter status | Information provision (scores are data) |
+| RegimeRadar | `GET /api/v1/regime/current` | Current market regime, confidence, indicator values, strategy affinity | Information provision (regime is data) |
+| SignalFusion | `GET /api/v1/signal/{symbol}` | Per-methodology direction, consensus agreement, regime context | Information provision (signal strength is data, NOT buy/sell advice) |
+
+**API tier structure:**
+
+| Tier | Rate Limit | Features | Price |
+|------|-----------|----------|-------|
+| Free | 5 req/day | US market, composite score only | $0 |
+| Starter | 100 req/day | US + KR, detailed sub-scores, history | $29-49/mo |
+| Pro | Unlimited | All markets, screening, WebSocket, full API | $99-199/mo |
+
+### Table Stakes
+
+| Feature | Why Expected | Complexity | Dependency |
+|---------|--------------|------------|------------|
+| API key authentication | Every commercial API requires auth. Simple API key in header. | LOW | FastAPI middleware |
+| Rate limiting per tier | Tier-based throttling (Free: 5/day, Starter: 100/day, Pro: unlimited). Use `slowapi` or `fastapi-limiter` + Redis. | MEDIUM | Redis for distributed counters |
+| `/score/{symbol}` endpoint | Core QuantScore product. Returns composite score with breakdown. Reuses existing `CompositeScoringService`. | LOW | Scoring context (existing) |
+| `/regime/current` endpoint | Core RegimeRadar product. Returns current regime, confidence, indicators. Reuses `RegimeDetectionService`. | LOW | Regime context (existing/enhanced) |
+| `/signal/{symbol}` endpoint | Core SignalFusion product. Returns per-methodology results + consensus. Reuses `SignalFusionService`. | LOW | Signal context (existing/enhanced) |
+| Legal disclaimer in every response | Required for investment information APIs. `"disclaimer": "This information is not investment advice."` | LOW | Response middleware |
+| OpenAPI/Swagger documentation | FastAPI auto-generates this. Every API product needs interactive docs. | LOW | FastAPI built-in |
+| Health check endpoint | `GET /health` for monitoring. Standard for production APIs. | LOW | None |
+| CORS configuration | API consumers need cross-origin access for web apps. | LOW | FastAPI CORS middleware |
+
+### Differentiators
+
+| Feature | Value Proposition | Complexity |
+|---------|-------------------|------------|
+| Batch scoring endpoint | `POST /api/v1/score/batch` -- score 50 symbols in one request. More efficient for screener use cases. | LOW |
+| Score history endpoint | `GET /api/v1/score/{symbol}/history?days=90` -- track score evolution. No competitor offers this as API. | MEDIUM |
+| Webhook notifications | Notify subscribers when regime changes or a watched stock's score crosses threshold. | HIGH |
+| Regime stream (WebSocket) | `WS /api/v1/regime/stream` -- real-time regime updates. Premium feature for Pro tier. | HIGH |
+| Screening endpoint | `GET /api/v1/screen?min_score=70&market=US` -- programmatic screener. Competitors require web UI. | MEDIUM |
+
+### Anti-Features
+
+| Feature | Why Problematic | Alternative |
+|---------|-----------------|-------------|
+| Position sizing in API response | "Allocate 4.5% of your portfolio" = investment advisory (license required). | Return scores and signals only. Users apply their own sizing. |
+| Specific buy/sell recommendations | "BUY AAPL at $180" = investment advisory. | Return "BULLISH/NEUTRAL/BEARISH" as signal strength, not action instruction. |
+| User portfolio management | Managing other people's portfolios requires asset management license. | Users manage their own portfolios. API provides data only. |
+| Free tier with unlimited access | Attracts abuse, makes monetization impossible. | Strict free tier (5 req/day) to demonstrate value, paid for production use. |
+| OAuth2 for authentication | Over-engineered for API key authentication. OAuth2 is for delegated access (social login). | Simple API key in `X-API-Key` header. JWT tokens for session-based access if needed later. |
+
+---
+
+## Cross-Capability Feature Dependencies
+
+```
+[Technical Scoring Engine]
+    |
+    +--requires--> [OHLCV Data] (existing data_ingest context)
+    +--feeds-----> [CompositeScore] (existing scoring context, replaces placeholder)
+    +--shares----> [ADX Calculation] (with Regime Detection)
+    +--feeds-----> [Trend Following Strategy] (in Signal Fusion)
+    |
+[Regime Detection]
+    |
+    +--requires--> [VIX Data Feed] (new data source)
+    +--requires--> [S&P 500 + 200MA] (new data source)
+    +--requires--> [Yield Curve Data] (FRED API or yfinance proxy)
+    +--requires--> [ADX for S&P 500] (shared with Technical Scoring)
+    +--feeds-----> [RegimeWeightAdjuster] (existing Protocol in scoring/domain/services.py)
+    +--feeds-----> [CAN SLIM "M" criterion] (market direction filter)
+    +--feeds-----> [RegimeRadar API] (Commercial API)
+    |
+[Signal Fusion (4 Strategies)]
+    |
+    +--requires--> [Technical Scoring] (for Trend Following, CAN SLIM relative strength)
+    +--requires--> [Fundamental Data] (for CAN SLIM EPS, Magic Formula EBIT)
+    +--requires--> [Regime Detection] (for CAN SLIM "M", regime-weighted aggregation)
+    +--feeds-----> [SignalFusion API] (Commercial API)
+    |
+    +-- CAN SLIM:
+    |     +--requires--> EPS quarterly/annual growth (existing financial data)
+    |     +--requires--> 52-week high proximity (OHLCV)
+    |     +--requires--> Relative strength rank (OHLCV, cross-stock calculation)
+    |     +--requires--> Institutional ownership % (NEW data: may need additional source)
+    |
+    +-- Magic Formula:
+    |     +--requires--> EBIT (existing financial data)
+    |     +--requires--> Enterprise Value (existing financial data)
+    |     +--requires--> Net Fixed Assets + Working Capital (existing financial data)
+    |
+    +-- Dual Momentum:
+    |     +--requires--> 12-month returns (OHLCV)
+    |     +--requires--> Risk-free rate / T-bill yield (NEW data point)
+    |     +--requires--> International equity benchmark (NEW data: e.g., ACWX or EFA)
+    |
+    +-- Trend Following:
+          +--requires--> 20-day / 55-day high-low (OHLCV)
+          +--requires--> ADX (shared with Technical Scoring)
+          +--requires--> ATR (existing risk management context)
+
+[Korean Market Support]
+    |
+    +--requires--> [OHLCV Data Adapter for KRX] (new exchange mapping)
+    +--requires--> [Korean Financial Statement Adapter] (K-IFRS mapping)
+    +--requires--> [KIS Broker Adapter] (new broker integration)
+    +--requires--> [Currency Handling (KRW)] (position sizing update)
+    +--independent-of--> [Technical Scoring] (same indicators, different data source)
+    +--independent-of--> [Regime Detection] (US market regime; Korean market regime is separate concern)
+    +--enhances--> [QuantScore API] (multi-market scoring)
+
+[Commercial API (FastAPI)]
+    |
+    +--requires--> [Scoring Context] (QuantScore product)
+    +--requires--> [Regime Context] (RegimeRadar product)
+    +--requires--> [Signal Context] (SignalFusion product)
+    +--requires--> [Redis] (rate limiting, caching)
+    +--independent-of--> [Korean Market] (can launch US-only first)
+```
+
+### Critical Dependency Notes
+
+1. **Technical Scoring must come before Signal Fusion.** CAN SLIM needs relative strength, Trend Following needs ADX, both from the technical scoring engine. The `TechnicalScore` placeholder must be real before signal fusion can work.
+
+2. **Regime Detection should come before Signal Fusion.** CAN SLIM's "M" criterion checks market direction. Regime-weighted methodology aggregation requires knowing the current regime. However, Signal Fusion CAN work without regime (just uses default weights).
+
+3. **Korean Market is largely independent.** It can be built in parallel with signal fusion. Only data adapters and broker integration are new -- scoring/signal logic is the same.
+
+4. **Commercial API depends on all three core capabilities working.** Cannot sell QuantScore API until scoring is solid. Cannot sell RegimeRadar until regime detection runs daily. Cannot sell SignalFusion until at least 2-3 methodologies produce real signals.
+
+5. **Institutional ownership data for CAN SLIM "I" criterion** is the hardest data to get for free. yfinance provides `major_holders` but coverage is spotty. Options: (a) use EODHD/FMP institutional data, (b) drop the "I" criterion and score out of 6 instead of 7, (c) defer CAN SLIM institutional criterion. Recommendation: score out of 6, add institutional later.
+
+---
+
+## MVP Definition for v1.1
+
+### Phase 1: Technical Scoring + Regime Wiring (Foundation)
+
+Build first because everything else depends on these:
+
+- [ ] **Technical indicator calculations** (RSI, MACD, MA, ADX, OBV) using TA-Lib or pandas-ta
+- [ ] **Composite technical score** (0-100) replacing the `TechnicalScore` placeholder
+- [ ] **Regime data ingestion** (VIX, S&P 500 200MA, yield curve)
+- [ ] **RegimeWeightAdjuster implementation** (concrete class replacing `NoOpRegimeAdjuster`)
+- [ ] **EventBus wiring** for `RegimeChangedEvent` (tech debt fix)
+- [ ] **CLI commands**: `regime current`, `score technical AAPL`
+
+### Phase 2: Signal Fusion Strategies (Core Intelligence)
+
+Build second because this creates the "3/4 agreement" value:
+
+- [ ] **Magic Formula implementation** (EBIT-based, uses existing financial data)
+- [ ] **Trend Following implementation** (20-day breakout + ADX, uses existing OHLCV + technical indicators)
+- [ ] **Dual Momentum implementation** (12-month returns + T-bill, needs international benchmark data)
+- [ ] **CAN SLIM implementation** (6/7 criteria without institutional data)
+- [ ] **Consensus signal generation** (wire 4 strategies into existing `SignalFusionService.fuse()`)
+- [ ] **CLI command**: `signal analyze AAPL`
+
+### Phase 3: Korean Market (Market Expansion)
+
+Build third because it's independent and adds breadth:
+
+- [ ] **KRX data adapter** in `data_ingest` (KOSPI/KOSDAQ via yfinance/EODHD)
+- [ ] **Korean financial statement adapter** (K-IFRS field mapping)
+- [ ] **KIS broker adapter** (paper trading with mock environment)
+- [ ] **Cross-market screening** (US + KR with sector-neutral normalization)
+- [ ] **CLI commands**: `score 005930.KS`, `trade kr buy 005930`
+
+### Phase 4: Commercial API (Monetization)
+
+Build last because it wraps everything above:
+
+- [ ] **FastAPI application** with health check, CORS, error handling
+- [ ] **API key authentication** and tier-based rate limiting (Redis-backed)
+- [ ] **QuantScore endpoints** (`/score/{symbol}`, `/score/{symbol}/detail`, `/screen`)
+- [ ] **RegimeRadar endpoints** (`/regime/current`, `/regime/history`)
+- [ ] **SignalFusion endpoints** (`/signal/{symbol}`, `/signal/{symbol}/consensus`)
+- [ ] **Legal disclaimer middleware** (auto-append to all responses)
+- [ ] **Docker deployment configuration**
+
+### Defer to v2+
+
+- [ ] WebSocket streaming for RegimeRadar
+- [ ] Webhook notifications for score/regime changes
+- [ ] CAN SLIM institutional ownership data ("I" criterion)
+- [ ] Korean market-specific regime detection
+- [ ] Multi-currency portfolio analytics
 
 ---
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Strategic Importance | Priority |
-|---------|------------|---------------------|---------------------|----------|
-| Data ingestion pipeline | HIGH | M | Foundation for everything | P1 |
-| Safety filters (Z/M-Score) | HIGH | S | Core differentiator (dual gate) | P1 |
-| Fundamental scoring (F-Score + composite) | HIGH | M | Primary analysis capability | P1 |
-| Valuation ensemble (DCF+EPV+relative) | HIGH | XL | Core differentiator (ensemble) | P1 |
-| Stock screener / ranker | HIGH | M | Primary user interaction | P1 |
-| Basic signal generation | HIGH | M | Links scoring to action | P1 |
-| Position sizing (Fractional Kelly) | HIGH | M | Risk management foundation | P1 |
-| Trade plan generation | HIGH | S | Core output of the system | P1 |
-| Backtesting engine (basic) | HIGH | XL | Validates entire pipeline | P1 |
-| Human approval workflow | MEDIUM | S | Safety constraint | P1 |
-| Alpaca paper trading | HIGH | M | Execution validation | P1 |
-| Basic CLI dashboard | MEDIUM | M | User experience baseline | P1 |
-| Watchlist management | MEDIUM | S | Candidate tracking | P1 |
-| Daily automated screening | HIGH | M | Workflow automation | P2 |
-| Regime detection | MEDIUM | L | Market adaptability | P2 |
-| Multi-methodology signals | HIGH | XL | Ensemble signal strength | P2 |
-| Alerting engine | MEDIUM | M | Position monitoring | P2 |
-| Sector-neutral normalization | MEDIUM | M | Scoring precision | P2 |
-| Score trend tracking | MEDIUM | M | Proactive risk management | P2 |
-| Explainable audit trail (enhanced) | HIGH | M | Core value proposition | P2 |
-| Streamlit dashboard | MEDIUM | M | UX improvement | P2 |
-| Company-type valuation selection | MEDIUM | M | Valuation accuracy | P2 |
-| SEC filing NLP | MEDIUM | L | Qualitative analysis layer | P3 |
-| Performance attribution | MEDIUM | L | Strategy improvement | P3 |
-| Bias checker | LOW | M | Behavioral insight | P3 |
-| Korean market | LOW | XL | Market expansion | P3 |
+| Feature | User Value | Impl Cost | Strategic Value | Priority |
+|---------|------------|-----------|-----------------|----------|
+| Technical scoring (5 indicators) | HIGH | LOW | Foundation for signal fusion | P1 |
+| Regime data ingestion (VIX, S&P, yield curve) | HIGH | LOW | Required for regime detection to work | P1 |
+| RegimeWeightAdjuster concrete impl | HIGH | LOW | Connects regime to scoring (currently NoOp) | P1 |
+| Magic Formula implementation | HIGH | MEDIUM | Uses existing financial data, easy win | P1 |
+| Trend Following implementation | HIGH | LOW | Uses OHLCV + ADX, straightforward rules | P1 |
+| Dual Momentum implementation | MEDIUM | LOW | Simple 12-month return comparison | P1 |
+| CAN SLIM implementation (6/7) | MEDIUM | MEDIUM | Requires EPS growth calculation + relative strength | P1 |
+| Signal consensus fusion wiring | HIGH | LOW | `SignalFusionService.fuse()` already exists | P1 |
+| FastAPI QuantScore endpoint | HIGH | LOW | Core commercial product, reuses existing service | P2 |
+| FastAPI RegimeRadar endpoint | HIGH | LOW | Unique commercial product, no competition | P2 |
+| FastAPI SignalFusion endpoint | HIGH | LOW | Wraps existing fusion logic | P2 |
+| API key auth + rate limiting | HIGH | MEDIUM | Required for commercial viability | P2 |
+| KRX data adapter | MEDIUM | MEDIUM | Market expansion | P2 |
+| KIS broker integration | MEDIUM | HIGH | New broker integration, token refresh logic | P2 |
+| Korean financial statement mapping | MEDIUM | HIGH | K-IFRS differences require field mapping | P2 |
+| Batch scoring API endpoint | MEDIUM | LOW | Efficiency for screener use cases | P3 |
+| Score history API endpoint | MEDIUM | MEDIUM | Differentiator, no competitor has this | P3 |
+| WebSocket regime stream | LOW | HIGH | Premium feature, low initial demand | P3 |
+| Webhook notifications | LOW | HIGH | Requires message queue infrastructure | P3 |
 
 **Priority key:**
-- **P1**: Must have for launch -- validates the core thesis
-- **P2**: Should have -- adds strategic depth once core is validated
-- **P3**: Nice to have -- requires history, represents expansion, or adds qualitative layer
+- **P1**: Must have for this milestone -- creates the core new capabilities
+- **P2**: Should have -- enables commercialization and market expansion
+- **P3**: Nice to have -- premium features for later iterations
 
 ---
 
-## Detailed Competitor Feature Matrix
+## Competitor Feature Analysis (New Capabilities Only)
 
-| Feature | Stock Rover | Alpha Spread | Koyfin | Simply Wall St | Finviz | QuantConnect | GuruFocus | OpenBB | **Ours** |
-|---------|-------------|--------------|--------|---------------|--------|-------------|-----------|--------|----------|
-| **Piotroski F-Score** | Via 670 criteria | No | No | Via checks | No | User-coded | Yes | Via data | Auto-scored with sub-criteria breakdown |
-| **Altman Z-Score** | Via criteria | No | No | Via health checks | No | User-coded | Yes | Via data | Hard gate (Z >= 1.81) |
-| **Beneish M-Score** | No | No | No | No | No | User-coded | Yes (paid) | No | Hard gate (M < -1.78) |
-| **Mohanram G-Score** | No | No | No | No | No | User-coded | No | No | Planned (v1.x) |
-| **DCF valuation** | Fair Value (forward DCF) | Multi-scenario DCF | No (analyst est. only) | 4 variants by type | No | User-coded | Yes | Via data | DCF as ensemble member |
-| **EPV valuation** | No | No | No | No | No | User-coded | Yes | No | EPV as conservative floor |
-| **Relative valuation** | Peer comparison | Relative value model | Peer metrics | Peer comparison | Basic ratios | User-coded | Yes | Via data | Multiple-based (PER/PBR/EV) |
-| **Valuation ensemble** | No | DCF + relative (parallel) | No | Single model selected | No | User-coded | No | No | **DCF + EPV + relative (weighted, disagreement detection)** |
-| **Sensitivity analysis** | No | Yes (sliders) | No | No | No | User-coded | No | No | Growth rate + discount rate ranges |
-| **Screener** | 700+ metrics, 150 prebuilt | Valuation-based | 500+ metrics | Snowflake-based | 67 filters | Algorithmic | 20+ guru screens | Programmatic | CLI, composite-score ranked |
-| **Backtesting** | Limited (portfolio) | None | None | None | None | Full engine (LEAN) | None | None | Walk-forward validation |
-| **Risk management** | None | None | None | None | None | User-coded | None | None | **Fractional Kelly + ATR + 3-tier drawdown** |
-| **Position sizing** | None | None | None | None | None | User-coded | None | None | **Automatic via Fractional Kelly** |
-| **Trade plan generation** | None | None | None | None | None | User-coded | None | None | **Entry/stop/target/size/reasoning** |
-| **Order execution** | None | None | None | None | None | 20+ brokers | None | None | Alpaca (paper first) |
-| **Human approval** | N/A | N/A | N/A | N/A | N/A | Optional | N/A | N/A | **Mandatory in v1** |
-| **Regime detection** | None | None | None | None | None | User-coded | None | None | VIX + yield curve + breadth |
-| **Explainability** | Raw metric values | Model input display | Raw data | Snowflake + checks | Minimal | Code IS explanation | Guru methodology | Data access | **Full audit trail at every layer** |
-| **Fraud detection** | None | None | None | None | None | User-coded | M-Score available | None | **M-Score hard gate (auto-reject)** |
-| **Drawdown defense** | None | None | None | None | None | User-coded | None | None | **3-tier protocol (10/15/20%)** |
-| **Bias detection** | None | None | None | None | None | None | None | None | **Planned (v2+)** |
-| **Price** | $8-28/mo | $0-25/mo | $0-49/mo | $0-20/mo | $0-40/mo | $0-79/mo | $42-125/mo | Free (OSS) | Free (self-hosted) |
+| Feature | QuantConnect | TradingView | OpenBB | Finviz | Stock Rover | **Ours** |
+|---------|-------------|-------------|--------|--------|-------------|----------|
+| Technical scoring composite | User-coded | Pine Script indicators | Via libraries | Basic RSI/MACD display | 670 criteria but no composite | **Auto-scored 0-100, weighted by strategy** |
+| Regime detection | User-coded | No | No | No | No | **Rule-based 4-regime with 3-day confirmation** |
+| Multi-strategy fusion | User-coded | No | No | No | No | **4-strategy consensus with regime-weighted aggregation** |
+| Korean market data | Via IBKR | Chart only | Via providers | No | No | **KRX data + KIS broker + scoring** |
+| Commercial scoring API | No (platform) | No (platform) | No (OSS toolkit) | Screener only | No API | **REST API with 3 products, tiered pricing** |
+| Regime detection API | No | No | No | No | No | **Unique: no competitor offers this** |
+| Signal fusion API | No | No | No | No | No | **Unique: 4-strategy consensus as a service** |
 
-### Key Competitive Insights
+### Key Insight
 
-1. **Research-execution divide:** Stock Rover, Koyfin, Alpha Spread, Simply Wall St, and Finviz are all research-only. None generate trade plans or manage positions. QuantConnect bridges both but requires coding everything.
-
-2. **Risk management void:** No commercial retail platform provides automatic position sizing, drawdown defense, or systematic risk management. This is the single biggest gap in the market. Retail investors are left to figure out position sizing and stop management on their own.
-
-3. **Explainability gap:** Simply Wall St comes closest with their Snowflake (30 binary checks across 5 dimensions) and open-source model, but the visual simplification loses the detailed reasoning. Stock Rover's 0-100 rating is a black box. Our full audit trail (sub-score breakdown, data lineage, reasoning at each step) fills this gap.
-
-4. **Valuation ensemble is genuinely novel:** Alpha Spread does DCF + relative in parallel but not as a weighted ensemble with disagreement detection. Simply Wall St selects one model per company type but doesn't combine them. Nobody does DCF + EPV + relative as a confidence-weighted ensemble with divergence flags.
-
-5. **Fraud detection as mandatory gate:** Only GuruFocus offers Beneish M-Score, and it's a $500/year premium feature displayed as an optional metric, not a hard gate. Making fraud detection a mandatory pre-screening gate is genuinely differentiated.
-
-6. **AI hedge fund comparison:** The virattt/ai-hedge-fund (43K+ stars) proves market demand for multi-agent trading analysis. But its LLM dependency makes decisions non-deterministic and non-backtestable. Our deterministic, rule-based approach is more reliable for real money.
+RegimeRadar and SignalFusion as commercial APIs are genuinely novel products. No existing platform offers market regime detection or multi-strategy signal consensus as a standalone API service. This is the commercial differentiation opportunity.
 
 ---
 
 ## Sources
 
-### Commercial Platform Research
-- [Stock Rover - Investment Research Platform](https://www.stockrover.com/)
-- [Stock Rover Review 2026 - StockBrokers.com](https://www.stockbrokers.com/review/tools/stockrover)
-- [Stock Rover: 92 Tests - Liberated Stock Trader](https://www.liberatedstocktrader.com/stock-rover-review-screener-value-investors/)
-- [Alpha Spread - Stock Valuation Platform](https://www.alphaspread.com/)
-- [Alpha Spread DCF Calculator](https://www.alphaspread.com/dcf-value-calculator)
-- [Koyfin Features](https://www.koyfin.com/features/)
-- [Koyfin Review 2026 - TraderHQ](https://traderhq.com/koyfin-review-best-investment-analysis-tool/)
-- [Simply Wall St - Analysis Model (GitHub)](https://github.com/SimplyWallSt/Company-Analysis-Model)
-- [Simply Wall St - Snowflake Methodology](https://support.simplywall.st/hc/en-us/articles/360001740916-How-does-the-Snowflake-work)
-- [Simply Wall St - Valuation Documentation](https://support.simplywall.st/hc/en-us/articles/4751563581071-Understanding-the-Valuation-section-in-the-company-report)
-- [Finviz - Stock Screener](https://finviz.com/)
-- [Finviz Review 2026 - Bullish Bears](https://bullishbears.com/finviz-review/)
-- [GuruFocus - EPV Calculator](https://www.gurufocus.com/glossary/EPV)
+### Technical Analysis Libraries
+- [TA-Lib Python](https://github.com/TA-Lib/ta-lib-python) -- 150+ indicators, C-based performance, Polars/Pandas support
+- [Pandas TA](https://github.com/Data-Analisis/Technical-Analysis-Indicators---Pandas) -- 130+ indicators, pure Python, multiprocessing
+- [talipp PyPI](https://pypi.org/project/talipp/) -- Incremental indicator calculation
 
-### Quantitative Platform Research
-- [QuantConnect - Algorithmic Trading Platform](https://www.quantconnect.com/)
-- [LEAN Engine - Open Source](https://www.lean.io/)
-- [QuantRocket - Python Trading Platform](https://www.quantrocket.com/)
-- [Zipline/Quantopian Successor Guide](https://www.quantrocket.com/alternatives/quantopian/)
-- [Python Backtesting Landscape 2026](https://python.financial/)
-- [10 Best Python Backtesting Libraries - QuantVPS](https://www.quantvps.com/blog/best-python-backtesting-libraries-for-trading)
+### Regime Detection
+- [Regime-Adaptive Trading with HMM and Random Forest (QuantInsti)](https://blog.quantinsti.com/regime-adaptive-trading-python/)
+- [Market Regime Detection using HMM (PyQuantLab)](https://www.pyquantlab.com/articles/Market%20Regime%20Detection%20using%20Hidden%20Markov%20Models.html)
+- [Regime-Switching Factor Investing with HMM (MDPI)](https://www.mdpi.com/1911-8074/13/12/311)
 
-### Open-Source AI Projects
-- [virattt/ai-hedge-fund (43K+ stars)](https://github.com/virattt/ai-hedge-fund)
-- [AI Hedge Fund Architecture - DeepWiki](https://deepwiki.com/virattt/ai-hedge-fund/2-system-architecture)
-- [AI Hedge Fund Analysis - DecisionCrafters](https://www.decisioncrafters.com/ai-hedge-fund-the-revolutionary-multi-agent-trading-system-thats-transforming-financial-ai-with-43k-github-stars/)
-- [OpenBB - AI Workspace for Finance](https://openbb.co/)
-- [OpenBB for Financial Analysis Guide](https://dasroot.net/posts/2026/02/openbb-financial-analysis-python-data-retrieval/)
-- [Automated Fundamental Analysis - GitHub](https://github.com/faizancodes/Automated-Fundamental-Analysis)
+### Multi-Strategy Methodologies
+- [Magic Formula Investing (magicformulainvesting.com)](https://www.magicformulainvesting.com/)
+- [Magic Formula Python Implementation (ron-tam.com)](https://www.ron-tam.com/projects/magic)
+- [Dual Momentum Strategy Python (Python in Plain English)](https://python.plainenglish.io/dual-momentum-strategy-using-python-a3a7dd337ae3)
+- [GEM Python Implementation (GitHub)](https://github.com/alexjansenhome/GEM)
+- [Dual Momentum Review (Robot Wealth)](https://robotwealth.com/dual-momentum-review/)
+- [Turtle Trading Rules (tosindicators.com)](https://tosindicators.com/research/modern-turtle-trading-strategy-rules-and-backtest)
+- [Trend Following Strategies (chartswatcher.com)](https://chartswatcher.com/pages/blog/8-trend-following-strategies-to-boost-profits)
 
-### Domain Research
-- [AlphaSense - Fundamental Analysis Tools 2026](https://www.alpha-sense.com/resources/product-articles/fundamental-analysis-tools/)
-- [Old School Value - Earnings Power Value (EPV)](https://www.oldschoolvalue.com/stock-analysis/earnings-power-value-epv/)
-- [Wall Street Prep - EPV Formula](https://www.wallstreetprep.com/knowledge/earnings-power-value-epv/)
-- [StableBread - EPV Methodology](https://stablebread.com/earnings-power-value/)
-- [BacktestBase - Kelly Criterion Calculator](https://www.backtestbase.com/education/how-much-risk-per-trade)
-- [Alpaca Paper Trading Docs](https://docs.alpaca.markets/docs/paper-trading)
-- [Alpaca-py Python SDK](https://alpaca.markets/sdks/python/)
-- [EdgarTools - Python SEC EDGAR](https://pypi.org/project/edgartools/)
-- [EDGAR-CRAWLER - ACM 2025](https://dl.acm.org/doi/10.1145/3701716.3715289)
-- [LLMs for Financial Document Analysis](https://intuitionlabs.ai/articles/llm-financial-document-analysis)
-- [Portfolio Risk Management Tools 2026](https://www.wallstreetzen.com/blog/best-portfolio-risk-management-tools/)
+### Korean Market
+- [KIS OpenAPI GitHub (official)](https://github.com/koreainvestment/open-trading-api)
+- [python-kis (community SDK)](https://github.com/Soju06/python-kis)
+- [korea-investment-stock (community wrapper)](https://github.com/kenshin579/korea-investment-stock)
+- [KRX Data Marketplace](https://data.krx.co.kr/contents/MDC/MAIN/main/index.cmd?locale=en)
+
+### Commercial API Patterns
+- [FastAPI Rate Limiting Best Practices 2025 (techbuddies.io)](https://www.techbuddies.io/2025/12/13/python-rate-limiting-for-apis-implementing-robust-throttling-in-fastapi/)
+- [fastapi-limiter (PyPI)](https://pypi.org/project/fastapi-limiter/)
+- [API Rate Limiting at Scale (Python in Plain English)](https://python.plainenglish.io/api-rate-limiting-and-abuse-prevention-at-scale-best-practices-with-fastapi-b5d31d690208)
+
+### Existing Codebase (verified)
+- `src/regime/domain/services.py` -- RegimeDetectionService with 4-indicator rule-based classification
+- `src/regime/domain/value_objects.py` -- VIXLevel (20/30/40 thresholds), TrendStrength (ADX), YieldCurve, SP500Position
+- `src/regime/domain/entities.py` -- MarketRegime entity with 3-day confirmation
+- `src/scoring/domain/value_objects.py` -- TechnicalScore VO (placeholder), CompositeScore.compute(), STRATEGY_WEIGHTS
+- `src/scoring/domain/services.py` -- RegimeWeightAdjuster Protocol, NoOpRegimeAdjuster, CompositeScoringService
+- `src/signals/domain/value_objects.py` -- MethodologyType enum (4 strategies), ConsensusThreshold (3/4)
+- `src/signals/domain/services.py` -- SignalFusionService.fuse() (consensus logic)
 
 ---
-*Feature research for: Intrinsic Alpha Trader*
-*Domain: AI-Assisted Fundamental Analysis & Valuation Trading System*
+*Feature research for: Intrinsic Alpha Trader v1.1 New Capabilities*
+*Domain: Technical Scoring, Regime Detection, Signal Fusion, Korean Market, Commercial API*
 *Researched: 2026-03-12*

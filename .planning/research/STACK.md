@@ -1,363 +1,302 @@
-# Technology Stack
+# Technology Stack -- v1.1 Additions
 
 **Project:** Intrinsic Alpha Trader
 **Researched:** 2026-03-12
+**Scope:** NEW dependencies only for v1.1 capabilities
 **Overall confidence:** HIGH
 
-## Recommended Stack
+## Existing Stack (DO NOT re-add)
 
-### Python Runtime & Project Management
+These are already installed and working. Listed for reference -- skip when reading dependency recommendations below.
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Python | 3.12.x | Runtime | NumPy 2.4 requires >=3.11. Python 3.12 is the sweet spot: stable, all financial libs tested against it, no C-extension edge cases. 3.13 is compatible but 3.12 has the deepest testing coverage across the ecosystem. edgartools requires >=3.10. | HIGH |
-| uv | >=0.10.9 | Package/project manager | 10-100x faster than pip (cold install: ~3s vs pip-tools ~33s). Lockfile support, venv management, Python version management. 2026 community consensus for new projects. Replaces pip + venv + pip-tools. Same team as Ruff (Astral). | HIGH |
+| Already Have | Version Installed | Used By |
+|-------------|-------------------|---------|
+| pandas | 3.0.1 | All data processing |
+| numpy | 2.4.3 | Numerical computation |
+| yfinance | 1.2.0 | US market OHLCV + fundamentals |
+| duckdb | 1.5.0 | Analytical database |
+| SQLite | stdlib | Operational database |
+| alpaca-py | 0.43.2 | US broker + market data |
+| FastAPI | 0.135.1 | Commercial API (already in deps) |
+| uvicorn | 0.41.0 | ASGI server (already in deps) |
+| httpx | 0.28.1 | HTTP client (already in deps) |
+| pydantic | 2.12.5 | Data models |
+| pydantic-settings | 2.13.1 | Configuration |
+| typer | 0.24.1 | CLI |
+| rich | 14.3.3 | Terminal formatting |
+| edgartools | 5.23.0 | SEC EDGAR |
+| aiohttp | 3.13.3 | Async HTTP |
+| pytest | 9.0.2 | Testing |
+| mypy | 1.19.1 | Type checking |
+| ruff | 0.15.5 | Linting + formatting |
 
-### Data Acquisition
+**NOTE:** The existing `core/data/indicators.py` already implements RSI, MACD, MA(50/200), ADX, OBV, and ATR using pure pandas/numpy. No technical analysis library is needed. The existing implementations are correct (Wilder's smoothing for RSI, proper DM+/DM- for ADX, EMA-based MACD) and are already consumed by `core/scoring/technical.py` and `core/data/client.py`. Do not add pandas-ta or TA-Lib.
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| yfinance | >=1.2.0 | OHLCV + fundamentals | Free, no API key, covers price data + financial statements + earnings calendars + balance sheets. v1.0+ (Dec 2025) is a major rewrite with better architecture. De facto standard for retail quant. Returns pandas DataFrames natively. | HIGH |
-| edgartools | >=5.23.0 | SEC EDGAR filings | Best-in-class SEC parser as of 2026. No API key, no rate limits, no subscriptions. Parses 10-K/10-Q/8-K XBRL into structured Python objects and DataFrames. Supports all SEC form types. Built-in MCP server for Claude integration. v5.0 complete HTML parser rewrite. Released 2026-03-11. Requires Python >=3.10. | HIGH |
-| alpaca-py | >=0.43.2 | Broker API (market data + trading) | Official Alpaca SDK. OOP design with pydantic validation. Covers Trading API + Market Data API in a single package. Paper trading built-in (base URL switch). Free tier sufficient for daily screening. Supports Python 3.8-3.14. | HIGH |
+---
 
-### Data Processing & Analysis
+## New Dependencies for v1.1
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| pandas | >=2.2.0,<3.0 | Core data manipulation | Industry standard for financial time series. All upstream libs (yfinance, vectorbt, edgartools, quantstats) return DataFrames. **Pin to <3.0 for V1** -- pandas 3.0 (Jan 2026) introduces breaking Copy-on-Write semantics and string dtype changes. VectorBT and QuantStats have known compatibility issues with 3.0. Migrate to 3.x after upstream libs confirm support. | HIGH |
-| numpy | >=2.0.0,<2.4 | Numerical computation | Foundation for all scientific Python. Required by pandas, vectorbt, scipy. **Pin below 2.4 to stay compatible with pandas <3.0.** NumPy 2.4.3 requires Python >=3.11 which is fine, but its release timeline aligns with pandas 3.0. Use 2.2.x for maximum stability. | HIGH |
-| scipy | >=1.14.0 | Statistical functions | WACC calculations, probability distributions for Kelly criterion (scipy.stats.norm), optimization for portfolio weights (scipy.optimize.minimize_scalar), integration (scipy.integrate.quad). No alternative for this breadth of statistical tools. | HIGH |
-
-**CRITICAL: pandas 3.0 migration risk.** Pandas 3.0 (released Jan 21, 2026) introduces Copy-on-Write as default and new string dtype inference. VectorBT, QuantStats, and other financial libs have documented compatibility issues. The safe path for V1 is to pin pandas <3.0. Plan migration for V2 after upstream ecosystem catches up. First upgrade to pandas 2.3 to get deprecation warnings, then to 3.0.
-
-### Data Storage
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| DuckDB | >=1.5.0 | Primary analytical database | Columnar storage is 10-50x faster than SQLite for aggregation queries (screening 3000+ stocks, computing financial ratios, window functions). Zero-copy pandas integration. Single file, no server. Native Parquet read/write. SQL interface. Released 2026-03-09. | HIGH |
-| SQLite | built-in | Operational data store | Zero-dependency (Python stdlib). Best for transactional CRUD: watchlists, trade plans, execution logs, audit trail. Use for row-level read/write, not analytics. | HIGH |
-
-**Rationale for dual-database architecture:** DuckDB for OLAP (analytical queries: stock screening, ratio calculations, backtesting data), SQLite for OLTP (operational state: watchlists, trade plans, execution logs). Both are embedded, single-file, zero-config -- identical deployment simplicity. The project constraint mentions SQLite, but daily screening of 3000+ stocks with financial ratios is an OLAP workload where DuckDB is 10-50x faster.
-
-### Backtesting & Performance Analytics
+### 1. Market Regime Detection (HMM)
 
 | Technology | Version | Purpose | Why | Confidence |
 |------------|---------|---------|-----|------------|
-| vectorbt | >=0.28.0 | Strategy backtesting | Fastest Python backtester: vectorized NumPy/Numba execution (1M simulated orders in ~70-100ms). Native pandas integration. Portfolio-level analysis with Sharpe, Sortino, max drawdown built-in. Plotly visualization. Best for systematic fundamental strategies with daily bars. | MEDIUM |
-| quantstats | >=0.0.81 | Portfolio analytics & reporting | Comprehensive tear sheet generation (HTML reports). Sharpe, Sortino, Calmar ratios, drawdown analysis, monthly returns heatmap, Monte Carlo simulation. Complements vectorbt for performance reporting. Same author as yfinance (Ran Aroussi). | MEDIUM |
+| hmmlearn | >=0.3.3 | Hidden Markov Model for regime detection | GaussianHMM fits 2-4 hidden states on daily returns + volatility features. The existing rule-based classifier in `core/regime/classifier.py` uses hard-coded thresholds (VIX > 20, ADX > 25, etc.) -- HMM adds probabilistic regime transitions with proper state duration modeling. hmmlearn 0.3.3 (Oct 2024) provides cp312 wheels and numpy 2.x compatibility. scikit-learn API (fit/predict). Already in `pyproject.toml` ml optional deps but not installed. | HIGH |
+| scikit-learn | >=1.5.0 | Feature preprocessing for HMM | StandardScaler for normalizing returns/volatility features before HMM input. Also provides GaussianMixture as a non-temporal baseline for regime clustering. Required by hmmlearn as dependency anyway. Already in `pyproject.toml` ml optional deps but not installed. | HIGH |
 
-**VectorBT maintenance risk (MEDIUM confidence):** The free open-source version (0.28.x) is in maintenance mode -- only critical fixes, no new features. Active development has moved to VectorBT PRO (paid). For V1, the free version is sufficient for daily-bar fundamental backtesting. If the project outgrows it, evaluate VectorBT PRO or custom vectorized backtesting with NumPy. Pin pandas <3.0 to avoid known compatibility issues.
+**Architecture integration:** HMM supplements (not replaces) the rule-based classifier. The combined approach: rule-based classifier provides deterministic labels for clear-cut regimes; HMM provides transition probabilities and handles ambiguous states. The `core/regime/classifier.py` output structure (`regime`, `confidence`, `probabilities`) already supports this dual approach -- HMM results feed into the `probabilities` dict.
 
-**Why not Backtrader:** Event-driven architecture is overkill for daily-bar fundamental strategies. No active development since ~2018. VectorBT is 10-100x faster for batch backtesting.
+**What NOT to add:** Do not add `pomegranate` (heavier, less maintained for HMM), `statsmodels.tsa` MarkovSwitching (regime-switching regression is a different model -- it switches regression coefficients, not hidden states), or `tensorflow-probability` (massive dependency for simple 3-4 state HMM).
 
-**Why not Zipline:** Legacy Quantopian framework. Installation issues on modern Python. Active community has moved on.
-
-**Walk-forward validation:** No off-the-shelf library handles this well for fundamental strategies. Implement custom walk-forward with rolling train/test windows using vectorbt's core portfolio simulation. The pattern is: train scoring weights on N years, validate on next year, roll forward. ~200-300 lines of custom code on top of vectorbt.
-
-### Broker Integration
+### 2. Korean Market Data
 
 | Technology | Version | Purpose | Why | Confidence |
 |------------|---------|---------|-----|------------|
-| alpaca-py | >=0.43.2 | Order execution + paper trading | Single SDK covers market data + trading. Paper trading by switching base URL. Pydantic models for type-safe order construction (MarketOrderRequest, LimitOrderRequest, StopOrderRequest, TrailingStopOrderRequest). Free tier includes real-time market data for 5000+ US stocks. | HIGH |
+| pykrx | >=1.2.4 | KOSPI/KOSDAQ historical OHLCV + fundamentals | Scrapes directly from Korea Exchange (KRX). Returns pandas DataFrames matching existing data pipeline. Supports KOSPI, KOSDAQ, KONEX. Provides OHLCV, market cap, PER/PBR/DIV fundamentals. No API key required (public KRX data). Latest v1.2.4 (Feb 2026), requires Python >=3.10. Fills same role as yfinance for Korean market. | HIGH |
+| python-kis | >=2.1.6 | KIS broker API (trading + real-time) | Korea Investment & Securities REST-based trading API wrapper. Covers order execution (buy/sell), account balance, real-time price streaming. Same role as alpaca-py for Korean market. v2.1.6 (Oct 2025), requires Python >=3.10. Official KIS API requires developer registration at apiportal.koreainvestment.com. Supports paper trading mode. | MEDIUM |
 
-### Scoring & Valuation (Custom Implementation)
+**Architecture integration:**
 
-No production-quality library exists for the specific scoring ensemble. API services (Financial Modeling Prep, EODHD) provide pre-calculated scores but introduce paid dependencies and remove explainability. Custom implementation ensures full control over every calculation step -- critical for the "every recommendation must be traceable" constraint.
+- **pykrx** integrates into `src/data_ingest/infrastructure/` as a new adapter implementing the existing `IMarketDataRepository` interface. It returns pandas DataFrames with the same column schema (open/high/low/close/volume) as yfinance. The `core/data/indicators.py` functions work unchanged on Korean stock data.
+- **python-kis** integrates into `src/execution/infrastructure/` as a new broker adapter alongside `AlpacaBrokerAdapter`. The existing `IBrokerRepository` interface in `src/execution/domain/repositories.py` defines the contract.
 
-| Component | Complexity | Dependencies | Why Custom | Confidence |
-|-----------|-----------|--------------|------------|------------|
-| Piotroski F-Score | Low (~80 lines) | pandas | 9-point binary scoring from financial statements. Pure arithmetic on balance sheet / income / cash flow data. | HIGH |
-| Altman Z-Score | Low (~40 lines) | pandas | 5-ratio weighted formula. Z = 1.2A + 1.4B + 3.3C + 0.6D + 1.0E. Pure math. | HIGH |
-| Beneish M-Score | Low (~60 lines) | pandas | 8-variable formula for earnings manipulation detection. Pure math. | HIGH |
-| Mohanram G-Score | Low (~80 lines) | pandas | 8-point binary scoring for growth stocks. Pure math on financial data. | HIGH |
-| DCF Valuation | Medium (~250 lines) | pandas, scipy | Free cash flow projection + WACC discounting + terminal value. scipy.optimize for sensitivity analysis. | HIGH |
-| EPV (Earnings Power) | Low (~60 lines) | pandas | Normalized earnings / cost of capital. Simpler than DCF. | HIGH |
-| Relative Valuation | Low (~80 lines) | pandas | P/E, P/B, EV/EBITDA percentile ranking against sector peers. pandas groupby + rank. | HIGH |
-| Ensemble Weighting | Medium (~150 lines) | pandas, scipy | Weighted average of all models with configurable weights. scipy for optimization of ensemble weights during backtesting. | HIGH |
+**pykrx vs FinanceDataReader for data:**
 
-**Total custom scoring/valuation code:** ~800-1000 lines of well-tested pure Python with pandas. More maintainable than fighting toy library abstractions with hardcoded assumptions.
+| Criterion | pykrx | FinanceDataReader |
+|-----------|-------|-------------------|
+| KRX OHLCV | Direct KRX scraping | Multiple sources (KRX, Yahoo, Naver) |
+| Fundamentals | PER/PBR/DIV from KRX | No KRX fundamentals |
+| Maintenance | Active (Feb 2026) | Active (v0.9.102) |
+| Dependencies | requests, pandas | requests, pandas, tqdm |
+| API surface | Focused on KRX | Broader (US, crypto, etc.) |
 
-### Risk Management (Custom Implementation)
+Use **pykrx** because it provides KRX fundamentals (PER/PBR/DIV) that are needed for scoring, while FinanceDataReader focuses on price data only. pykrx's API is simpler and purpose-built for the Korean market -- no ambiguity about data source.
 
-| Component | Complexity | Dependencies | Why Custom | Confidence |
-|-----------|-----------|--------------|------------|------------|
-| Fractional Kelly | Low (~60 lines) | scipy | Kelly fraction = (bp - q) / b. scipy.optimize.minimize_scalar for multi-asset Kelly. Use half-Kelly or quarter-Kelly for safety. | HIGH |
-| ATR-based Stop Loss | Low (~40 lines) | pandas | Average True Range for volatility-adjusted stops. Pure pandas rolling calculation. | HIGH |
-| Portfolio Drawdown Tiers | Medium (~100 lines) | pandas | 10/15/20% drawdown defense protocol. Reduces position sizes at each tier. | HIGH |
+**python-kis vs pykis (by pjueon):**
 
-### CLI & Dashboard
+| Criterion | python-kis (Soju06) | pykis (pjueon) |
+|-----------|---------------------|----------------|
+| PyPI version | 2.1.6 (Oct 2025) | Not on PyPI |
+| Maintenance | Active, regular releases | Sporadic |
+| Real-time | WebSocket streaming | WebSocket streaming |
+| Documentation | Korean, decent coverage | Sparse |
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Textual | >=8.0.0 | Interactive terminal UI | Full TUI framework built on Rich. Layouts, widgets, data tables, mouse events, CSS-like styling. Perfect for stock ranking dashboard, watchlist management, trade plan review. Async-native. v8.1.1 released 2026-03-10. | HIGH |
-| Rich | >=14.0.0 | Terminal formatting | Tables, progress bars, syntax highlighting, panels. Used by Textual under the hood. Also standalone for non-interactive output (reports, CLI output). v14.3.3 released 2026-02-19. | HIGH |
-| Typer | >=0.24.0 | CLI argument parsing | Built on Click with type-hint-based API. Auto-generated help, auto-completion, validation from Python type annotations. Modern alternative to Click -- uses Click internally so full backward compatibility. v0.24.1 released 2026-02-21. | HIGH |
+Use **python-kis** (Soju06) because it is on PyPI with versioned releases and has more recent maintenance activity. The pjueon/pykis alternative is GitHub-only with no PyPI packaging.
 
-**Why Typer over Click:** Typer wraps Click with a type-hint-first API that eliminates decorator boilerplate. Since the project already uses Pydantic (type-hint heavy), Typer's approach is consistent. You can still drop down to raw Click when needed.
+**MEDIUM confidence on python-kis** because: (1) KIS API developer registration requires a Korean brokerage account, which may block international users; (2) API documentation is Korean-only; (3) the library is community-maintained, not official KIS SDK. The official `koreainvestment/open-trading-api` repo provides sample code but not a packaged library.
 
-**Why Textual over Streamlit:** Project scope explicitly states "CLI first, Streamlit in v2." Textual delivers interactive dashboards in the terminal without a browser. Faster development loop, no web server dependency.
+### 3. Commercial API -- Production Hardening
 
-### Configuration & Settings
+FastAPI (0.135.1) and uvicorn (0.41.0) are already installed. The following additions are needed for production-grade API serving.
 
 | Technology | Version | Purpose | Why | Confidence |
 |------------|---------|---------|-----|------------|
-| pydantic | >=2.10.0 | Data models & validation | Domain entities, DTOs, API request/response models. v2 rewrite with Rust core is 5-50x faster than v1. Already a dependency of alpaca-py, pydantic-settings, and Typer. | HIGH |
-| pydantic-settings | >=2.13.0 | Configuration management | Type-safe config with validation. Reads from .env files + environment variables. Integrates naturally with alpaca-py (also pydantic-based). Catches config errors at startup, not at runtime. v2.13.1 released 2026-02-19. | HIGH |
+| slowapi | >=0.1.9 | Rate limiting | Adapted from flask-limiter for Starlette/FastAPI. Production-proven (millions of requests/month). In-memory storage for single-instance deployment, Redis backend available when scaling. Token bucket and fixed/sliding window algorithms. <1ms latency overhead. | HIGH |
+| PyJWT | >=2.9.0 | JWT token handling | For API key management and tier-based access control. FastAPI official docs now recommend PyJWT over python-jose (python-jose last released 2021, has security issues). Minimal dependencies. Supports HS256/RS256. | HIGH |
+| passlib[bcrypt] | >=1.7.4 | Password/key hashing | Secure hashing for API key storage. bcrypt backend is the standard choice. Needed if implementing user registration for commercial API tiers ($29/$49/$199). | HIGH |
 
-### Scheduling
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| APScheduler | >=3.11.0,<4.0.0 | Daily screening workflow | Cron-style scheduling for daily market screening, monitoring checks, alert evaluation. In-process, lightweight. No external scheduler needed. Production-stable (v3.11.2, Dec 2025). v4 alpha exists but 3.x is the stable choice. | HIGH |
-
-**Why not system cron:** APScheduler keeps scheduling logic co-located with application code. Easier to test, debug, and deploy. Supports missed job recovery and persistence.
-
-### Internal APIs
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| FastAPI | deferred | Internal REST API | **Not needed for V1** (CLI-only). Reserve for V2 when web dashboard is added. Already listed in project constraints. Will integrate naturally with pydantic models and Typer (same author: tiangolo). | N/A |
-
-**V1 approach:** Direct function calls between modules. No HTTP overhead needed when everything runs in one process. FastAPI adds value only when you need a web UI or external integrations in V2.
-
-### Logging & Observability
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| loguru | >=0.7.3 | Application logging | Zero-config, beautiful output, file rotation/retention built-in. Every trade decision, score calculation, and alert must be logged with full context for auditability. Single `add()` function for configuration. | HIGH |
-
-**Why not structlog:** Structlog excels in distributed systems with log aggregation pipelines (2.6x throughput advantage in async). This is a single-process CLI application -- loguru's simplicity wins. If V2 adds a web API, reconsider structlog.
-
-**Why not stdlib logging:** Verbose configuration, poor defaults. Loguru is a strict upgrade for application logging.
-
-### Testing
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| pytest | >=9.0.0 | Test framework | Industry standard. Fixtures for test data setup. Parametrize for testing scoring logic across multiple stocks. v9.0.2 released 2025-12-06. | HIGH |
-| pytest-cov | latest | Coverage reporting | Ensure scoring/valuation logic has >90% coverage. Financial calculation bugs are expensive. | HIGH |
-| pytest-mock | latest | Mocking | Mock API calls (yfinance, Alpaca, SEC) in tests. Never hit real APIs in CI. | HIGH |
-| pytest-asyncio | latest | Async test support | Required for testing Textual UI and any async data fetching. | HIGH |
-
-### Code Quality
-
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| ruff | >=0.15.0 | Linter + formatter | Replaces flake8 + isort + black in one tool. Written in Rust, 10-100x faster. 800+ built-in lint rules. From same team as uv (Astral). v0.15.5 released 2026-03-05. | HIGH |
-| mypy | >=1.19.0 | Type checking | Catch type errors in financial calculations before runtime. Critical for scoring/valuation correctness. Supports Python 3.9-3.14. v1.19.1 released 2025-12-15. | HIGH |
-
-## Alternatives Considered
-
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| Package manager | uv | Poetry | Poetry is mature but 3-10x slower. uv handles everything Poetry does. Community moving to uv in 2026. |
-| Package manager | uv | pip + venv | No lockfile, no dependency resolution, no project management. uv is a drop-in replacement. |
-| Data processing | pandas (<3.0) | Polars | Polars is 10-50x faster but ecosystem interop (yfinance, vectorbt, edgartools, quantstats) all assume pandas. Daily data volumes (<10K rows per query) don't need Polars speed. Revisit if batch screening >5000 tickers becomes slow. |
-| Data processing | pandas (<3.0) | pandas 3.0 | Copy-on-Write breaking changes + string dtype changes. VectorBT and QuantStats have known issues. Migrate after ecosystem stabilizes (target: V2). |
-| Database | DuckDB + SQLite | PostgreSQL | Overkill for single-user CLI application. No server to manage. DuckDB matches analytical performance. |
-| Database | DuckDB + SQLite | SQLite only | SQLite is slow for analytical queries (aggregation, window functions across 3000+ rows). DuckDB is purpose-built for OLAP. |
-| Backtesting | vectorbt | Backtrader | Event-driven overhead unnecessary for daily-bar fundamental strategies. VectorBT is 10-100x faster. Not actively maintained since ~2018. |
-| Backtesting | vectorbt | Zipline | Legacy Quantopian framework. Installation issues on modern Python. Inactive community. |
-| Backtesting | vectorbt | backtesting.py (0.6.5) | Lighter weight but less capable for portfolio-level analysis. No walk-forward built-in. VectorBT's portfolio simulation is more complete. |
-| CLI framework | Textual + Typer | Streamlit | Project scope says CLI-first. Streamlit requires browser. |
-| CLI framework | Textual + Typer | curses | Low-level, no widgets, painful to maintain. Textual is the modern replacement. |
-| CLI parsing | Typer | Click | Typer wraps Click with type-hint API. Less boilerplate, same power. Can use Click directly when needed. |
-| CLI parsing | Typer | argparse | stdlib but verbose. No auto-completion, poor help generation. |
-| Logging | loguru | structlog | Structlog better for distributed/async systems. This is single-process. Loguru is simpler. |
-| Logging | loguru | stdlib logging | Verbose configuration, poor defaults. Loguru is a strict upgrade. |
-| Linting | ruff | flake8 + black + isort | Three tools vs one. Ruff is 10-100x faster and replaces all three. |
-| SEC data | edgartools | sec-api.io | Paid service ($39/mo+). edgartools is free with better structured data output. |
-| SEC data | edgartools | sec-edgar-downloader | Only downloads raw files to disk. edgartools parses XBRL into structured Python objects. |
-| SEC data | edgartools | OpenBB | OpenBB (4.7.1) is comprehensive but AGPL-licensed. Heavy dependency for just SEC data. Better for full research terminal needs. |
-| Portfolio analytics | quantstats | pyfolio | pyfolio is Quantopian legacy, unmaintained. quantstats is actively maintained by yfinance author. |
-| Portfolio optimization | Custom Kelly | Riskfolio-Lib | Riskfolio-Lib (7.0.1) is powerful but overkill -- project needs Fractional Kelly, not full mean-variance optimization with 24 risk measures. 60 lines of custom code vs heavy dependency. |
-| Type checking | mypy | pyright | Both are excellent. mypy is more widely adopted in data science ecosystem. pyright is 3-5x faster but requires Node.js. mypy is pure Python. |
-
-## What NOT to Use
+**What NOT to add:**
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| pandas >= 3.0 (in V1) | Breaking Copy-on-Write semantics. VectorBT, QuantStats have known compatibility issues. String dtype inference changes data handling patterns. | pandas >= 2.2.0, < 3.0 |
-| alpaca-trade-api | Legacy SDK, replaced by alpaca-py. No longer the recommended client. | alpaca-py >= 0.43.0 |
-| TA-Lib (for V1) | Requires C compilation, painful Windows install. Project is fundamental analysis focused -- technical indicators are not V1 scope. | pandas-ta if needed later (pure Python, but note: may be archived July 2026 due to funding) |
-| yfinance < 1.0 | Pre-rewrite versions have reliability issues and different API surface. | yfinance >= 1.2.0 |
-| OpenBB Platform | AGPL license is viral -- would require open-sourcing entire project. Heavy dependency (100+ data provider integrations). Use individual focused libs instead. | yfinance + edgartools + alpaca-py |
-| Jupyter for production | Fine for exploration/research, but not for production CLI system. | Textual for dashboard, scripts for automation |
-| Redis/Celery for scheduling | Massive overkill for single-process daily cron job. External infrastructure dependencies. | APScheduler (in-process) |
-| MongoDB | Document store is wrong model for tabular financial data. No analytical query performance. | DuckDB (analytics) + SQLite (operational) |
+| python-jose | Last release 2021, known security issues. FastAPI team has moved to PyJWT. | PyJWT >=2.9.0 |
+| fastapi-limiter | Less mature than slowapi, fewer production deployments documented. | slowapi >=0.1.9 |
+| Redis (for v1.1) | Overkill for single-instance deployment. slowapi's in-memory backend is sufficient until scaling to multiple instances. Existing SQLite + DuckDB caching handles data caching. | slowapi in-memory storage |
+| Stripe | Premature. Build the API first, validate demand, then add billing. Stripe integration is a separate milestone. | Defer to v1.2+ |
 
-## Full Dependency List
+**Architecture integration:**
+
+- `slowapi` wraps the existing FastAPI `app` in `commercial/api/main.py`. Rate limits defined as decorators on existing route handlers.
+- The existing `dependencies.py` already has `verify_api_key` using header-based API key. Upgrade path: add JWT for tier-based access (free/basic/pro), keep API key as fallback for simple integrations.
+- Rate limit tiers map to commercial product pricing: free (10 req/min), basic $29 (60 req/min), pro $99 (300 req/min).
+
+### 4. ML Dependencies (Optional, Install on Demand)
+
+These are already declared in `pyproject.toml` under `[project.optional-dependencies] ml` but NOT currently installed in the venv.
+
+| Technology | Version | Purpose | Status | Confidence |
+|------------|---------|---------|--------|------------|
+| scikit-learn | >=1.5.0 | Feature scaling, GMM baseline | Declared, not installed | HIGH |
+| hmmlearn | >=0.3.3 | HMM regime detection | Declared, needs version bump (currently >=0.3) | HIGH |
+| xgboost | >=2.0.0 | Future: ML-based scoring enhancement | Declared, not needed for v1.1 | N/A |
+| optuna | >=3.3.0 | Future: hyperparameter optimization | Declared, not needed for v1.1 | N/A |
+
+**Action needed:** Install ml extras (`pip install -e ".[ml]"`) and update hmmlearn version pin from `>=0.3` to `>=0.3.3` to ensure numpy 2.x wheel availability.
+
+---
+
+## Updated pyproject.toml Changes
+
+Only changes needed (diff from current):
 
 ```toml
-# pyproject.toml
-[project]
-name = "intrinsic-alpha-trader"
-requires-python = ">=3.12,<3.13"
-
+# ADD to [project] dependencies
 dependencies = [
-    # Data Acquisition
-    "yfinance>=1.2.0",
-    "edgartools>=5.23.0",
-    "alpaca-py>=0.43.0",
+    # ... existing deps unchanged ...
 
-    # Data Processing
-    "pandas>=2.2.0,<3.0",
-    "numpy>=2.0.0,<2.4",
-    "scipy>=1.14.0",
+    # NEW: Korean market data
+    "pykrx>=1.2.4",
 
-    # Storage
-    "duckdb>=1.5.0",
+    # NEW: Korean broker
+    "python-kis>=2.1.6",
 
-    # Backtesting & Analytics
-    "vectorbt>=0.28.0",
-    "quantstats>=0.0.81",
-
-    # CLI & Dashboard
-    "textual>=8.0.0",
-    "rich>=14.0.0",
-    "typer>=0.24.0",
-
-    # Configuration
-    "pydantic>=2.10.0",
-    "pydantic-settings>=2.13.0",
-
-    # Scheduling
-    "apscheduler>=3.11.0,<4.0.0",
-
-    # Logging
-    "loguru>=0.7.0",
+    # NEW: Commercial API hardening
+    "slowapi>=0.1.9",
+    "PyJWT>=2.9.0",
+    "passlib[bcrypt]>=1.7.4",
 ]
 
+# UPDATE [project.optional-dependencies] ml
 [project.optional-dependencies]
-dev = [
-    "pytest>=9.0.0",
-    "pytest-cov>=5.0.0",
-    "pytest-mock>=3.14.0",
-    "pytest-asyncio>=0.24.0",
-    "ruff>=0.15.0",
-    "mypy>=1.19.0",
-    "pandas-stubs>=2.2.0",
+ml = [
+    "scikit-learn>=1.5.0",     # was >=1.3
+    "hmmlearn>=0.3.3",         # was >=0.3 -- need numpy 2.x wheels
+    "xgboost>=2.0",            # unchanged
+    "optuna>=3.3",             # unchanged
 ]
 ```
 
-## Project Initialization
+## Installation Commands
 
 ```bash
-# Install uv (if not already installed)
-# Windows (PowerShell)
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+# Install new v1.1 core dependencies
+pip install pykrx>=1.2.4 python-kis>=2.1.6 slowapi>=0.1.9 PyJWT>=2.9.0 "passlib[bcrypt]>=1.7.4"
 
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Install ML dependencies (for HMM regime detection)
+pip install -e ".[ml]"
 
-# Initialize project
-uv init intrinsic-alpha-trader
-cd intrinsic-alpha-trader
-
-# Set Python version
-uv python pin 3.12
-
-# Add core dependencies
-uv add yfinance edgartools alpaca-py "pandas>=2.2.0,<3.0" "numpy>=2.0.0,<2.4" scipy duckdb vectorbt quantstats textual rich typer pydantic pydantic-settings "apscheduler>=3.11.0,<4.0.0" loguru
-
-# Add dev dependencies
-uv add --dev pytest pytest-cov pytest-mock pytest-asyncio ruff mypy pandas-stubs
+# Or all at once
+pip install pykrx python-kis slowapi PyJWT "passlib[bcrypt]" scikit-learn hmmlearn
 ```
 
-## Version Compatibility Matrix
+---
 
-| Package | Pinned Range | Reason for Pin | Upgrade Path |
-|---------|-------------|----------------|--------------|
-| Python | >=3.12,<3.13 | NumPy 2.4 requires >=3.11. 3.12 is stable across entire stack. | Move to 3.13 when all deps confirmed compatible. |
-| pandas | >=2.2.0,<3.0 | Pandas 3.0 CoW breaks vectorbt/quantstats. | Migrate to 3.x in V2 after upstream fixes. First upgrade to 2.3 for deprecation warnings. |
-| numpy | >=2.0.0,<2.4 | NumPy 2.4 aligns with pandas 3.0 ecosystem. Stay on 2.2.x for stability. | Upgrade alongside pandas 3.0 migration. |
-| APScheduler | >=3.11.0,<4.0.0 | v4 is alpha with breaking API changes. 3.x is production-stable. | Evaluate v4 when it reaches stable. |
+## Integration Points with Existing Stack
+
+### Technical Scoring: NO new dependencies
+
+The existing `core/data/indicators.py` already computes all required technical indicators:
+
+| Indicator | Function | Status |
+|-----------|----------|--------|
+| RSI(14) | `indicators.rsi(close, 14)` | Implemented (Wilder's smoothing) |
+| MACD(12,26,9) | `indicators.macd(close)` | Implemented (returns line/signal/histogram) |
+| MA(50), MA(200) | `indicators.ma(close, N)` | Implemented (SMA) |
+| ADX(14) | `indicators.adx(df, 14)` | Implemented (DM+/DM-, smoothed) |
+| OBV | `indicators.obv(df)` | Implemented (cumulative signed volume) |
+| ATR(21) | `indicators.atr(df, 21)` | Implemented (Wilder's smoothing) |
+
+The `core/scoring/technical.py` already uses these to produce `trend_score`, `momentum_score`, `volume_score`, and composite `technical_score` (0-100). The v1.1 work is to integrate this into the DDD path (`src/scoring/`) and add it to the composite scoring alongside fundamental scores -- this is architecture work, not a dependency issue.
+
+### HMM Regime Detection: hmmlearn + scikit-learn
+
+Integration flow:
+1. `core/data/market.py` provides VIX, S&P 500 vs 200MA, yield curve (already implemented)
+2. NEW: Feed daily log returns + range + VIX to `GaussianHMM(n_components=3)` (Bull/Bear/Transition)
+3. HMM output feeds into existing `core/regime/weights.py` regime-weight mapping
+4. Rule-based classifier (`core/regime/classifier.py`) serves as fallback when HMM confidence < threshold
+
+### Korean Market: pykrx + python-kis
+
+Integration flow:
+1. pykrx returns pandas DataFrames with same schema as yfinance (date-indexed OHLCV)
+2. Existing `core/data/indicators.compute_all(df)` works unchanged on Korean stock data
+3. Existing `core/scoring/technical.compute_technical_score(df, indicators)` works unchanged
+4. Fundamental scoring needs adaptation: Korean companies use IFRS (same as SEC EDGAR) but data fields may differ (PER vs P/E naming, etc.)
+5. python-kis broker adapter maps to same `IBrokerRepository` interface as Alpaca
+
+### Commercial API: slowapi + PyJWT + passlib
+
+Integration flow:
+1. `commercial/api/main.py` already has FastAPI app with CORS, health check, and 3 product routers
+2. `commercial/api/dependencies.py` already has `verify_api_key` -- extend with JWT-based tier verification
+3. Add slowapi limiter as middleware wrapping existing app
+4. Existing Pydantic schemas in `commercial/api/schemas.py` and `commercial/api/models.py` need no changes
+
+---
+
+## Alternatives Considered (v1.1 specific)
+
+| Category | Recommended | Alternative | Why Not |
+|----------|-------------|-------------|---------|
+| Korean data | pykrx | FinanceDataReader | FDR has no KRX fundamentals (PER/PBR/DIV). pykrx provides both price + fundamentals from KRX directly. |
+| Korean data | pykrx | yfinance (KRX) | yfinance has limited KRX coverage, unreliable for KOSDAQ small-caps, no KRX-specific fundamentals. |
+| Korean broker | python-kis | pykis (pjueon) | pykis not on PyPI, sporadic maintenance. python-kis has versioned releases. |
+| Korean broker | python-kis | Official KIS samples | Official repo provides sample code, not a packaged library. python-kis wraps the API properly. |
+| Regime detection | hmmlearn | pomegranate | Heavier dependency, less focused on financial HMM patterns. hmmlearn has scikit-learn-compatible API. |
+| Regime detection | hmmlearn | statsmodels MarkovSwitching | Different model (regime-switching regression, not hidden state). MarkovSwitching switches regression coefficients; HMM detects hidden states from observed features. |
+| Rate limiting | slowapi | Custom middleware | slowapi is battle-tested (millions req/month). No reason to write custom token-bucket code. |
+| Rate limiting | slowapi | fastapi-limiter | Less community adoption, fewer production references. slowapi is the de facto choice. |
+| JWT | PyJWT | python-jose | python-jose abandoned since 2021, known CVEs. FastAPI team recommends PyJWT. |
+| JWT | PyJWT | joserfc (authlib) | joserfc is newer with JWE support, but overkill for API key tier management. PyJWT is simpler and sufficient. |
+| Tech indicators | Existing code | pandas-ta | Already implemented all needed indicators in `core/data/indicators.py`. Adding pandas-ta would duplicate existing code. |
+| Tech indicators | Existing code | TA-Lib | Requires C compilation. Already have pure-Python implementations. No benefit for 6 indicators. |
+
+---
 
 ## Version Verification Sources
 
-| Package | Version Verified | Source | Verified Date |
-|---------|-----------------|--------|---------------|
-| yfinance | 1.2.0 | [PyPI](https://pypi.org/project/yfinance/) | 2026-03-12 |
-| edgartools | 5.23.0 | [PyPI](https://pypi.org/project/edgartools/) | 2026-03-12 |
-| alpaca-py | 0.43.2 | [PyPI](https://pypi.org/project/alpaca-py/) | 2026-03-12 |
-| pandas | 3.0.1 (latest); using 2.2.x | [PyPI](https://pypi.org/project/pandas/) | 2026-03-12 |
-| numpy | 2.4.3 (latest); using 2.2.x | [PyPI](https://pypi.org/project/numpy/) | 2026-03-12 |
-| scipy | 1.17.1 | [PyPI](https://pypi.org/project/scipy/) | 2026-03-12 |
-| DuckDB | 1.5.0 | [PyPI](https://pypi.org/project/duckdb/) | 2026-03-12 |
-| polars | 1.38.1 (not used in V1) | [PyPI](https://pypi.org/project/polars/) | 2026-03-12 |
-| vectorbt | 0.28.4 | [PyPI](https://pypi.org/project/vectorbt/) | 2026-03-12 |
-| quantstats | 0.0.81 | [PyPI](https://pypi.org/project/quantstats/) | 2026-03-12 |
-| Textual | 8.1.1 | [PyPI](https://pypi.org/project/textual/) | 2026-03-12 |
-| Rich | 14.3.3 | [PyPI](https://pypi.org/project/rich/) | 2026-03-12 |
-| Typer | 0.24.1 | [PyPI](https://pypi.org/project/typer/) | 2026-03-12 |
-| pydantic | 2.12.5 | [PyPI](https://pypi.org/project/pydantic/) | 2026-03-12 |
-| pydantic-settings | 2.13.1 | [PyPI](https://pypi.org/project/pydantic-settings/) | 2026-03-12 |
-| APScheduler | 3.11.2 | [PyPI](https://pypi.org/project/APScheduler/) | 2026-03-12 |
-| loguru | 0.7.3 | [PyPI](https://pypi.org/project/loguru/) | 2026-03-12 |
-| ruff | 0.15.5 | [PyPI](https://pypi.org/project/ruff/) | 2026-03-12 |
-| mypy | 1.19.1 | [PyPI](https://pypi.org/project/mypy/) | 2026-03-12 |
-| pytest | 9.0.2 | [PyPI](https://pypi.org/project/pytest/) | 2026-03-12 |
-| uv | 0.10.9 | [PyPI](https://pypi.org/project/uv/) | 2026-03-12 |
-
-## Stack Architecture Diagram
-
-```
-+--------------------------------------------------+
-|                  CLI Layer                        |
-|  Textual (dashboard) + Typer (commands) + Rich   |
-+--------------------------------------------------+
-         |                    |
-+--------v--------+  +-------v---------+
-| Scheduling      |  | Configuration   |
-| APScheduler     |  | pydantic-settings|
-+-----------------+  +-----------------+
-         |
-+--------v-----------------------------------------+
-|              Application Layer                    |
-|  Scoring Engine | Valuation Engine | Signal Engine |
-|  Risk Manager   | Trade Planner   | Monitor       |
-+--------------------------------------------------+
-         |                    |
-+--------v--------+  +-------v---------+
-| Data Acquisition|  | Broker API      |
-| yfinance        |  | alpaca-py       |
-| edgartools      |  | (Paper + Live)  |
-+-----------------+  +-----------------+
-         |
-+--------v-----------------------------------------+
-|              Data Layer                           |
-|  DuckDB (analytics: prices, financials, scores)  |
-|  SQLite (operational: watchlists, trades, logs)   |
-+--------------------------------------------------+
-         |
-+--------v-----------------------------------------+
-|              Cross-cutting                        |
-|  loguru (logging) | pandas/numpy (computation)    |
-|  vectorbt (backtesting) | quantstats (analytics)  |
-|  scipy (statistics)                               |
-+--------------------------------------------------+
-```
-
-## Key Stack Decisions
-
-1. **Pin pandas <3.0 for V1** -- Pandas 3.0 Copy-on-Write breaking changes cause issues in vectorbt and quantstats. Safe migration path: stay on 2.2.x, upgrade to 2.3 for deprecation warnings, then 3.0 after upstream libs confirm support.
-
-2. **DuckDB + SQLite dual-database** -- DuckDB for OLAP (stock screening, ratio calculations), SQLite for OLTP (watchlists, trade plans, audit logs). Both embedded, single-file, zero-config. DuckDB is 10-50x faster for analytical queries.
-
-3. **Custom scoring/valuation over libraries** -- No production-quality library exists for the specific scoring ensemble. ~800-1000 lines of well-tested custom Python code is more maintainable than adapting toy libraries with wrong assumptions. Full explainability for every calculation.
-
-4. **VectorBT (free) with exit plan** -- Free version is in maintenance mode but sufficient for daily-bar fundamental backtesting in V1. Monitor pandas 3.0 compatibility. Exit plan: VectorBT PRO or custom vectorized backtesting.
-
-5. **Typer over Click** -- Same power (Click underneath) with type-hint-first API. Consistent with pydantic-heavy codebase style.
-
-6. **uv over Poetry/pip** -- 2026 consensus tool. 10-100x faster, handles everything, same ecosystem as ruff.
-
-7. **FastAPI deferred to V2** -- CLI-first means no HTTP server needed. Direct function calls between modules.
-
-8. **pandas over Polars for V1** -- Ecosystem compatibility (yfinance, vectorbt, edgartools) trumps raw speed at daily-granularity data scale.
+| Package | Version | Source | Verified Date | Confidence |
+|---------|---------|--------|---------------|------------|
+| hmmlearn | 0.3.3 | [PyPI](https://pypi.org/project/hmmlearn/) | 2026-03-12 | HIGH |
+| scikit-learn | 1.5.x | [PyPI](https://pypi.org/project/scikit-learn/) | 2026-03-12 | HIGH |
+| pykrx | 1.2.4 | [PyPI](https://pypi.org/project/pykrx/) | 2026-03-12 | HIGH |
+| python-kis | 2.1.6 | [PyPI](https://pypi.org/project/python-kis/) | 2026-03-12 | HIGH |
+| slowapi | 0.1.9 | [PyPI](https://pypi.org/project/slowapi/), [GitHub](https://github.com/laurentS/slowapi) | 2026-03-12 | HIGH |
+| PyJWT | 2.9.x | [PyPI](https://pypi.org/project/PyJWT/) | 2026-03-12 | HIGH |
+| passlib | 1.7.4 | [PyPI](https://pypi.org/project/passlib/) | 2026-03-12 | HIGH |
+| FastAPI | 0.135.1 | Already installed | 2026-03-12 | HIGH |
+| uvicorn | 0.41.0 | Already installed | 2026-03-12 | HIGH |
 
 ---
-*Stack research for: AI-assisted mid-term fundamental analysis trading system*
+
+## Dependency Summary
+
+### Must Add (5 packages)
+
+| Package | Purpose | Risk |
+|---------|---------|------|
+| pykrx | Korean market OHLCV + fundamentals | Low -- pure Python, KRX public data |
+| python-kis | Korean broker integration | Medium -- requires KIS account, Korean docs |
+| slowapi | API rate limiting | Low -- battle-tested, simple integration |
+| PyJWT | JWT authentication for API tiers | Low -- industry standard |
+| passlib[bcrypt] | API key hashing | Low -- industry standard |
+
+### Must Install (2 packages, already declared)
+
+| Package | Purpose | Action |
+|---------|---------|--------|
+| hmmlearn | HMM regime detection | `pip install -e ".[ml]"` |
+| scikit-learn | Feature preprocessing | `pip install -e ".[ml]"` |
+
+### Do NOT Add
+
+| Package | Reason |
+|---------|--------|
+| pandas-ta / TA-Lib | Indicators already implemented in core/data/indicators.py |
+| Redis | Overkill for single-instance API. Use slowapi in-memory. |
+| python-jose | Abandoned, CVEs. Use PyJWT. |
+| FinanceDataReader | pykrx provides both price + fundamentals |
+| Stripe | Premature. Build API first, validate demand. |
+| pomegranate | hmmlearn is simpler and sufficient |
+| Celery | No background task queue needed for v1.1 |
+
+---
+
+## Key Stack Decisions for v1.1
+
+1. **No new technical analysis library needed** -- All RSI/MACD/MA/ADX/OBV indicators are already implemented with pure pandas/numpy in `core/data/indicators.py`. The v1.1 work is DDD integration and composite scoring, not computation.
+
+2. **HMM supplements rule-based regime detection** -- hmmlearn's GaussianHMM adds probabilistic transitions. The existing rule-based classifier remains as the deterministic fallback. Both feed into the same regime output structure.
+
+3. **pykrx for Korean data, python-kis for Korean trading** -- Clean separation matching the existing yfinance (data) / alpaca-py (trading) pattern. Same adapter interfaces, same data schemas.
+
+4. **In-memory rate limiting first** -- slowapi with in-memory storage handles single-instance deployment. Redis backend is a configuration switch when scaling to multi-instance. No new infrastructure.
+
+5. **PyJWT over python-jose** -- python-jose is abandoned (2021). FastAPI team officially recommends PyJWT now. Simpler, actively maintained.
+
+6. **Defer Redis, Stripe, Celery** -- Single-instance deployment does not need distributed caching, payment processing, or background task queues. Add when scaling demands it (v1.2+).
+
+---
+*Stack research for: v1.1 Stabilization & Expansion (technical scoring, regime detection, Korean market, commercial API)*
 *Researched: 2026-03-12*
 *All versions verified against PyPI on 2026-03-12*

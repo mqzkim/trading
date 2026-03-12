@@ -1,762 +1,620 @@
-# Architecture Patterns
+# Architecture Patterns: v1.1 Integration
 
-**Domain:** AI-assisted fundamental trading system (mid-term, US equities)
+**Domain:** Quantitative trading system -- expanding from fundamental-only to multi-factor scoring, regime-aware signals, Korean market, and commercial API
 **Researched:** 2026-03-12
-**Overall Confidence:** HIGH
+**Overall Confidence:** HIGH (based on direct codebase analysis of 20K LOC across 8 bounded contexts)
+
+---
 
 ## Executive Summary
 
-The Intrinsic Alpha Trader is a pipeline-oriented, event-driven system built on DDD bounded contexts. The architecture follows the "Cosmic Python" patterns (message bus + Unit of Work + repository) adapted for a single-user CLI tool with synchronous event dispatch. Seven bounded contexts communicate exclusively through domain events on a synchronous in-process event bus, with each context maintaining strict layer separation (domain -> application -> infrastructure -> presentation).
+The v1.0 system already has a well-structured DDD architecture with 8 bounded contexts (`data_ingest`, `scoring`, `signals`, `regime`, `portfolio`, `execution`, `valuation`, `backtest`), an `AsyncEventBus` (defined but not yet wired for cross-context communication), and a dual-database strategy (DuckDB for analytics, SQLite for operational data). The `core/` wrapper layer provides proven mathematical logic that DDD adapters delegate to.
 
-The existing codebase in `trading/` already implements four bounded contexts (Scoring, Signals, Regime, Portfolio) with correct DDD structure. This architecture document formalizes the complete target state including the three missing contexts (Data Ingest, Valuation, Execution/Monitoring) and the shared infrastructure that connects them.
+The v1.1 features integrate as follows:
 
-**Key architectural insight:** The existing `core/orchestrator.py` is a "God Orchestrator" anti-pattern that directly imports from every module. The target architecture replaces it with event-driven coordination where each bounded context reacts independently to domain events.
+1. **Technical Scoring Engine** -- NOT a new bounded context. It extends the existing `scoring` context. The `TechnicalScore` VO already exists. The `core/scoring/technical.py` already computes RSI, MACD, MA, ADX, OBV. The gap is that `ScoringHandler._get_technical()` currently falls through to a core/ import that expects a pre-computed indicators dict. The integration point is building a proper `CoreTechnicalAdapter` in `scoring/infrastructure/` that takes a ticker, fetches OHLCV from DuckDB, computes indicators via `core/data/indicators.py`, then computes technical score via `core/scoring/technical.py`.
 
----
+2. **Regime Detection** -- Already its own bounded context (`src/regime/`). The domain service, entities, VOs, repository, and handler are all implemented. The gap is: (a) no infrastructure adapter to fetch live VIX/S&P500/ADX/yield curve data, (b) `RegimeChangedEvent` is defined but never published to the `AsyncEventBus`, (c) `RegimeWeightAdjuster` protocol exists in `scoring` but only `NoOpRegimeAdjuster` is implemented.
 
-## Recommended Architecture
+3. **Multi-Strategy Signal Fusion** -- The `signals` context already defines the 4-methodology fusion (CAN SLIM, Magic Formula, Dual Momentum, Trend Following) with `SignalFusionService`. The `core/signals/` has implementations for each. The gap is: individual methodology evaluators need to be wired as proper infrastructure adapters instead of lazy `from core.signals.xyz import` fallbacks in the handler. This is a wiring/stabilization task, not an architecture change.
 
-### System Overview
+4. **Korean Market Support** -- This DOES require architectural changes. The `data_ingest` context currently hardcodes US market assumptions (SEC EDGAR for financials, yfinance for OHLCV, uppercase-only tickers). Korean market needs: (a) a `KRXDataClient` infrastructure adapter alongside `YFinanceClient`, (b) a `KISBrokerAdapter` in `execution/infrastructure/` alongside `AlpacaAdapter`, (c) ticker format changes (Korean tickers are 6-digit numbers like `005930`), (d) financial data from KIS API instead of SEC EDGAR. The pattern is: add new infrastructure adapters, keep domain pure.
 
-```
-                    CLI (Typer + Rich)
-                         |
-                    [Message Bus]
-                    /    |    \
-            Commands  Events  Queries
-               |        |       |
-    +----------+--------+-------+-----------+
-    |          |        |       |           |
- DataIngest Scoring Valuation Signals  Portfolio
-    |          |        |       |      /       \
-    |          |        |       |   Risk    Execution
-    |          |        |       |              |
-    +----------+--------+-------+---------+----+
-                         |
-                   [Event Bus]
-                   (synchronous)
-                         |
-                    Monitoring
-```
+5. **Commercial FastAPI API** -- Already scaffolded at `commercial/api/` with routes for scoring, regime, and signals. The gap is: (a) missing signal fusion route in the v1 DDD-backed routers, (b) no rate limiting or Redis caching, (c) batch scoring needs optimization. The API is a thin presentation layer over existing DDD handlers -- no new bounded contexts needed.
 
-### Pipeline Data Flow (Daily Screening Workflow)
-
-```
-1. DataIngest  -- fetches OHLCV, financials, SEC data
-       |
-       | DataRefreshedEvent
-       v
-2. Regime      -- classifies market state (VIX, trend, yield curve)
-       |
-       | RegimeClassifiedEvent
-       v
-3. Scoring     -- Piotroski F + Altman Z + Beneish M + technical + sentiment
-       |
-       | ScoreUpdatedEvent
-       v
-4. Valuation   -- DCF + EPV + relative multiples -> intrinsic value range
-       |
-       | ValuationCompletedEvent
-       v
-5. Signals     -- combines quality score + valuation gap -> trade signal
-       |
-       | SignalGeneratedEvent
-       v
-6. Portfolio   -- position sizing (Kelly) + drawdown defense
-       |
-       | PositionSizedEvent / EntryPlanCreatedEvent
-       v
-7. Execution   -- generates trade plan, awaits human approval
-       |
-       | OrderSubmittedEvent / OrderFilledEvent
-       v
-8. Monitoring  -- tracks positions, alerts on stop-loss / target hits
-       |
-       | AlertTriggeredEvent / PositionClosedEvent
-       v
-       (feeds back to Portfolio for P&L tracking)
-```
+**Key architectural conclusion: No new bounded contexts are needed. All v1.1 features are either extensions to existing contexts (technical scoring, signal fusion) or new infrastructure adapters within existing contexts (Korean market, regime data fetching). The commercial API is a presentation layer concern.**
 
 ---
 
-## Bounded Contexts (Component Boundaries)
+## Current Architecture (As-Is)
 
-### Existing Code vs. Target Architecture
+### Bounded Contexts and Their States
 
-The trading workspace has a dual structure (`core/` + `src/`) that must converge:
+| Context | DDD Layers | core/ Wrapper | Events Defined | Events Published | DB |
+|---------|-----------|---------------|----------------|------------------|----|
+| `data_ingest` | domain, infrastructure | `core/data/` | `DataIngestedEvent`, `QualityCheckFailedEvent` | Yes (in pipeline) | DuckDB |
+| `scoring` | domain, application, infrastructure | `core/scoring/` | `ScoreUpdatedEvent` | No (defined only) | SQLite |
+| `valuation` | domain, infrastructure | `core/valuation/` | None | N/A | DuckDB |
+| `signals` | domain, application, infrastructure | `core/signals/` | `SignalGeneratedEvent` | No (defined only) | SQLite, DuckDB |
+| `regime` | domain, application, infrastructure | `core/regime/` | `RegimeChangedEvent` | No (defined only) | SQLite |
+| `portfolio` | domain, application, infrastructure | personal/ | `PositionOpenedEvent`, `PositionClosedEvent`, `DrawdownAlertEvent` | No (defined only) | SQLite |
+| `execution` | domain, application, infrastructure | personal/ | None defined | N/A | SQLite |
+| `backtest` | domain, application, infrastructure | `core/backtest/` | None defined | N/A | DuckDB |
 
-| Current Location | DDD Target | Status |
-|-----------------|------------|--------|
-| `core/data/` | `src/data_ingest/` | In core, needs DDD wrapping |
-| `core/regime/` + `src/regime/` | `src/regime/` | DDD skeleton + core implementation exist |
-| `core/scoring/` + `src/scoring/` | `src/scoring/` | DDD skeleton + core implementation exist |
-| (does not exist) | `src/valuation/` | NEW -- build from scratch |
-| `core/signals/` + `src/signals/` | `src/signals/` | DDD skeleton + core implementation exist |
-| `personal/sizer/` + `personal/risk/` + `src/portfolio/` | `src/portfolio/` | DDD skeleton + personal implementation exist |
-| `personal/execution/` | `src/execution/` | In personal, needs DDD wrapping |
-| (does not exist) | `src/monitoring/` | NEW -- build from scratch |
-| `core/backtest/` | `src/backtest/` | In core, needs DDD wrapping |
+### Key Architectural Patterns Already In Place
 
-**Migration strategy:** Wrap existing `core/` and `personal/` implementations as infrastructure adapters within the DDD structure. Extract domain logic into pure domain layer gradually. Do NOT rewrite from scratch -- the existing code is functional and has test coverage.
+1. **Adapter Pattern**: `core/` provides mathematical logic; `src/*/infrastructure/*_adapter.py` wraps it for DDD compliance. Example: `CoreScoringAdapter` wraps `core/scoring/fundamental.py`.
+
+2. **Repository Interface in Domain**: `IScoreRepository`, `ISignalRepository`, `IRegimeRepository` are ABCs defined in `domain/repositories.py`, implemented in `infrastructure/sqlite_repo.py`.
+
+3. **Value Object Validation**: All VOs inherit from `ValueObject` base class with `_validate()` method called on construction. Frozen dataclasses enforce immutability.
+
+4. **Command/Handler Pattern**: Application layer uses `Command` dataclasses dispatched to `Handler` classes. Handlers orchestrate: validate input -> call domain service -> save via repository -> return `Result[Ok, Err]`.
+
+5. **Dual Database**: DuckDB for analytical queries (OHLCV screening, batch operations); SQLite for operational persistence (scores, signals, regimes, positions, trade plans).
+
+6. **Protocol-Based Extension Points**: `RegimeWeightAdjuster(Protocol)` in `scoring/domain/services.py` is the designated hook for regime -> scoring integration.
+
+### Data Flow (Current)
+
+```
+User (CLI)
+    |
+    v
+DataPipeline.ingest_universe()
+    |-- YFinanceClient.fetch_ohlcv() --> DuckDB (ohlcv table)
+    |-- EdgartoolsClient.fetch_financials() --> DuckDB (financials table)
+    |-- publishes DataIngestedEvent (but no subscribers wired)
+    v
+ScoreSymbolHandler.handle()
+    |-- _get_fundamental() --> core/scoring/fundamental (lazy import)
+    |-- _get_technical() --> core/scoring/technical (lazy import)
+    |-- _get_sentiment() --> core/scoring/sentiment (lazy import)
+    |-- SafetyFilterService.check() --> SafetyGate VO
+    |-- CompositeScoringService.compute() --> CompositeScore VO
+    |-- IScoreRepository.save() --> SQLite
+    v
+GenerateSignalHandler.handle()
+    |-- CoreSignalAdapter.evaluate_all() or lazy core/ imports
+    |-- SignalFusionService.fuse() --> (direction, strength)
+    |-- ISignalRepository.save() --> SQLite
+    v
+TradePlanService.generate_plan()
+    |-- personal/execution/planner.plan_entry()
+    |-- Risk gates (drawdown, position limits)
+    |-- TradePlan VO --> SQLite
+    v
+Human Approval --> AlpacaAdapter.submit_order()
+```
+
+**Critical observation**: The pipeline is currently procedural (each step calls the next). The `AsyncEventBus` exists but events are not published except in `DataPipeline`. This means scoring, signals, regime, and portfolio do NOT react to events -- they are called imperatively.
 
 ---
 
-### 1. Data Ingest Context
+## Target Architecture (v1.1 To-Be)
 
-**Responsibility:** Fetch, normalize, and cache market data from external sources.
+### Component Boundary Changes
 
-| Layer | Contents |
-|-------|----------|
-| domain/ | `DataPointEntity`, `TimeSeriesVO`, `DataSourceVO`, `DataRefreshedEvent` |
-| application/ | `RefreshSymbolCommand`, `RefreshMarketCommand`, `FetchHistoricalQuery` |
-| infrastructure/ | `YFinanceClient`, `SECEdgarClient`, `DuckDBTimeSeriesRepository` |
-| presentation/ | CLI commands (`trading data refresh AAPL`) |
-
-**Communicates With:**
-- Publishes: `DataRefreshedEvent(symbol, data_types, as_of_date)`
-- Subscribes to: nothing (entry point of pipeline)
-
-**Key Design Decisions:**
-- DuckDB for time-series storage (columnar, fast analytics, Parquet-compatible)
-- SQLite for metadata/config (transactional, small records)
-- Cache layer with TTL to avoid re-fetching within same day
-- Rate limiter for yfinance/SEC EDGAR API calls
-- Data quality validation (missing values, outliers, stale data) is a domain service
-
-### 2. Regime Context (EXISTS)
-
-**Responsibility:** Classify market regime from macro indicators. Determine risk adjustment weights.
-
-| Layer | Contents |
-|-------|----------|
-| domain/ | `MarketRegime` entity, `RegimeType`/`VIXLevel`/`TrendStrength` VOs, `RegimeChangedEvent` |
-| application/ | `ClassifyRegimeCommand`, `GetCurrentRegimeQuery` |
-| infrastructure/ | `SqliteRegimeRepository`, macro data adapters |
-| presentation/ | CLI command (`trading regime`) |
-
-**Communicates With:**
-- Publishes: `RegimeChangedEvent(previous, new, confidence)`
-- Subscribes to: `DataRefreshedEvent` (re-classify when new data arrives)
-
-**Regime Types (immutable):** Low-Vol Bull, High-Vol Bull, Low-Vol Range, High-Vol Bear, Transition
-
-**Already Implemented:** Entity with `transition_to()` behavior, value objects (RegimeType, VIXLevel, TrendStrength, YieldCurve, SP500Position), events, SQLite repo, classifier in `core/regime/`. 3-day confirmation rule enforced in entity.
-
-### 3. Scoring Context (EXISTS)
-
-**Responsibility:** Compute composite quality scores for individual securities.
-
-| Layer | Contents |
-|-------|----------|
-| domain/ | `CompositeScore`/`SafetyGate`/`FundamentalScore` VOs, `SafetyFilterService`, `CompositeScoringService`, `ScoreUpdatedEvent` |
-| application/ | `ScoreSymbolCommand`, `GetTopScoresQuery`, `ScoreSymbolHandler` |
-| infrastructure/ | `SqliteScoreRepository`, data client adapters |
-| presentation/ | CLI command (`trading score AAPL`) |
-
-**Communicates With:**
-- Publishes: `ScoreUpdatedEvent(symbol, composite_score, risk_adjusted, safety_passed)`
-- Subscribes to: `DataRefreshedEvent`, `RegimeChangedEvent` (regime affects strategy weights)
-
-**Immutable Business Rules (verified in codebase):**
-- SafetyGate: Z-Score > 1.81 AND M-Score < -1.78 (academic thresholds, never change)
-- Strategy weights: swing (35/40/25 fundamental/technical/sentiment), position (50/30/20)
-- Tail risk penalty: risk_adjusted = composite - 0.3 * tail_risk_penalty
-
-**Already Implemented:** Value objects with validation, domain services, events, SQLite + in-memory repos, handlers with gradual core/ migration.
-
-### 4. Valuation Context (NEW -- to build)
-
-**Responsibility:** Compute intrinsic value ranges using ensemble valuation models.
-
-| Layer | Contents |
-|-------|----------|
-| domain/ | `ValuationEntity`, `IntrinsicValueRangeVO`, `DCFResultVO`, `EPVResultVO`, `RelativeMultiplesResultVO`, `WACCVO`, `MarginOfSafetyVO`, `ValuationCompletedEvent` |
-| application/ | `ValueSymbolCommand`, `BatchValuationCommand`, `GetValuationQuery`, `ValueSymbolHandler` |
-| infrastructure/ | `SqliteValuationRepository`, treasury rate adapter |
-| presentation/ | CLI command (`trading value AAPL`) |
-
-**Communicates With:**
-- Publishes: `ValuationCompletedEvent(symbol, intrinsic_low/mid/high, margin_of_safety, confidence)`
-- Subscribes to: `DataRefreshedEvent` (needs financial data for DCF inputs)
-
-**Valuation Ensemble (three models, weighted average):**
-
-| Model | Weight | Inputs | Strengths |
-|-------|--------|--------|-----------|
-| DCF (Discounted Cash Flow) | 40% | FCF projections, WACC, terminal growth | Forward-looking |
-| EPV (Earnings Power Value) | 35% | Normalized earnings, cost of capital | No growth assumption needed |
-| Relative Multiples (PER/PBR/EV) | 25% | Peer group comparisons | Market-relative anchor |
-
-**Key Value Objects:**
-```python
-@dataclass(frozen=True)
-class IntrinsicValueRangeVO(ValueObject):
-    low: float        # conservative estimate
-    mid: float        # base case (weighted ensemble)
-    high: float       # optimistic estimate
-    confidence: float # 0-1, based on data completeness
-
-@dataclass(frozen=True)
-class MarginOfSafetyVO(ValueObject):
-    value: float  # (intrinsic_mid - market_price) / intrinsic_mid
-    # Positive = undervalued, Negative = overvalued
-    # Threshold for signal: margin_of_safety > 0.20 (20%)
-```
-
-**Ensemble Weighting (immutable):**
-```python
-VALUATION_WEIGHTS = {
-    "dcf": 0.40,
-    "epv": 0.35,
-    "relative": 0.25,
-}
-```
-
-### 5. Signals Context (EXISTS)
-
-**Responsibility:** Generate trade signals by combining quality score with valuation gap and strategy consensus.
-
-| Layer | Contents |
-|-------|----------|
-| domain/ | `TradeSignal` entity, `SignalDirection`/`ConsensusVO` VOs, `SignalGeneratedEvent` |
-| application/ | `GenerateSignalCommand`, `GetSignalsQuery`, handlers |
-| infrastructure/ | `SqliteSignalRepository`, in-memory cache |
-| presentation/ | CLI command (`trading signal AAPL`) |
-
-**Communicates With:**
-- Publishes: `SignalGeneratedEvent(symbol, direction, strength, consensus_count, composite_score)`
-- Subscribes to: `ScoreUpdatedEvent`, `ValuationCompletedEvent`, `RegimeChangedEvent`
-
-**Signal Logic Enhancement (V2 vs current):**
-- Current: 4-strategy consensus (CAN SLIM, dual momentum, magic formula, trend following)
-- V2 addition: valuation gap as 5th input (margin_of_safety from Valuation context)
-- Signal strength = f(composite_score, valuation_gap, consensus_agreement, regime_adjustment)
-
-**Already Implemented:** Value objects, events, repositories, handlers. Needs valuation gap integration.
-
-### 6. Portfolio/Risk Context (EXISTS)
-
-**Responsibility:** Position sizing, drawdown defense, portfolio-level risk management.
-
-| Layer | Contents |
-|-------|----------|
-| domain/ | `Portfolio` aggregate, `Position` entity, `KellyFraction`/`ATRStop`/`DrawdownLevel` VOs, `PortfolioRiskService`, events |
-| application/ | `OpenPositionCommand`, `ClosePositionCommand`, handlers |
-| infrastructure/ | `SqlitePortfolioRepo`, `SqlitePositionRepo` |
-| presentation/ | CLI commands (`trading portfolio`, `trading position`) |
-
-**Communicates With:**
-- Publishes: `PositionOpenedEvent`, `PositionClosedEvent`, `DrawdownAlertEvent`, `EntryPlanCreatedEvent`
-- Subscribes to: `SignalGeneratedEvent` (triggers position sizing)
-
-**Immutable Risk Rules (verified in codebase, NEVER change):**
-- Max single position: 8% (MAX_SINGLE_WEIGHT = 0.08)
-- Max sector: 25% (MAX_SECTOR_WEIGHT = 0.25)
-- Fractional Kelly: 1/4 (FRACTION = 0.25, Full Kelly forbidden)
-- ATR stop multiplier: 2.5-3.5x ATR(21)
-- Drawdown tiers: 10% CAUTION (halt), 15% WARNING (50% reduce), 20% CRITICAL (liquidate)
-
-**Already Implemented:** Portfolio aggregate with `can_open_position()`, `add_position()`. Position entity with `close()`. PortfolioRiskService with Kelly sizing, ATR stop, drawdown assessment. All events. SQLite + in-memory repos. Handler with full use case orchestration.
-
-### 7. Execution Context (PARTIAL -- needs DDD migration)
-
-**Responsibility:** Generate trade plans, manage human approval workflow, interface with broker.
-
-| Layer | Contents |
-|-------|----------|
-| domain/ | `TradePlanEntity`, `OrderEntity`, `ApprovalStatusVO`, `OrderSubmittedEvent`, `OrderFilledEvent`, `OrderRejectedEvent` |
-| application/ | `CreateTradePlanCommand`, `ApproveOrderCommand`, `SubmitOrderCommand` |
-| infrastructure/ | `AlpacaBrokerAdapter`, `SqliteOrderRepository` |
-| presentation/ | CLI commands (`trading plan`, `trading approve`, `trading execute`) |
-
-**Communicates With:**
-- Publishes: `OrderSubmittedEvent`, `OrderFilledEvent`, `OrderRejectedEvent`
-- Subscribes to: `EntryPlanCreatedEvent` (creates pending trade plan)
-
-**Human-in-the-Loop Workflow:**
-```
-SignalGeneratedEvent
-    -> Portfolio sizes position
-    -> EntryPlanCreatedEvent
-    -> Execution creates TradePlan (status: PENDING_APPROVAL)
-    -> CLI displays plan for human review
-    -> Human approves/rejects via CLI
-    -> If approved: submit to Alpaca Paper Trading
-    -> OrderSubmittedEvent / OrderFilledEvent
-```
-
-**Existing Code:** `personal/execution/planner.py` (plan generation), `personal/execution/paper_trading.py` (Alpaca integration) -- needs migration to DDD structure.
-
-### 8. Monitoring Context (NEW -- to build)
-
-**Responsibility:** Track live positions, trigger alerts on price targets, manage stop-loss monitoring.
-
-| Layer | Contents |
-|-------|----------|
-| domain/ | `MonitoredPositionEntity`, `AlertRuleVO`, `PriceTargetVO`, `AlertTriggeredEvent` |
-| application/ | `SetAlertCommand`, `CheckPositionsCommand`, `GetAlertsQuery` |
-| infrastructure/ | `SqliteAlertRepository`, price feed adapter, `ConsoleNotifier` |
-| presentation/ | CLI commands (`trading monitor`, `trading alerts`) |
-
-**Communicates With:**
-- Publishes: `AlertTriggeredEvent(symbol, alert_type, current_price, trigger_price)`
-- Subscribes to: `OrderFilledEvent` (auto-create monitoring rules), `DataRefreshedEvent` (check prices)
-
-**Alert Types:** Stop-loss hit (ATR-based), take-profit target reached, trailing stop triggered, time-based review reminder (holding period check), drawdown threshold crossed.
-
----
-
-## Shared Kernel
-
-Kept minimal per DDD rules. Only truly cross-cutting concerns live here.
+No new bounded contexts. Changes are within existing contexts:
 
 ```
-src/shared/
-    domain/
-        __init__.py          # Entity, ValueObject, DomainEvent, Result
-        base_entity.py       # Generic Entity[TId] with event collection
-        base_value_object.py # Frozen dataclass with _validate()
-        domain_event.py      # DomainEvent ABC with occurred_on + event_type
-        result.py            # Ok/Err Result type
+EXISTING CONTEXTS (modified):
+  data_ingest/
     infrastructure/
-        event_bus.py         # Synchronous event bus (NEW -- to build)
-        db.py                # Database connection factory (NEW -- to build)
-    utils/
-        dates.py             # Date/timezone helpers
-        money.py             # Decimal money arithmetic
+      + krx_data_client.py        # Korean OHLCV + financials via KIS API
+      + market_adapter_factory.py  # Factory: market -> appropriate client
+      ~ yfinance_client.py        # No change
+      ~ duckdb_store.py           # Add market column to tables
+
+  scoring/
+    infrastructure/
+      + core_technical_adapter.py  # Proper adapter: ticker -> OHLCV -> indicators -> score
+      ~ core_scoring_adapter.py   # No change
+    domain/
+      ~ value_objects.py           # TechnicalScore already exists, no change
+
+  regime/
+    infrastructure/
+      + regime_data_fetcher.py     # Fetch VIX, S&P500, ADX, yield curve from yfinance/FRED
+    application/
+      ~ handlers.py               # Wire data fetcher, publish RegimeChangedEvent
+
+  signals/
+    infrastructure/
+      + methodology_adapters.py    # Proper adapters for each of 4 strategies
+      ~ core_signal_adapter.py     # Already wraps all 4, may just need cleanup
+
+  execution/
+    infrastructure/
+      + kis_broker_adapter.py      # Korean broker (KIS OpenAPI)
+      ~ alpaca_adapter.py          # No change
+
+  portfolio/
+    domain/
+      ~ value_objects.py           # Ticker validation must support Korean format
+
+EXISTING LAYERS (modified):
+  shared/
+    domain/
+      + market.py                  # Market enum (US, KR) used across contexts
+
+  commercial/api/
+    routers/
+      + signals.py                 # v1 DDD-backed signal fusion endpoint
+      ~ scoring.py                 # Add batch scoring optimization
+      ~ regime.py                  # Add historical regime endpoint
+    + middleware/
+      + rate_limiter.py            # Token bucket rate limiting
+      + cache.py                   # Redis cache layer
 ```
 
-**Already Implemented:** Entity (with `add_domain_event()` / `pull_domain_events()`), ValueObject, DomainEvent, Ok/Err Result.
+### Integration Point 1: Technical Scoring Engine
 
-**Missing (critical):** EventBus, DB connection factory.
+**Current state**: `TechnicalScore` VO exists in `scoring/domain/value_objects.py`. `core/scoring/technical.py` computes the score. `core/data/indicators.py` computes RSI, MACD, MA, ADX, OBV.
+
+**Gap**: `ScoreSymbolHandler._get_technical()` does a lazy `from core.scoring.technical import compute_technical_score`, which expects `(df, indicators)` but the handler passes just a symbol string.
+
+**Solution**: Create `CoreTechnicalAdapter` in `scoring/infrastructure/`:
+
+```python
+# scoring/infrastructure/core_technical_adapter.py
+class CoreTechnicalAdapter:
+    """Fetches OHLCV from DuckDB, computes indicators, returns technical score."""
+
+    def __init__(self, duckdb_store: DuckDBStore):
+        self._store = duckdb_store
+
+    def compute(self, ticker: str) -> dict:
+        # 1. Get OHLCV from DuckDB (already ingested)
+        df = self._store.get_ohlcv(ticker)
+        if df.empty:
+            return {"technical_score": 50.0}  # neutral fallback
+
+        # 2. Compute indicators via core/data/indicators.py
+        from core.data.indicators import compute_all
+        indicators = compute_all(df)
+
+        # 3. Compute technical score via core/scoring/technical.py
+        from core.scoring.technical import compute_technical_score
+        return compute_technical_score(df, indicators)
+```
+
+**Modification to `ScoreSymbolHandler`**: Inject `CoreTechnicalAdapter` as `technical_client` parameter. Remove lazy import fallback.
+
+**Data flow change**: None. Technical scoring already fits within the `scoring` handler's existing flow. The adapter just needs to be properly wired.
+
+**Complexity**: LOW. This is a wiring task, not a design task. The math exists in `core/scoring/technical.py` and `core/data/indicators.py`.
+
+### Integration Point 2: Regime Detection (Live Data + EventBus Wiring)
+
+**Current state**: `regime/` context is complete: `RegimeDetectionService` classifies Bull/Bear/Sideways/Crisis from VIX, S&P500, ADX, YieldCurve. `DetectRegimeHandler` creates `MarketRegime` entity. `SqliteRegimeRepository` persists results. BUT: no way to fetch live indicator data, and `RegimeChangedEvent` is never published.
+
+**Gap 1 -- Data Fetching**: Handler requires `vix`, `sp500_price`, `sp500_ma200`, `adx`, `yield_spread` as command inputs. No infrastructure adapter fetches these.
+
+**Solution**: Create `RegimeDataFetcher` in `regime/infrastructure/`:
+
+```python
+# regime/infrastructure/regime_data_fetcher.py
+class RegimeDataFetcher:
+    """Fetches VIX, S&P 500 price/MA200, ADX, yield curve from market data."""
+
+    def __init__(self, duckdb_store: DuckDBStore):
+        self._store = duckdb_store
+
+    async def fetch(self) -> DetectRegimeCommand:
+        # VIX: fetch ^VIX from yfinance (or DuckDB if pre-ingested)
+        # S&P 500: fetch ^GSPC, compute MA200
+        # ADX: compute from S&P 500 OHLCV
+        # Yield curve: fetch ^TNX (10Y) and ^IRX (3M) or use FRED API
+        ...
+```
+
+**Gap 2 -- EventBus Publishing**: `MarketRegime.transition_to()` creates `RegimeChangedEvent` and calls `self.add_domain_event()`, but the handler never extracts and publishes domain events.
+
+**Solution**: Modify `DetectRegimeHandler` to:
+1. After saving, check if regime changed vs previous
+2. If changed, publish `RegimeChangedEvent` to `AsyncEventBus`
+3. Subscribers: `CompositeScoringService` adjusts weights via `RegimeWeightAdjuster`
+
+**Gap 3 -- Regime -> Scoring Integration**: `RegimeWeightAdjuster(Protocol)` is defined. Only `NoOpRegimeAdjuster` exists. Need a real implementation.
+
+**Solution**: Create `LiveRegimeAdjuster` implementing `RegimeWeightAdjuster`:
+
+```python
+# scoring/infrastructure/regime_weight_adjuster.py
+class LiveRegimeAdjuster:
+    """Adjusts scoring weights based on current market regime."""
+
+    def __init__(self, regime_repo: IRegimeRepository):
+        self._regime_repo = regime_repo
+
+    def adjust_weights(self, strategy: str, regime_type: str | None = None) -> dict[str, float]:
+        if regime_type is None:
+            latest = self._regime_repo.find_latest()
+            regime_type = latest.regime_type.value if latest else None
+
+        base_weights = STRATEGY_WEIGHTS.get(strategy, STRATEGY_WEIGHTS[DEFAULT_STRATEGY])
+
+        if regime_type == "Crisis":
+            # In crisis: boost fundamental weight, reduce technical
+            return {"fundamental": 0.55, "technical": 0.20, "sentiment": 0.25}
+        elif regime_type == "Bear":
+            return {"fundamental": 0.45, "technical": 0.30, "sentiment": 0.25}
+        elif regime_type == "Bull":
+            return {"fundamental": 0.30, "technical": 0.45, "sentiment": 0.25}
+        return base_weights
+```
+
+**Data flow change**: Regime detection becomes a prerequisite step in the scoring pipeline. Order: `DataIngest -> Regime -> Scoring -> Signals`.
+
+**Complexity**: MEDIUM. Data fetching requires new infrastructure code. EventBus wiring requires modifying handlers. But all domain logic is already implemented.
+
+### Integration Point 3: Multi-Strategy Signal Fusion
+
+**Current state**: All 4 methodology evaluators exist in `core/signals/` (canslim.py, magic_formula.py, dual_momentum.py, trend_following.py). `SignalFusionService` in `signals/domain/services.py` performs 3/4 consensus voting. `GenerateSignalHandler` orchestrates the flow.
+
+**Gap**: The handler has two code paths:
+1. `_evaluate_via_adapter()` -- uses `CoreSignalAdapter`, requires `symbol_data` dict
+2. `_evaluate_via_clients()` -- falls through to lazy `from core.signals.xyz import` calls
+
+Neither path is cleanly wired. The handler mixes infrastructure concerns (core/ imports) into application logic.
+
+**Solution**: Clean up `CoreSignalAdapter` to handle the full flow internally:
+
+```python
+# signals/infrastructure/core_signal_adapter.py (enhanced)
+class CoreSignalAdapter:
+    """Evaluates all 4 methodologies using core/ implementations."""
+
+    def __init__(self, duckdb_store: DuckDBStore):
+        self._store = duckdb_store
+
+    def evaluate_all(self, ticker: str) -> list[dict]:
+        # 1. Fetch OHLCV + financials from DuckDB
+        # 2. Prepare symbol_data dict
+        # 3. Run each evaluator (canslim, magic_formula, etc.)
+        # 4. Return standardized results
+        ...
+```
+
+**Modification to `GenerateSignalHandler`**: Simplify to single path -- always use adapter. Remove lazy imports.
+
+**Data flow change**: None. Signal generation already follows scoring in the pipeline.
+
+**Complexity**: LOW. This is adapter cleanup, not new logic.
+
+### Integration Point 4: Korean Market Support
+
+**Current state**: The system assumes US market exclusively:
+- `data_ingest/domain/value_objects.py`: `Ticker` regex requires `^[A-Z]{1,10}$`
+- `data_ingest/infrastructure/yfinance_client.py`: Wraps `CoreDataClient` (US-focused)
+- `data_ingest/infrastructure/edgartools_client.py`: SEC EDGAR = US only
+- `execution/infrastructure/alpaca_adapter.py`: Alpaca = US only
+- `scoring/domain/value_objects.py`: `Symbol` requires uppercase letters only
+
+**Changes needed**:
+
+1. **Shared Market Enum** (new file in `shared/domain/`):
+```python
+# shared/domain/market.py
+class Market(Enum):
+    US = "US"      # NYSE, NASDAQ
+    KR = "KR"      # KOSPI, KOSDAQ
+```
+
+2. **Ticker Validation** (modify `data_ingest/domain/value_objects.py`):
+```python
+# Korean tickers are 6-digit numbers: "005930" (Samsung)
+# US tickers are 1-10 uppercase letters: "AAPL"
+_US_TICKER_RE = re.compile(r"^[A-Z]{1,10}$")
+_KR_TICKER_RE = re.compile(r"^\d{6}$")
+
+@dataclass(frozen=True)
+class Ticker(ValueObject):
+    ticker: str
+    market: str = "US"
+
+    def _validate(self) -> None:
+        if self.market == "KR":
+            if not _KR_TICKER_RE.match(self.ticker):
+                raise ValueError(f"KR ticker must be 6 digits: {self.ticker}")
+        else:
+            if not _US_TICKER_RE.match(self.ticker):
+                raise ValueError(f"US ticker must be uppercase letters: {self.ticker}")
+```
+
+3. **KRX Data Client** (new file in `data_ingest/infrastructure/`):
+```python
+# data_ingest/infrastructure/krx_data_client.py
+class KRXDataClient:
+    """Fetches Korean market data via KIS OpenAPI or pykrx."""
+
+    async def fetch_ohlcv(self, ticker: str, days: int = 756) -> pd.DataFrame:
+        # KIS OpenAPI: domestic stock daily price
+        # or pykrx library for historical data
+        ...
+
+    async def fetch_financials(self, ticker: str) -> list[dict]:
+        # KIS API: financial statement data
+        # Korean financials use different reporting standards (K-IFRS)
+        ...
+```
+
+4. **Market-Aware Data Pipeline** (modify `data_ingest/infrastructure/pipeline.py`):
+```python
+class DataPipeline:
+    def __init__(self, market: str = "US", ...):
+        self._market = market
+        if market == "KR":
+            self._data_client = KRXDataClient(self._semaphore)
+        else:
+            self._data_client = YFinanceClient(self._semaphore)
+```
+
+5. **KIS Broker Adapter** (new file in `execution/infrastructure/`):
+```python
+# execution/infrastructure/kis_broker_adapter.py
+class KISBrokerAdapter:
+    """Korean Investment & Securities OpenAPI broker adapter."""
+
+    def __init__(self, app_key: str, app_secret: str, paper: bool = True):
+        self._base_url = "https://openapivts.koreainvestment.com:29443" if paper \
+            else "https://openapi.koreainvestment.com:9443"
+        ...
+
+    async def submit_order(self, plan: TradePlan) -> OrderResult:
+        # KIS API: domestic stock order
+        ...
+```
+
+6. **DuckDB Schema** (modify `data_ingest/infrastructure/duckdb_store.py`):
+```sql
+-- Add market column to existing tables
+ALTER TABLE ohlcv ADD COLUMN market VARCHAR DEFAULT 'US';
+-- Update PRIMARY KEY to include market
+-- (requires table recreation since DuckDB doesn't support ALTER PK)
+```
+
+**Data flow change**: The pipeline gains a `market` parameter that selects the appropriate infrastructure adapters. Domain logic (scoring, signals, regime) remains market-agnostic -- they operate on the same VOs regardless of market. Regime detection is US-specific (VIX, S&P 500) and should not apply to Korean stocks directly.
+
+**Key constraint**: Korean market scoring works for technicals (OHLCV is universal) but NOT for fundamentals (no SEC EDGAR, different financial reporting). The fundamental scoring path needs a Korean-specific adapter or must gracefully degrade when SEC data is unavailable.
+
+**Complexity**: HIGH. This touches data ingestion, ticker validation, broker integration, and financial data sources. But the DDD architecture handles it cleanly -- new infrastructure adapters, domain stays pure.
+
+### Integration Point 5: Commercial FastAPI API
+
+**Current state**: `commercial/api/` has:
+- `main.py`: FastAPI app with health, legacy routes, v1 DDD routes
+- `routers/scoring.py`: POST `/v1/score/{symbol}`, GET `/v1/score/{symbol}/latest`
+- `routers/regime.py`: GET `/v1/regime/current`
+- `schemas.py`: Pydantic models with disclaimer
+- `dependencies.py`: DI for handlers and repos
+
+**Gap**: Missing signal fusion v1 router, no rate limiting, no caching, no batch optimization, no API key management beyond basic verification.
+
+**Changes needed**:
+
+1. **Signal Fusion Router** (new file):
+```python
+# commercial/api/routers/signals.py
+router = APIRouter(prefix="/v1/signals", tags=["Signals"])
+
+@router.post("/{symbol}", response_model=SignalResponse)
+async def generate_signal(symbol: str, ...):
+    # Delegates to GenerateSignalHandler
+    ...
+```
+
+2. **Rate Limiting Middleware**:
+```python
+# commercial/api/middleware/rate_limiter.py
+# Token bucket per API key, configurable per plan tier
+```
+
+3. **Redis Caching**:
+```python
+# commercial/api/middleware/cache.py
+# Cache scoring results by (symbol, strategy) with TTL
+# Cache regime results with shorter TTL
+```
+
+4. **Batch Scoring Optimization**:
+```python
+@router.post("/batch", response_model=BatchScoreResponse)
+async def batch_score(request: BatchScoreRequest):
+    # Run scoring concurrently for up to 20 symbols
+    results = await asyncio.gather(*[score_one(s) for s in request.symbols])
+    ...
+```
+
+**Data flow change**: None. The API is a thin presentation layer. It calls the same DDD handlers that the CLI uses.
+
+**Complexity**: LOW-MEDIUM. The API scaffolding exists. Adding routes is straightforward. Rate limiting and caching are infrastructure concerns.
 
 ---
 
-## Event Bus Architecture
+## Data Flow (v1.1 Target)
 
-### Design: Synchronous In-Process Event Bus
+### Daily Screening Pipeline
 
-For V1 (single user, CLI tool), a synchronous event bus following the Cosmic Python pattern. No message queues, async frameworks, or external message brokers.
-
-**Reference implementation pattern (from Cosmic Python):**
-```python
-# src/shared/infrastructure/event_bus.py
-
-from __future__ import annotations
-from typing import Callable, Dict, List, Type
-from src.shared.domain import DomainEvent
-
-EventHandler = Callable[[DomainEvent], None]
-
-class SyncEventBus:
-    """Synchronous in-process event bus.
-
-    V1: Single-threaded, synchronous dispatch.
-    Handlers execute in registration order.
-    Cascading events are queued and processed after current batch.
-    """
-
-    def __init__(self) -> None:
-        self._handlers: Dict[Type[DomainEvent], List[EventHandler]] = {}
-        self._processing = False
-        self._queue: list[DomainEvent] = []
-
-    def subscribe(self, event_type: Type[DomainEvent], handler: EventHandler) -> None:
-        self._handlers.setdefault(event_type, []).append(handler)
-
-    def publish(self, event: DomainEvent) -> None:
-        if self._processing:
-            self._queue.append(event)
-            return
-        self._processing = True
-        try:
-            self._dispatch(event)
-            while self._queue:
-                next_event = self._queue.pop(0)
-                self._dispatch(next_event)
-        finally:
-            self._processing = False
-
-    def _dispatch(self, event: DomainEvent) -> None:
-        for handler in self._handlers.get(type(event), []):
-            handler(event)
+```
+1. DataIngest
+   |-- Market=US: YFinanceClient + EdgartoolsClient -> DuckDB
+   |-- Market=KR: KRXDataClient -> DuckDB
+   |-- Publishes DataIngestedEvent
+   |
+   v
+2. Regime Detection (US market indicators)
+   |-- RegimeDataFetcher: VIX, S&P500, ADX, YieldCurve
+   |-- RegimeDetectionService.detect() -> RegimeType + confidence
+   |-- Publishes RegimeChangedEvent
+   |-- MarketRegime -> SQLite
+   |
+   v
+3. Scoring (per ticker)
+   |-- CoreScoringAdapter: fundamental score (F/Z/M/G-Score)
+   |-- CoreTechnicalAdapter: technical score (RSI/MACD/MA/ADX/OBV)
+   |-- Sentiment: neutral 50 (Phase 1), or external API later
+   |-- LiveRegimeAdjuster: adjusts weights based on current regime
+   |-- CompositeScoringService.compute() -> CompositeScore
+   |-- Publishes ScoreUpdatedEvent
+   |-- CompositeScore -> SQLite
+   |
+   v
+4. Signal Fusion (per ticker with score >= threshold)
+   |-- CoreSignalAdapter: 4 methodology evaluators
+   |-- SignalFusionService.fuse() -> consensus direction + strength
+   |-- Publishes SignalGeneratedEvent
+   |-- Signal -> SQLite
+   |
+   v
+5. Trade Plan (personal only, BUY signals)
+   |-- TradePlanService.generate_plan()
+   |-- Risk gates (drawdown, position limits, sector limits)
+   |-- TradePlan -> SQLite
+   |-- Human approval -> Execution
 ```
 
-**Why custom over library:** bubus and pyventus are production-ready but add unnecessary dependency for a simple synchronous case. The bus is <30 lines. Building it avoids version coupling and keeps the shared kernel minimal.
+### EventBus Subscription Map (Target)
 
-### Event Contract Registry
+```
+DataIngestedEvent
+  -> RegimeDataFetcher (trigger regime check when new data arrives)
+  -> (future: auto-score new tickers)
 
-All cross-context events are frozen dataclasses inheriting from `DomainEvent`. Events carry primitive types only (no entity references across contexts).
+RegimeChangedEvent
+  -> LiveRegimeAdjuster (update scoring weights for next scoring run)
+  -> Portfolio context (adjust risk parameters in crisis)
 
-| Event | Publisher | Subscriber(s) | Key Payload Fields |
-|-------|-----------|---------------|-------------------|
-| `DataRefreshedEvent` | DataIngest | Regime, Scoring, Valuation, Monitoring | symbol, data_types[], as_of_date |
-| `RegimeChangedEvent` | Regime | Scoring, Signals | previous_regime, new_regime, confidence, vix_value, adx_value |
-| `ScoreUpdatedEvent` | Scoring | Signals | symbol, composite_score, risk_adjusted_score, safety_passed, strategy |
-| `ValuationCompletedEvent` | Valuation | Signals | symbol, intrinsic_low/mid/high, margin_of_safety, confidence |
-| `SignalGeneratedEvent` | Signals | Portfolio | symbol, direction, strength, consensus_count, composite_score, strategy |
-| `EntryPlanCreatedEvent` | Portfolio | Execution | symbol, plan_id, shares, entry_price, stop_price, target_price |
-| `OrderSubmittedEvent` | Execution | Monitoring | symbol, order_id, broker_order_id, side, quantity |
-| `OrderFilledEvent` | Execution | Monitoring, Portfolio | symbol, fill_price, fill_quantity, filled_at |
-| `AlertTriggeredEvent` | Monitoring | Portfolio, (CLI notification) | symbol, alert_type, current_price, trigger_price |
-| `PositionClosedEvent` | Portfolio | Monitoring | symbol, pnl, pnl_pct |
-| `DrawdownAlertEvent` | Portfolio | Execution (halt new orders) | portfolio_id, drawdown, level |
+ScoreUpdatedEvent
+  -> SignalFusionService subscriber (auto-generate signals for scored tickers)
+  -> (future: commercial API cache invalidation)
 
-### Event Wiring (Composition Root)
+SignalGeneratedEvent
+  -> TradePlanService (auto-generate plan for BUY signals)
+  -> Portfolio context (update watchlist)
 
-```python
-# src/bootstrap.py -- application composition root
-
-def bootstrap(db_path: str = "data/trading.db") -> dict:
-    """Wire all dependencies. Returns service container."""
-    bus = SyncEventBus()
-
-    # Repositories (infrastructure)
-    score_repo = SqliteScoreRepository(db_path)
-    signal_repo = SqliteSignalRepository(db_path)
-    portfolio_repo = SqlitePortfolioRepository(db_path)
-    position_repo = SqlitePositionRepository(db_path)
-    valuation_repo = SqliteValuationRepository(db_path)
-
-    # Handlers (application)
-    regime_handler = ClassifyRegimeHandler(regime_repo, bus)
-    score_handler = ScoreSymbolHandler(score_repo, bus)
-    valuation_handler = ValueSymbolHandler(valuation_repo, bus)
-    signal_handler = GenerateSignalHandler(signal_repo, bus)
-    portfolio_handler = PortfolioManagerHandler(portfolio_repo, position_repo, bus)
-
-    # Event wiring
-    bus.subscribe(DataRefreshedEvent, regime_handler.on_data_refreshed)
-    bus.subscribe(DataRefreshedEvent, score_handler.on_data_refreshed)
-    bus.subscribe(DataRefreshedEvent, valuation_handler.on_data_refreshed)
-    bus.subscribe(RegimeChangedEvent, score_handler.on_regime_changed)
-    bus.subscribe(ScoreUpdatedEvent, signal_handler.on_score_updated)
-    bus.subscribe(ValuationCompletedEvent, signal_handler.on_valuation_completed)
-    bus.subscribe(SignalGeneratedEvent, portfolio_handler.on_signal_generated)
-
-    return {
-        "bus": bus,
-        "handlers": {
-            "regime": regime_handler,
-            "scoring": score_handler,
-            "valuation": valuation_handler,
-            "signals": signal_handler,
-            "portfolio": portfolio_handler,
-        },
-    }
+DrawdownAlertEvent
+  -> Execution context (auto-pause or reduce orders)
+  -> CLI notification
 ```
 
 ---
 
-## Database Architecture
+## Database Architecture (v1.1)
 
-### Dual-Database Strategy
+### DuckDB (Analytics -- Read-Heavy)
 
-| Database | Engine | Purpose | Access Pattern |
-|----------|--------|---------|---------------|
-| `data/timeseries.duckdb` | DuckDB | OHLCV, fundamentals, indicators | Bulk read, columnar analytics |
-| `data/trading.db` | SQLite | Scores, signals, portfolio, orders, alerts, config | Transactional CRUD |
+| Table | Contents | Changes in v1.1 |
+|-------|----------|-----------------|
+| `ohlcv` | Price bars | Add `market` column (US/KR) |
+| `financials` | SEC filings / K-IFRS | Add `market` column, handle different field sets |
+| `indicator_cache` | Pre-computed indicators | NEW: cache RSI/MACD/ADX per ticker to avoid recomputation |
 
-**Rationale:**
-- DuckDB excels at analytical queries over time-series data (scanning millions of OHLCV rows, computing indicators, aggregations across stocks)
-- SQLite excels at transactional operations (saving individual scores, tracking position state, order status updates)
-- Both are embedded, zero-config, file-based -- perfect for CLI tool, no server process
-- DuckDB can read Parquet files directly for future data import scenarios
+### SQLite (Operational -- Write-Heavy)
 
-### DuckDB Schema (timeseries.duckdb) -- DataIngest Context
+| Table | Context | Changes in v1.1 |
+|-------|---------|-----------------|
+| `composite_scores` | scoring | No change |
+| `signals` | signals | No change |
+| `market_regimes` | regime | No change |
+| `positions` | portfolio | No change |
+| `trade_plans` | execution | No change |
+| `watchlist` | portfolio | No change |
+| `api_keys` | commercial | NEW: API key management |
+| `rate_limits` | commercial | NEW: per-key rate tracking |
 
-```sql
-CREATE TABLE ohlcv (
-    symbol      VARCHAR NOT NULL,
-    date        DATE NOT NULL,
-    open        DOUBLE,
-    high        DOUBLE,
-    low         DOUBLE,
-    close       DOUBLE,
-    adj_close   DOUBLE,
-    volume      BIGINT,
-    PRIMARY KEY (symbol, date)
-);
+### Redis (Commercial API only -- Cache)
 
-CREATE TABLE fundamentals (
-    symbol          VARCHAR NOT NULL,
-    period_end      DATE NOT NULL,
-    period_type     VARCHAR NOT NULL,  -- 'annual' | 'quarterly'
-    revenue         DOUBLE,
-    net_income      DOUBLE,
-    total_assets    DOUBLE,
-    total_liabilities DOUBLE,
-    operating_cf    DOUBLE,
-    capex           DOUBLE,
-    free_cash_flow  DOUBLE,
-    shares_outstanding BIGINT,
-    roe             DOUBLE,
-    pe_ratio        DOUBLE,
-    current_ratio   DOUBLE,
-    debt_equity     DOUBLE,
-    fetched_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (symbol, period_end, period_type)
-);
-
-CREATE TABLE indicators (
-    symbol      VARCHAR NOT NULL,
-    date        DATE NOT NULL,
-    ma50        DOUBLE,
-    ma200       DOUBLE,
-    rsi14       DOUBLE,
-    macd        DOUBLE,
-    macd_signal DOUBLE,
-    macd_hist   DOUBLE,
-    atr21       DOUBLE,
-    adx14       DOUBLE,
-    obv         DOUBLE,
-    PRIMARY KEY (symbol, date)
-);
-```
-
-### SQLite Schema (trading.db) -- All Other Contexts
-
-Each bounded context owns its tables exclusively. Table prefix convention (2-letter context abbreviation) prevents collisions and makes ownership explicit.
-
-```sql
--- === Scoring Context (sc_) ===
-CREATE TABLE sc_scores (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    symbol          TEXT NOT NULL,
-    composite_score REAL NOT NULL,
-    risk_adjusted   REAL NOT NULL DEFAULT 0.0,
-    strategy        TEXT NOT NULL DEFAULT 'swing',
-    fundamental_score REAL,
-    technical_score   REAL,
-    sentiment_score   REAL,
-    f_score         REAL,
-    z_score         REAL,
-    m_score         REAL,
-    scored_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_sc_symbol ON sc_scores(symbol);
-CREATE INDEX idx_sc_composite ON sc_scores(composite_score DESC);
-
--- === Valuation Context (vl_) ===
-CREATE TABLE vl_valuations (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    symbol           TEXT NOT NULL,
-    dcf_value        REAL,
-    epv_value        REAL,
-    relative_value   REAL,
-    ensemble_low     REAL NOT NULL,
-    ensemble_mid     REAL NOT NULL,
-    ensemble_high    REAL NOT NULL,
-    margin_of_safety REAL NOT NULL,
-    market_price     REAL NOT NULL,
-    confidence       REAL NOT NULL DEFAULT 0.5,
-    valued_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_vl_symbol ON vl_valuations(symbol);
-
--- === Signals Context (sg_) ===
-CREATE TABLE sg_signals (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    symbol          TEXT NOT NULL,
-    direction       TEXT NOT NULL,  -- 'BUY' | 'SELL' | 'HOLD'
-    strength        REAL NOT NULL,
-    consensus_count INTEGER NOT NULL,
-    composite_score REAL,
-    valuation_gap   REAL,
-    strategy        TEXT NOT NULL DEFAULT 'swing',
-    generated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX idx_sg_symbol ON sg_signals(symbol);
-
--- === Portfolio Context (pf_) ===
-CREATE TABLE pf_portfolios (
-    portfolio_id    TEXT PRIMARY KEY,
-    initial_value   REAL NOT NULL,
-    peak_value      REAL NOT NULL,
-    updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE pf_positions (
-    symbol          TEXT PRIMARY KEY,
-    portfolio_id    TEXT NOT NULL,
-    entry_price     REAL NOT NULL,
-    quantity        INTEGER NOT NULL,
-    entry_date      DATE NOT NULL,
-    strategy        TEXT NOT NULL DEFAULT 'swing',
-    stop_price      REAL,
-    target_price    REAL,
-    sector          TEXT DEFAULT 'unknown',
-    risk_tier       TEXT DEFAULT 'medium',
-    FOREIGN KEY (portfolio_id) REFERENCES pf_portfolios(portfolio_id)
-);
-
--- === Execution Context (ex_) ===
-CREATE TABLE ex_trade_plans (
-    plan_id         TEXT PRIMARY KEY,
-    symbol          TEXT NOT NULL,
-    direction       TEXT NOT NULL,
-    order_type      TEXT NOT NULL,  -- 'LIMIT' | 'MARKET'
-    entry_price     REAL NOT NULL,
-    stop_price      REAL NOT NULL,
-    target_price    REAL,
-    shares          INTEGER NOT NULL,
-    status          TEXT NOT NULL DEFAULT 'PENDING_APPROVAL',
-    -- 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SUBMITTED' | 'FILLED'
-    approved_at     TIMESTAMP,
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE ex_orders (
-    order_id        TEXT PRIMARY KEY,
-    plan_id         TEXT NOT NULL,
-    broker_order_id TEXT,           -- Alpaca order ID
-    symbol          TEXT NOT NULL,
-    side            TEXT NOT NULL,  -- 'buy' | 'sell'
-    quantity        INTEGER NOT NULL,
-    order_type      TEXT NOT NULL,
-    limit_price     REAL,
-    status          TEXT NOT NULL DEFAULT 'PENDING',
-    filled_price    REAL,
-    filled_at       TIMESTAMP,
-    submitted_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (plan_id) REFERENCES ex_trade_plans(plan_id)
-);
-
--- === Monitoring Context (mn_) ===
-CREATE TABLE mn_alert_rules (
-    alert_id        TEXT PRIMARY KEY,
-    symbol          TEXT NOT NULL,
-    alert_type      TEXT NOT NULL,
-    -- 'STOP_LOSS' | 'TAKE_PROFIT' | 'TRAILING' | 'TIME_REVIEW' | 'DRAWDOWN'
-    trigger_price   REAL,
-    trigger_date    DATE,
-    active          INTEGER NOT NULL DEFAULT 1,
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE mn_alert_history (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    alert_id        TEXT NOT NULL,
-    symbol          TEXT NOT NULL,
-    alert_type      TEXT NOT NULL,
-    trigger_price   REAL,
-    current_price   REAL NOT NULL,
-    triggered_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (alert_id) REFERENCES mn_alert_rules(alert_id)
-);
-
--- === Regime Context (rg_) ===
-CREATE TABLE rg_history (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    regime_type     TEXT NOT NULL,
-    confidence      REAL NOT NULL,
-    vix_value       REAL,
-    trend_adx       REAL,
-    yield_curve     REAL,
-    sp500_ratio     REAL,
-    detected_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- === Backtest Context (bt_) -- future ===
-CREATE TABLE bt_runs (
-    run_id          TEXT PRIMARY KEY,
-    strategy        TEXT NOT NULL,
-    start_date      DATE NOT NULL,
-    end_date        DATE NOT NULL,
-    initial_capital REAL NOT NULL,
-    final_value     REAL NOT NULL,
-    total_return    REAL NOT NULL,
-    sharpe_ratio    REAL,
-    max_drawdown    REAL,
-    win_rate        REAL,
-    trade_count     INTEGER,
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### Database Connection Factory
-
-```python
-# src/shared/infrastructure/db.py
-
-import sqlite3
-import os
-from pathlib import Path
-
-DATA_DIR = Path("data")
-
-def get_sqlite_connection(db_name: str = "trading.db") -> sqlite3.Connection:
-    DATA_DIR.mkdir(exist_ok=True)
-    conn = sqlite3.connect(DATA_DIR / db_name)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-    return conn
-
-def get_duckdb_connection(db_name: str = "timeseries.duckdb"):
-    import duckdb
-    DATA_DIR.mkdir(exist_ok=True)
-    return duckdb.connect(str(DATA_DIR / db_name))
-```
+| Key Pattern | TTL | Purpose |
+|-------------|-----|---------|
+| `score:{symbol}:{strategy}` | 1 hour | Cache computed scores |
+| `regime:current` | 15 min | Cache current regime |
+| `signal:{symbol}` | 30 min | Cache signal results |
 
 ---
 
 ## Patterns to Follow
 
-### Pattern 1: Entity with Domain Event Collection
+### Pattern 1: Infrastructure Adapter for External Data
 
-Entities collect domain events internally. Application layer pulls events after operation completes and publishes to bus. This is already correctly implemented in the existing codebase (`Entity.add_domain_event()` / `pull_domain_events()`).
+**What**: Every external data source gets an adapter in `infrastructure/` that translates between external format and domain VOs.
 
+**When**: Adding any new data source (KIS API, FRED API, new broker).
+
+**Example** (from existing codebase):
 ```python
-# Application handler pulls events and publishes to bus
-class ClosePositionHandler:
-    def handle(self, cmd: ClosePositionCommand) -> Result:
-        position = self._repo.find_by_symbol(cmd.symbol)
-        result = position.close(cmd.exit_price)
-        events = position.pull_domain_events()
-        for event in events:
-            self._event_bus.publish(event)
-        return Ok(result)
+# This pattern is already proven in the codebase:
+# src/scoring/infrastructure/core_scoring_adapter.py
+class CoreScoringAdapter:
+    """Infrastructure adapter wrapping core/scoring/ functions for DDD compliance."""
+
+    def compute_altman_z(self, financial_data: dict[str, Any]) -> float:
+        # Translates dict -> positional args for core function
+        return altman_z_score(
+            working_capital=financial_data.get("working_capital", 0.0),
+            ...
+        )
 ```
 
-### Pattern 2: Repository Interface in Domain, Implementation in Infrastructure
+**Apply this pattern for**:
+- `CoreTechnicalAdapter` (ticker -> OHLCV -> indicators -> technical score)
+- `RegimeDataFetcher` (yfinance/FRED -> VIX/S&P500/ADX/YieldCurve)
+- `KRXDataClient` (KIS API -> OHLCV + financials DataFrames)
+- `KISBrokerAdapter` (KIS API -> order submission/tracking)
 
-Already established. All repository ABCs live in `domain/repositories.py`. Implementations in `infrastructure/`.
+### Pattern 2: Protocol for Extension Points
 
-### Pattern 3: Command/Query Separation (Lightweight CQRS)
+**What**: Use `Protocol` (structural typing) for integration points between contexts, not ABCs. This avoids tight coupling.
 
-Commands change state, queries read state. Both are frozen dataclasses. No separate read models for V1.
+**When**: One context needs to consume data from another context without direct import.
 
-### Pattern 4: Composition Root for Dependency Injection
-
-No DI framework. Manual wiring in `src/bootstrap.py`. All dependencies flow downward. CLI commands call bootstrap to get wired handlers.
-
-### Pattern 5: Safety-Gate-First Pipeline
-
-Every analysis pipeline runs the safety gate (Z > 1.81, M < -1.78) before expensive operations. This saves computation: ~40% of universe may fail safety gate and skip scoring + valuation entirely.
-
-```
-Input: 500 stocks
-  -> Safety Gate: ~300 pass (60%)
-  -> Full scoring: top 50 by composite score
-  -> Valuation (expensive): only top 50
-  -> Signal generation: only valued stocks
-```
-
-### Pattern 6: CLI as Thin Presentation Layer
-
-CLI commands parse arguments, invoke application handlers, format output. No business logic in CLI.
-
+**Example** (from existing codebase):
 ```python
-@app.command()
-def score(symbol: str, strategy: str = "swing"):
-    container = bootstrap()
-    handler = container["handlers"]["scoring"]
-    result = handler.handle(ScoreSymbolCommand(symbol=symbol, strategy=strategy))
-    if isinstance(result, Ok):
-        render_score_table(result.value)
-    else:
-        console.print(f"[red]Error: {result.error}[/red]")
+# scoring/domain/services.py
+class RegimeWeightAdjuster(Protocol):
+    def adjust_weights(self, strategy: str, regime_type: str | None = None) -> dict[str, float]: ...
+
+# NoOpRegimeAdjuster (default) and LiveRegimeAdjuster (v1.1) both satisfy this
+```
+
+### Pattern 3: Market-Agnostic Domain, Market-Specific Infrastructure
+
+**What**: Domain VOs and services should not contain market-specific logic. Market differences are handled in infrastructure adapters.
+
+**When**: Adding Korean market support.
+
+**Example**:
+```python
+# WRONG: Market logic in domain
+class CompositeScoringService:
+    def compute(self, ..., market: str = "US"):
+        if market == "KR":
+            # Korean-specific logic
+            ...
+
+# RIGHT: Domain stays pure, factory selects adapter
+class DataAdapterFactory:
+    @staticmethod
+    def create(market: str) -> DataClient:
+        if market == "KR":
+            return KRXDataClient()
+        return YFinanceClient()
+```
+
+### Pattern 4: Graceful Degradation for Missing Data
+
+**What**: When a data source is unavailable (e.g., no SEC filings for Korean stocks), the scoring pipeline should produce partial results rather than failing.
+
+**When**: Cross-market scoring where not all data sources exist.
+
+**Example**:
+```python
+# In ScoringHandler, if fundamental data is unavailable:
+fundamental = FundamentalScore(value=50.0)  # neutral default
+# TechnicalScore computed from OHLCV (always available)
+# SentimentScore neutral default
+# Composite score will be lower quality but still valid
 ```
 
 ---
@@ -764,150 +622,113 @@ def score(symbol: str, strategy: str = "swing"):
 ## Anti-Patterns to Avoid
 
 ### Anti-Pattern 1: God Orchestrator
-**What:** All pipeline logic in `core/orchestrator.py` that directly imports from every module.
-**Why bad:** The current orchestrator imports from `core.data`, `core.regime`, `core.scoring`, `core.signals`, `personal.sizer`, `personal.risk`, `personal.execution` -- violating bounded context isolation. Testing requires all modules present. Any change can cascade.
-**Instead:** Event bus coordinates the pipeline. Each context reacts independently.
 
-### Anti-Pattern 2: Domain Layer with External Dependencies
-**What:** Importing pandas, yfinance, sqlite3, or any framework in domain/ files.
-**Why bad:** Makes domain untestable without infrastructure. Existing codebase correctly avoids this.
-**Instead:** Domain services accept plain Python types. Infrastructure adapters convert.
+**What**: A single orchestrator class that imports from every bounded context and coordinates the entire pipeline imperatively.
 
-### Anti-Pattern 3: Cross-Context Direct Import
-**What:** Importing entities/services from another bounded context directly.
-**Why bad:** Creates tight coupling, violates DDD boundary rules.
-**Instead:** Communicate through domain events only. Subscribe to events and maintain local state if needed.
+**Why bad**: Already exists as `core/orchestrator.py`. Creates tight coupling, makes testing impossible in isolation, single point of failure.
 
-### Anti-Pattern 4: Premature Async/Distributed Architecture
-**What:** Using Redis, RabbitMQ, async event buses for V1.
-**Why bad:** Single-user CLI tool. Daily batch processing. Distributed infra adds complexity without benefit.
-**Instead:** Synchronous event bus + SQLite. DDD boundaries make later migration possible.
+**Instead**: Use EventBus-driven coordination. Each handler subscribes to relevant events and reacts independently. The CLI commands trigger the first event; the rest flows through subscriptions.
 
-### Anti-Pattern 5: Shared Database Tables Between Contexts
-**What:** Multiple contexts reading/writing the same table.
-**Why bad:** Implicit coupling, unclear ownership, breaking changes cascade.
-**Instead:** Each context owns its prefixed tables. Cross-context data via events only.
+### Anti-Pattern 2: Cross-Context Direct Import
 
----
+**What**: Importing a domain service from another bounded context directly.
 
-## Migration Path: core/ -> src/ (DDD)
+**Why bad**: Already exists: `execution/domain/services.py` imports `from src.portfolio.domain.value_objects import TakeProfitLevels`. This violates DDD bounded context isolation.
 
-### Phase 1: Shared Infrastructure Foundation
-- Build `SyncEventBus` in `src/shared/infrastructure/`
-- Build DB connection factory
-- Create `src/bootstrap.py` composition root
-- Wire existing DDD contexts (Scoring, Signals, Regime, Portfolio) to event bus
+**Instead**: Define shared VOs in `shared/domain/` or communicate via events. For `TakeProfitLevels`, it belongs in `shared/domain/` since both execution and portfolio need it, or execution should receive the take-profit price as a primitive in its command.
 
-### Phase 2: Event-Driven Flow
-- Replace direct function calls with event subscriptions
-- Update CLI to use bootstrap instead of `core/orchestrator.py`
-- Validate all cross-context communication uses events
+### Anti-Pattern 3: Lazy Core Imports in Application Layer
 
-### Phase 3: New Contexts
-- DataIngest (wraps `core/data/`, adds DuckDB)
-- Valuation (new, DCF + EPV + relative)
-- Execution (migrates `personal/execution/`)
-- Monitoring (new)
+**What**: Handlers doing `from core.scoring.technical import compute_technical_score` inside methods.
 
-### Phase 4: Retire core/ Orchestrator
-- Once all contexts wired through event bus, `core/orchestrator.py` is unnecessary
-- Keep `core/` algorithm implementations referenced as infrastructure adapters
-- Eventually move remaining `core/` logic into bounded contexts
+**Why bad**: Mixes infrastructure concern (which implementation to use) with application orchestration. Untestable without the core/ package available.
+
+**Instead**: Always inject adapters via constructor. The handler should never know about `core/`.
+
+### Anti-Pattern 4: Market-Specific Logic in Domain
+
+**What**: Adding `if market == "KR"` branches to domain services or value objects.
+
+**Why bad**: Violates domain purity. Domain logic should be universal -- the same scoring algorithm works regardless of market.
+
+**Instead**: Market differences are infrastructure concerns (different data clients, different financial statement formats). The domain receives normalized VOs.
 
 ---
 
-## Suggested Build Order
+## Component Boundaries
 
-Build order follows the critical dependency chain. Upstream contexts must exist before downstream consumers.
+| Component | Responsibility | Communicates With | v1.1 Changes |
+|-----------|---------------|-------------------|--------------|
+| `data_ingest` | Fetch + validate + store market data | DuckDB, EventBus | Add KRX client, market column |
+| `scoring` | Compute composite quality score | data_ingest (read DuckDB), regime (read latest) | Wire technical adapter, regime adjuster |
+| `valuation` | Compute intrinsic value (DCF/EPV/Relative) | data_ingest (read DuckDB) | No changes |
+| `signals` | Generate consensus buy/sell signals | scoring (read scores) | Clean up adapter wiring |
+| `regime` | Detect market regime (Bull/Bear/Sideways/Crisis) | data_ingest (read DuckDB) | Add data fetcher, publish events |
+| `portfolio` | Manage positions + risk | signals (read signals) | No changes |
+| `execution` | Generate trade plans, submit orders | portfolio (risk check) | Add KIS adapter |
+| `backtest` | Walk-forward backtesting | scoring, signals, data_ingest | No changes |
+| `commercial` | REST API presentation layer | scoring, signals, regime handlers | Add signal router, rate limit, cache |
+| `shared` | Base classes, event bus, market enum | All contexts | Add Market enum |
+
+---
+
+## Build Order (Dependency-Driven)
+
+The features have the following dependency chain:
 
 ```
-Phase 1: Infrastructure Foundation
-    shared/infrastructure/event_bus.py
-    shared/infrastructure/db.py
-    src/bootstrap.py (composition root)
-    Wire existing 4 contexts to event bus
+1. Technical Scoring Engine
+   Dependencies: core/scoring/technical.py (exists), core/data/indicators.py (exists)
+   Blocks: Nothing (enhances existing scoring)
 
-Phase 2: Data Pipeline
-    data_ingest context (DuckDB + yfinance/SEC EDGAR)
-    Migrate core/data/ logic as infrastructure adapter
+2. Regime Detection (Live Data + EventBus)
+   Dependencies: data_ingest (for market data)
+   Blocks: Regime -> Scoring weight adjustment
 
-Phase 3: Analysis Core Completion
-    regime context (wire to event bus, already implemented)
-    scoring context (wire to event bus, already implemented)
+3. Multi-Strategy Signal Fusion (Cleanup)
+   Dependencies: scoring (composite score input)
+   Blocks: Nothing (enhances existing signals)
 
-Phase 4: Valuation Engine (NEW)
-    valuation context (DCF + EPV + relative models)
-    Domain services for each model
-    Ensemble weighting
+4. Korean Market Support
+   Dependencies: data_ingest pattern (to follow), scoring (to extend)
+   Blocks: Nothing (additive feature)
 
-Phase 5: Enhanced Signals
-    Integrate valuation gap into signal generation
-    Subscribe to ValuationCompletedEvent
-    Update signal strength formula
-
-Phase 6: Execution & Monitoring
-    execution context (migrate personal/execution/)
-    monitoring context (new)
-    Alpaca paper trading integration
-    Human approval workflow
-
-Phase 7: Backtesting & Polish
-    backtest context (wrap core/backtest/)
-    Unified CLI dashboard
-    Daily screening workflow automation
+5. Commercial API
+   Dependencies: scoring, signals, regime handlers (all must be stable)
+   Blocks: Nothing (presentation layer)
 ```
 
-**Critical dependency chain:** DataIngest -> Scoring + Valuation -> Signals -> Portfolio -> Execution -> Monitoring
+**Recommended build order**:
 
-**Parallelizable within phases:**
-- Phase 3: Regime and Scoring can be wired simultaneously (both depend on DataIngest only)
-- Phase 4-5: Valuation can start while existing signals work without it, then enhance
+1. **Technical Scoring Engine** (LOW complexity, HIGH value) -- unlocks accurate composite scores
+2. **Regime Detection Live Wiring** (MEDIUM complexity, HIGH value) -- unlocks regime-aware scoring
+3. **Signal Fusion Cleanup** (LOW complexity, MEDIUM value) -- stabilizes signal generation
+4. **Korean Market Data** (HIGH complexity, MEDIUM value) -- independent after data_ingest pattern is stable
+5. **Commercial API Enhancement** (LOW-MEDIUM complexity, MEDIUM value) -- depends on all above being stable
 
----
-
-## DDD Compliance Verification
-
-Verified against `.claude/rules/ddd.md`:
-
-| Rule | Status | Evidence |
-|------|--------|----------|
-| Layer dependency unidirectional | COMPLIANT | All existing contexts: presentation -> application -> domain |
-| Domain is pure (no frameworks) | COMPLIANT | No framework imports in any domain/ files (verified: scoring, portfolio, regime, signals) |
-| Interfaces in domain | COMPLIANT | `IScoreRepository`, `IPortfolioRepository`, `IPositionRepository` as ABCs in domain/repositories.py |
-| Public API via __init__.py only | COMPLIANT | Each context exposes through `__init__.py` |
-| Cross-context via events only | **GAP** | Events defined correctly, but no event bus exists yet. CLI uses core/orchestrator.py with direct imports |
-| Naming conventions | COMPLIANT | Entity/VO/Event/Service/Repository suffixes used consistently |
-| DOMAIN.md in each context | **PARTIAL** | Only portfolio has one (placeholder). All contexts need proper DOMAIN.md |
-
-**Highest priority gap:** Build the event bus and composition root to eliminate the God Orchestrator anti-pattern.
+**Rationale**: Technical scoring and regime wiring are prerequisites for accurate composite scores. Accurate scores are prerequisites for meaningful signals. Korean market is additive and independent. Commercial API should come last because it exposes the scoring/signals/regime results, which must be correct first.
 
 ---
 
 ## Scalability Considerations
 
-| Concern | Single User (V1) | 100 API Users (V2) | 1000+ Users (V3) |
-|---------|-------------------|---------------------|-------------------|
-| Event Bus | Synchronous in-process | Async in-process (asyncio) | Redis Pub/Sub |
-| Database | SQLite + DuckDB files | PostgreSQL + DuckDB | PostgreSQL + TimescaleDB |
-| Data Fetch | Sequential, rate-limited | Async with connection pool | Distributed workers |
-| Caching | DuckDB implicit | Redis per-user | Redis cluster |
-| Computation | Single-threaded | ProcessPoolExecutor | Celery workers |
-| Deployment | CLI on local machine | FastAPI server | Kubernetes pods |
-
-The DDD architecture ensures each transition is incremental. Replacing `SqliteScoreRepository` with `PostgresScoreRepository` requires only a new infrastructure implementation -- domain and application layers remain unchanged.
+| Concern | Current (100 tickers) | At 1,000 tickers | At 10,000 tickers |
+|---------|----------------------|-------------------|---------------------|
+| Data ingestion | Sequential yfinance calls, ~2 min | Semaphore-limited concurrent (5), ~20 min | Need batch API or paid data source |
+| Scoring | Per-ticker sequential, ~30 sec total | DuckDB batch queries, ~5 min | Parallelize scoring, partition by sector |
+| Signal generation | 4 evaluators per ticker, ~1 min total | Batch evaluator, ~10 min | Pre-filter by score threshold |
+| DuckDB storage | In-memory fits easily | Persistent file, ~100MB | Partition by date, ~1GB |
+| SQLite operations | Single writer, fine | WAL mode needed | Consider PostgreSQL migration |
+| API response time | Direct computation, ~2s | Cache required, ~200ms with Redis | Read-replica pattern |
 
 ---
 
 ## Sources
 
-- [Cosmic Python - Events and the Message Bus](https://www.cosmicpython.com/book/chapter_08_events_and_message_bus.html) -- HIGH confidence, authoritative reference for Python DDD event patterns
-- [Cosmic Python - Going to Town on the Message Bus](https://www.cosmicpython.com/book/chapter_09_all_messagebus.html) -- HIGH confidence, command/event unification pattern
-- [Cosmic Python - Repository Pattern](https://www.cosmicpython.com/book/chapter_02_repository.html) -- HIGH confidence, repository abstraction pattern
-- [DuckDB vs SQLite Comparison (Jan 2026)](https://www.analyticsvidhya.com/blog/2026/01/duckdb-vs-sqlite/) -- MEDIUM confidence, dual database rationale
-- [From SQLite to DuckDB: Embedded Analytics (Jan 2026)](https://medium.com/@Quaxel/from-sqlite-to-duckdb-embedded-analytics-is-here-da79263a7fea) -- MEDIUM confidence
-- [Alpaca-py SDK Documentation](https://alpaca.markets/sdks/python/) -- HIGH confidence, official broker SDK
-- [Python DDD Example (pgorecki)](https://github.com/pgorecki/python-ddd) -- MEDIUM confidence, community reference implementation
-- [Crafting Maintainable Python Applications with DDD](https://thinhdanggroup.github.io/python-code-structure/) -- MEDIUM confidence
-- [Events in DDD: Event Propagation Strategies](https://medium.com/@dkraczkowski/events-in-domain-driven-design-event-propagation-strategies-b30d8df046e2) -- MEDIUM confidence
-- `.claude/rules/ddd.md` -- HIGH confidence, mandatory project rules (verified against codebase)
-- Existing codebase analysis: `trading/src/`, `trading/core/`, `trading/personal/` -- HIGH confidence, direct code review
+- Direct codebase analysis of `/home/mqz/workspace/trading/src/` (8 bounded contexts, 80+ Python files)
+- Direct codebase analysis of `/home/mqz/workspace/trading/core/` (proven mathematical implementations)
+- Direct codebase analysis of `/home/mqz/workspace/trading/commercial/` (existing API scaffolding)
+- `/home/mqz/workspace/trading/.planning/PROJECT.md` (project context and constraints)
+- `/home/mqz/workspace/trading/docs/api-technical-feasibility.md` (Korean market API evaluation)
+- `/home/mqz/workspace/trading/docs/strategy-recommendation.md` (personal/commercial split strategy)
+- Confidence: HIGH -- all findings based on direct source code reading, not speculation
