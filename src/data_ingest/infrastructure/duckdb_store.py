@@ -85,6 +85,19 @@ class DuckDBStore:
                 yield_spread_bps DOUBLE
             )
         """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS kr_fundamentals (
+                ticker VARCHAR,
+                date DATE,
+                bps DOUBLE,
+                per DOUBLE,
+                pbr DOUBLE,
+                eps DOUBLE,
+                div_yield DOUBLE,
+                dps DOUBLE,
+                PRIMARY KEY (ticker, date)
+            )
+        """)
 
     # ── OHLCV ────────────────────────────────────────────────────────
 
@@ -147,6 +160,42 @@ class DuckDBStore:
         assert self._conn is not None
         query = "SELECT * FROM regime_data WHERE 1=1"
         params: list = []
+
+        if start_date is not None:
+            query += " AND date >= ?"
+            params.append(start_date)
+        if end_date is not None:
+            query += " AND date <= ?"
+            params.append(end_date)
+
+        query += " ORDER BY date"
+        return self._conn.execute(query, params).fetchdf()
+
+    # ── Korean Fundamentals ─────────────────────────────────────────
+
+    def store_kr_fundamentals(self, ticker: str, df: pd.DataFrame) -> None:
+        """Batch insert/upsert Korean fundamental data from a DataFrame.
+
+        DataFrame must have columns: ticker, date, bps, per, pbr, eps,
+        div_yield, dps. Uses INSERT OR REPLACE for upsert semantics.
+        """
+        assert self._conn is not None
+        if df.empty:
+            return
+        self._conn.execute(
+            "INSERT OR REPLACE INTO kr_fundamentals SELECT * FROM df"
+        )
+
+    def get_kr_fundamentals(
+        self,
+        ticker: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> pd.DataFrame:
+        """Query Korean fundamental data for a ticker, optionally filtered by date."""
+        assert self._conn is not None
+        query = "SELECT * FROM kr_fundamentals WHERE ticker = ?"
+        params: list = [ticker]
 
         if start_date is not None:
             query += " AND date >= ?"

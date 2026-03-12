@@ -23,6 +23,7 @@ dependencies = [
     "edgartools>=5.23.0",
     "aiohttp>=3.9",
     "alpaca-py>=0.43",
+    "pykrx>=1.0",
 ]
 
 [project.optional-dependencies]
