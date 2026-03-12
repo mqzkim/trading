@@ -94,11 +94,21 @@ def bootstrap(
         execution_adapter=AlpacaExecutionAdapter(),
     )
 
-    # -- Event subscriptions (Phase 6+ activation) --
-    # Cross-context event wiring is defined here but NOT activated yet.
-    # Per RESEARCH pitfall 3: enable one subscription at a time, verifying
-    # with integration tests before enabling the next.
-    #
+    # -- Event subscriptions --
+    # Minimal logging handler to prove the event bus infrastructure works
+    # end-to-end. Per RESEARCH pitfall 3: start with a no-op/logging handler,
+    # verify with integration tests, then enable cross-context wiring in Phase 6+.
+    from src.scoring.domain.events import ScoreUpdatedEvent
+
+    score_events: list[ScoreUpdatedEvent] = []
+
+    def _log_score_event(event: ScoreUpdatedEvent) -> None:
+        """Track score events for observability. No side effects."""
+        score_events.append(event)
+
+    bus.subscribe(ScoreUpdatedEvent, _log_score_event)
+
+    # Cross-context subscriptions remain deactivated for Phase 6+:
     # bus.subscribe(ScoreUpdatedEvent, signal_handler.on_score_updated)
     # bus.subscribe(SignalGeneratedEvent, portfolio_handler.on_signal_generated)
     # bus.subscribe(RegimeChangedEvent, portfolio_handler.on_regime_changed)
@@ -111,4 +121,5 @@ def bootstrap(
         "regime_handler": regime_handler,
         "portfolio_handler": portfolio_handler,
         "trade_plan_handler": trade_plan_handler,
+        "score_events": score_events,
     }
