@@ -10,7 +10,7 @@ from .value_objects import (
     SignalStrength,
 )
 from .events import SignalGeneratedEvent
-from .services import SignalFusionService
+from .services import SignalFusionService, SIGNAL_STRATEGY_WEIGHTS, DEFAULT_SIGNAL_WEIGHTS
 from .repositories import ISignalRepository
 
 __all__ = [
@@ -21,5 +21,7 @@ __all__ = [
     "SignalStrength",
     "SignalGeneratedEvent",
     "SignalFusionService",
+    "SIGNAL_STRATEGY_WEIGHTS",
+    "DEFAULT_SIGNAL_WEIGHTS",
     "ISignalRepository",
 ]

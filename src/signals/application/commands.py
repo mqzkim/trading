@@ -17,6 +17,8 @@ class GenerateSignalCommand:
     margin_of_safety: float = 0.0
     # 시장 데이터 (CoreSignalAdapter로 전달)
     symbol_data: dict | None = None
+    # 현재 시장 레짐 ("Bull"/"Bear"/"Sideways"/"Crisis" 또는 None)
+    regime_type: str | None = None
 
 
 @dataclass(frozen=True)
