@@ -23,8 +23,8 @@
 - [x] **VALU-01**: DCF 모델 — Discounted Cash Flow, 2-stage growth model, terminal value 40% cap
 - [x] **VALU-02**: EPV 모델 — Earnings Power Value, 정상화 수익력 기반 가치 평가
 - [x] **VALU-03**: Relative Multiples 모델 — PER/PBR/EV-EBITDA 섹터 대비 상대 비교
-- [ ] **VALU-04**: Ensemble Weighting — DCF(40%) + EPV(35%) + Relative(25%) 가중 평균 + 신뢰도 계산
-- [ ] **VALU-05**: Margin of Safety — 내재가치 대비 현재가 할인율 계산, 20%+ threshold
+- [x] **VALU-04**: Ensemble Weighting — DCF(40%) + EPV(35%) + Relative(25%) 가중 평균 + 신뢰도 계산
+- [x] **VALU-05**: Margin of Safety — 내재가치 대비 현재가 할인율 계산, 20%+ threshold
 
 ## Category 4: Signal (SIGN)
 
@@ -84,8 +84,8 @@
 | VALU-01 | Phase 2: Analysis Core | Complete |
 | VALU-02 | Phase 2: Analysis Core | Complete |
 | VALU-03 | Phase 2: Analysis Core | Complete |
-| VALU-04 | Phase 2: Analysis Core | Pending |
-| VALU-05 | Phase 2: Analysis Core | Pending |
+| VALU-04 | Phase 2: Analysis Core | Complete |
+| VALU-05 | Phase 2: Analysis Core | Complete |
 | SIGN-01 | Phase 3: Decision Engine | Pending |
 | SIGN-02 | Phase 3: Decision Engine | Pending |
 | RISK-01 | Phase 3: Decision Engine | Pending |
