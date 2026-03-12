@@ -91,30 +91,52 @@ class TestVersionCommand:
 
 
 class TestRegimeCommand:
-    @patch(f"{_WEIGHTS_MOD}.get_risk_adjustment", return_value=1.0)
-    @patch(f"{_WEIGHTS_MOD}.get_weights", return_value={"canslim": 0.30, "magic": 0.20, "momentum": 0.25, "trend": 0.25})
-    @patch(f"{_CLASSIFIER}.classify", return_value=_mock_regime_result())
-    @patch(f"{_MARKET}.get_yield_curve_slope", return_value=50.0)
-    @patch(f"{_MARKET}.get_sp500_vs_200ma", return_value=1.05)
-    @patch(f"{_MARKET}.get_vix", return_value=15.0)
-    def test_regime_command_table(self, mock_vix, mock_sp, mock_yc, mock_cls, mock_gw, mock_ra):
-        """'trading regime' prints regime table."""
-        result = runner.invoke(app, ["regime"])
+    def test_regime_command_table(self):
+        """'trading regime' prints regime table via DDD handler."""
+        from src.shared.domain import Ok
+
+        mock_handler = MagicMock()
+        mock_handler.handle.return_value = Ok({
+            "regime_type": "Bull",
+            "confidence": 0.85,
+            "vix": 15.0,
+            "adx": 28.0,
+            "yield_spread": 0.5,
+            "sp500_above_ma200": True,
+            "sp500_deviation_pct": 5.2,
+            "detected_at": "2026-03-12T10:00:00+00:00",
+            "confirmed_days": 5,
+            "is_confirmed": True,
+        })
+
+        with patch("cli.main._get_ctx", return_value={"regime_handler": mock_handler}):
+            result = runner.invoke(app, ["regime"])
         assert result.exit_code == 0
-        assert "Low-Vol Bull" in result.output
+        assert "Bull" in result.output
         assert "VIX" in result.output
 
-    @patch(f"{_WEIGHTS_MOD}.get_risk_adjustment", return_value=1.0)
-    @patch(f"{_WEIGHTS_MOD}.get_weights", return_value={"canslim": 0.30, "magic": 0.20, "momentum": 0.25, "trend": 0.25})
-    @patch(f"{_CLASSIFIER}.classify", return_value=_mock_regime_result())
-    @patch(f"{_MARKET}.get_yield_curve_slope", return_value=50.0)
-    @patch(f"{_MARKET}.get_sp500_vs_200ma", return_value=1.05)
-    @patch(f"{_MARKET}.get_vix", return_value=15.0)
-    def test_regime_command_json(self, mock_vix, mock_sp, mock_yc, mock_cls, mock_gw, mock_ra):
+    def test_regime_command_json(self):
         """'trading regime --output json' prints valid JSON."""
-        result = runner.invoke(app, ["regime", "--output", "json"])
+        from src.shared.domain import Ok
+
+        mock_handler = MagicMock()
+        mock_handler.handle.return_value = Ok({
+            "regime_type": "Bull",
+            "confidence": 0.85,
+            "vix": 15.0,
+            "adx": 28.0,
+            "yield_spread": 0.5,
+            "sp500_above_ma200": True,
+            "sp500_deviation_pct": 5.2,
+            "detected_at": "2026-03-12T10:00:00+00:00",
+            "confirmed_days": 5,
+            "is_confirmed": True,
+        })
+
+        with patch("cli.main._get_ctx", return_value={"regime_handler": mock_handler}):
+            result = runner.invoke(app, ["regime", "--output", "json"])
         assert result.exit_code == 0
-        assert "Low-Vol Bull" in result.output
+        assert "Bull" in result.output
 
 
 class TestScoreCommand:
