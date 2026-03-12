@@ -1,7 +1,8 @@
 """Execution Domain — Value Objects.
 
-TradePlan, BracketSpec, OrderResult: 불변 VO.
+TradePlan, OrderSpec (formerly BracketSpec), OrderResult: 불변 VO.
 TradePlanStatus: 상태 열거형.
+BracketSpec is a backward-compatible alias for OrderSpec.
 """
 from __future__ import annotations
 
@@ -61,33 +62,41 @@ class TradePlan(ValueObject):
 
 
 @dataclass(frozen=True)
-class BracketSpec(ValueObject):
-    """Bracket order specification for Alpaca.
+class OrderSpec(ValueObject):
+    """Market-agnostic order specification.
 
-    Specifies entry, stop-loss, and take-profit for a bracket order.
+    Generalizes the former BracketSpec. stop_loss_price and take_profit_price
+    are Optional — Korean market orders may omit bracket legs.
     """
 
     symbol: str = ""
     quantity: int = 0
     entry_price: float = 0.0
-    stop_loss_price: float = 0.0
-    take_profit_price: float = 0.0
+    stop_loss_price: Optional[float] = None
+    take_profit_price: Optional[float] = None
+    direction: str = "BUY"
 
     def _validate(self) -> None:
         if self.quantity <= 0:
             raise ValueError(f"quantity must be positive: {self.quantity}")
         if self.entry_price <= 0:
             raise ValueError(f"entry_price must be positive: {self.entry_price}")
-        if self.stop_loss_price >= self.entry_price:
-            raise ValueError(
-                f"stop_loss_price must be below entry_price: "
-                f"{self.stop_loss_price} >= {self.entry_price}"
-            )
-        if self.take_profit_price <= self.entry_price:
-            raise ValueError(
-                f"take_profit_price must be above entry_price: "
-                f"{self.take_profit_price} <= {self.entry_price}"
-            )
+        if self.direction == "BUY" and self.stop_loss_price is not None:
+            if self.stop_loss_price >= self.entry_price:
+                raise ValueError(
+                    f"stop_loss_price must be below entry_price for BUY: "
+                    f"{self.stop_loss_price} >= {self.entry_price}"
+                )
+        if self.direction == "BUY" and self.take_profit_price is not None:
+            if self.take_profit_price <= self.entry_price:
+                raise ValueError(
+                    f"take_profit_price must be above entry_price for BUY: "
+                    f"{self.take_profit_price} <= {self.entry_price}"
+                )
+
+
+# Backward-compatible alias
+BracketSpec = OrderSpec
 
 
 @dataclass(frozen=True)

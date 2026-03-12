@@ -2,7 +2,7 @@
 
 DDD 규칙: 레이어 간 cross-import는 이 __init__.py를 통해서만.
 """
-from .value_objects import BracketSpec, OrderResult, TradePlan, TradePlanStatus
+from .value_objects import BracketSpec, OrderResult, OrderSpec, TradePlan, TradePlanStatus
 from .events import (
     OrderExecutedEvent,
     OrderFailedEvent,
@@ -11,11 +11,12 @@ from .events import (
     TradePlanCreatedEvent,
 )
 from .services import TradePlanService
-from .repositories import ITradePlanRepository
+from .repositories import IBrokerAdapter, ITradePlanRepository
 
 __all__ = [
     "TradePlan",
     "TradePlanStatus",
+    "OrderSpec",
     "BracketSpec",
     "OrderResult",
     "TradePlanCreatedEvent",
@@ -25,4 +26,5 @@ __all__ = [
     "TargetReachedAlertEvent",
     "TradePlanService",
     "ITradePlanRepository",
+    "IBrokerAdapter",
 ]
