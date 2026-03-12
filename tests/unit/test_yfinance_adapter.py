@@ -157,6 +157,71 @@ class TestYFinanceClientFetchFundamentals:
         assert result == sample_fundamentals
 
 
+class TestYFinanceAdjustedCloseValidation:
+    """Validate that auto_adjust=True returns adjusted OHLCV without Adj Close column.
+
+    DATA-01 validation: yfinance 0.2.28+ with auto_adjust=True means the
+    Close column IS the adjusted close. No separate "Adj Close" column exists.
+    """
+
+    @patch("src.data_ingest.infrastructure.yfinance_client.CoreDataClient")
+    async def test_ohlcv_has_no_adj_close_column(
+        self, mock_core_cls: MagicMock, sample_ohlcv_df: pd.DataFrame
+    ) -> None:
+        from src.data_ingest.infrastructure.yfinance_client import YFinanceClient
+
+        mock_instance = mock_core_cls.return_value
+        mock_instance.get_price_history.return_value = sample_ohlcv_df
+
+        client = YFinanceClient()
+        result = await client.fetch_ohlcv("AAPL")
+
+        assert "Adj Close" not in result.columns
+        assert "adj_close" not in result.columns
+
+    @patch("src.data_ingest.infrastructure.yfinance_client.CoreDataClient")
+    async def test_ohlcv_columns_are_adjusted_lowercase(
+        self, mock_core_cls: MagicMock, sample_ohlcv_df: pd.DataFrame
+    ) -> None:
+        from src.data_ingest.infrastructure.yfinance_client import YFinanceClient
+
+        mock_instance = mock_core_cls.return_value
+        mock_instance.get_price_history.return_value = sample_ohlcv_df
+
+        client = YFinanceClient()
+        result = await client.fetch_ohlcv("AAPL")
+
+        assert set(result.columns) == {"open", "high", "low", "close", "volume"}
+
+    @patch("src.data_ingest.infrastructure.yfinance_client.CoreDataClient")
+    async def test_ohlcv_close_has_no_nans(
+        self, mock_core_cls: MagicMock, sample_ohlcv_df: pd.DataFrame
+    ) -> None:
+        from src.data_ingest.infrastructure.yfinance_client import YFinanceClient
+
+        mock_instance = mock_core_cls.return_value
+        mock_instance.get_price_history.return_value = sample_ohlcv_df
+
+        client = YFinanceClient()
+        result = await client.fetch_ohlcv("AAPL")
+
+        assert result["close"].isna().sum() == 0
+
+    @patch("src.data_ingest.infrastructure.yfinance_client.CoreDataClient")
+    async def test_core_client_receives_ticker_and_days(
+        self, mock_core_cls: MagicMock, sample_ohlcv_df: pd.DataFrame
+    ) -> None:
+        from src.data_ingest.infrastructure.yfinance_client import YFinanceClient
+
+        mock_instance = mock_core_cls.return_value
+        mock_instance.get_price_history.return_value = sample_ohlcv_df
+
+        client = YFinanceClient()
+        await client.fetch_ohlcv("MSFT", days=500)
+
+        mock_instance.get_price_history.assert_called_once_with("MSFT", 500)
+
+
 class TestYFinanceClientErrorHandling:
     """Test error propagation from core DataClient."""
 
