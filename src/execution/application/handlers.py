@@ -1,21 +1,20 @@
 """Execution Application — TradePlanHandler.
 
 Orchestrates the trade plan lifecycle: generate -> approve -> execute.
-All dependencies injected via constructor (TradePlanService, ITradePlanRepository, AlpacaExecutionAdapter).
+All dependencies injected via constructor (TradePlanService, ITradePlanRepository, IBrokerAdapter).
 """
 from __future__ import annotations
 
 from typing import Optional
 
-from src.execution.domain.repositories import ITradePlanRepository
+from src.execution.domain.repositories import IBrokerAdapter, ITradePlanRepository
 from src.execution.domain.services import TradePlanService
 from src.execution.domain.value_objects import (
-    BracketSpec,
     OrderResult,
+    OrderSpec,
     TradePlan,
     TradePlanStatus,
 )
-from src.execution.infrastructure.alpaca_adapter import AlpacaExecutionAdapter
 
 from .commands import ApproveTradePlanCommand, ExecuteOrderCommand, GenerateTradePlanCommand
 
@@ -32,7 +31,7 @@ class TradePlanHandler:
         self,
         trade_plan_service: TradePlanService,
         trade_plan_repo: ITradePlanRepository,
-        execution_adapter: AlpacaExecutionAdapter,
+        execution_adapter: IBrokerAdapter,
     ) -> None:
         self._service = trade_plan_service
         self._repo = trade_plan_repo
@@ -128,7 +127,7 @@ class TradePlanHandler:
                 f"Trade plan for {cmd.symbol} is not approved (status={status})"
             )
 
-        spec = BracketSpec(
+        spec = OrderSpec(
             symbol=plan_dict["symbol"],
             quantity=plan_dict["quantity"],
             entry_price=plan_dict["entry_price"],
@@ -136,7 +135,7 @@ class TradePlanHandler:
             take_profit_price=plan_dict["take_profit_price"],
         )
 
-        result = self._adapter.submit_bracket_order(spec)
+        result = self._adapter.submit_order(spec)
 
         if result.status in _SUCCESS_STATUSES:
             self._repo.update_status(cmd.symbol, TradePlanStatus.EXECUTED)

@@ -9,12 +9,13 @@ import logging
 from typing import Any, Optional
 from uuid import uuid4
 
-from src.execution.domain.value_objects import BracketSpec, OrderResult
+from src.execution.domain.repositories import IBrokerAdapter
+from src.execution.domain.value_objects import BracketSpec, OrderResult, OrderSpec
 
 logger = logging.getLogger(__name__)
 
 
-class AlpacaExecutionAdapter:
+class AlpacaExecutionAdapter(IBrokerAdapter):
     """Alpaca bracket order adapter with mock fallback.
 
     Credentials 없으면 mock 모드로 동작 (unit test 및 개발 환경).
@@ -45,6 +46,10 @@ class AlpacaExecutionAdapter:
         except Exception as e:
             logger.warning("Alpaca client init failed, falling back to mock: %s", e)
             self._use_mock = True
+
+    def submit_order(self, spec: OrderSpec) -> OrderResult:
+        """IBrokerAdapter interface — delegates to submit_bracket_order."""
+        return self.submit_bracket_order(spec)
 
     def submit_bracket_order(self, spec: BracketSpec) -> OrderResult:
         """Submit a bracket order (entry + stop-loss + take-profit).
@@ -94,6 +99,11 @@ class AlpacaExecutionAdapter:
                 StopLossRequest,
                 TakeProfitRequest,
             )
+
+            if spec.stop_loss_price is None or spec.take_profit_price is None:
+                raise ValueError(
+                    "Alpaca bracket orders require stop_loss_price and take_profit_price"
+                )
 
             request = MarketOrderRequest(
                 symbol=spec.symbol,

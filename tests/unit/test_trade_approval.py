@@ -221,7 +221,7 @@ class TestTradePlanHandlerExecute:
         repo = MagicMock()
         repo.find_by_symbol.return_value = _plan_dict(status="APPROVED")
         adapter = MagicMock()
-        adapter.submit_bracket_order.return_value = OrderResult(
+        adapter.submit_order.return_value = OrderResult(
             order_id="ORD-123",
             status="filled",
             symbol="AAPL",
@@ -235,7 +235,7 @@ class TestTradePlanHandlerExecute:
 
         assert result.order_id == "ORD-123"
         assert result.status == "filled"
-        adapter.submit_bracket_order.assert_called_once()
+        adapter.submit_order.assert_called_once()
         repo.update_status.assert_called_once_with("AAPL", TradePlanStatus.EXECUTED)
 
     def test_execute_failed_order_updates_to_failed(self):
@@ -246,7 +246,7 @@ class TestTradePlanHandlerExecute:
         repo = MagicMock()
         repo.find_by_symbol.return_value = _plan_dict(status="APPROVED")
         adapter = MagicMock()
-        adapter.submit_bracket_order.return_value = OrderResult(
+        adapter.submit_order.return_value = OrderResult(
             order_id="ORD-456",
             status="rejected",
             symbol="AAPL",
