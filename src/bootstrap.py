@@ -108,10 +108,16 @@ def bootstrap(
 
     bus.subscribe(ScoreUpdatedEvent, _log_score_event)
 
-    # Cross-context subscriptions remain deactivated for Phase 6+:
+    # Regime -> Scoring weight adjustment (cross-context subscription)
+    from src.scoring.domain.services import ConcreteRegimeWeightAdjuster
+    from src.regime.domain.events import RegimeChangedEvent
+
+    regime_adjuster = ConcreteRegimeWeightAdjuster()
+    bus.subscribe(RegimeChangedEvent, regime_adjuster.on_regime_changed)
+
+    # Remaining cross-context subscriptions deactivated:
     # bus.subscribe(ScoreUpdatedEvent, signal_handler.on_score_updated)
     # bus.subscribe(SignalGeneratedEvent, portfolio_handler.on_signal_generated)
-    # bus.subscribe(RegimeChangedEvent, portfolio_handler.on_regime_changed)
 
     return {
         "bus": bus,
@@ -122,4 +128,5 @@ def bootstrap(
         "portfolio_handler": portfolio_handler,
         "trade_plan_handler": trade_plan_handler,
         "score_events": score_events,
+        "regime_adjuster": regime_adjuster,
     }

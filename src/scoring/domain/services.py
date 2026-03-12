@@ -55,6 +55,36 @@ class NoOpRegimeAdjuster:
         return STRATEGY_WEIGHTS.get(strategy, STRATEGY_WEIGHTS[DEFAULT_STRATEGY])
 
 
+# Regime-specific scoring weight overrides (fundamental/technical/sentiment)
+REGIME_SCORING_WEIGHTS: dict[str, dict[str, float]] = {
+    "Bull":     {"fundamental": 0.35, "technical": 0.45, "sentiment": 0.20},
+    "Bear":     {"fundamental": 0.55, "technical": 0.25, "sentiment": 0.20},
+    "Sideways": {"fundamental": 0.45, "technical": 0.35, "sentiment": 0.20},
+    "Crisis":   {"fundamental": 0.60, "technical": 0.15, "sentiment": 0.25},
+}
+
+
+class ConcreteRegimeWeightAdjuster:
+    """Adjusts scoring weights based on current market regime."""
+
+    def __init__(self, regime_type: str | None = None) -> None:
+        self._regime_type = regime_type
+
+    def adjust_weights(
+        self, strategy: str, regime_type: str | None = None
+    ) -> dict[str, float]:
+        effective = regime_type or self._regime_type
+        if effective and effective in REGIME_SCORING_WEIGHTS:
+            return REGIME_SCORING_WEIGHTS[effective]
+        return STRATEGY_WEIGHTS.get(strategy, STRATEGY_WEIGHTS[DEFAULT_STRATEGY])
+
+    def update_regime(self, regime_type: str) -> None:
+        self._regime_type = regime_type
+
+    def on_regime_changed(self, event: object) -> None:
+        self.update_regime(event.new_regime.value)  # type: ignore[union-attr]
+
+
 class SafetyFilterService:
     """안전성 필터 — 파산/회계조작 위험 종목 차단.
 
