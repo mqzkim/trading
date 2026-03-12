@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
-status: in-progress
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-03-12T12:11:00.000Z"
-last_activity: 2026-03-12 -- Completed Plan 09-01 (Regime-Weighted Signal Fusion)
+status: completed
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-03-12T12:21:51.867Z"
+last_activity: 2026-03-12 -- Completed Plan 09-02 (CLI Signal DDD Rewiring)
 progress:
   total_phases: 7
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 12
-  completed_plans: 13
+  completed_plans: 14
   percent: 100
 ---
 
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 ## Current Position
 
 Phase: 9 of 11 (Multi-Strategy Signal Fusion)
-Plan: 1 of 2 in current phase
-Status: Plan 09-01 complete, 09-02 pending
-Last activity: 2026-03-12 -- Completed Plan 09-01 (Regime-Weighted Signal Fusion)
+Plan: 2 of 2 in current phase
+Status: Phase 09 complete (all plans done)
+Last activity: 2026-03-12 -- Completed Plan 09-02 (CLI Signal DDD Rewiring)
 
 Progress: [██████████] 100%
 
@@ -62,6 +62,7 @@ Progress: [██████████] 100%
 | Phase 08 P02 | 5min | 3 tasks | 6 files |
 | Phase 08 P03 | 4min | 2 tasks | 3 files |
 | Phase 09 P01 | 4min | 2 tasks | 5 files |
+| Phase 09 P02 | 5min | 1 task | 4 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,9 @@ Recent decisions affecting current work:
 - [Phase 09]: Regime affects only strength computation, not consensus direction logic (3/4 threshold unchanged)
 - [Phase 09]: market_uptrend derived as True for Bull/Sideways, False for Bear/Crisis
 - [Phase 09]: methodology_directions dict added to handler result for structured CLI consumption
+- [Phase 09]: CLI signal command routes through DDD handlers (regime -> score -> signal), no legacy core imports
+- [Phase 09]: symbol_data built in CLI layer via _build_signal_symbol_data, not inside handler
+- [Phase 09]: DetectRegimeCommand with sentinel zeros for auto-fetch in signal command (same pattern as regime command)
 
 ### Pending Todos
 
@@ -123,6 +127,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T12:11:00Z
-Stopped at: Completed 09-01-PLAN.md
+Last session: 2026-03-12T12:21:35.305Z
+Stopped at: Completed 09-02-PLAN.md
 Resume file: None
