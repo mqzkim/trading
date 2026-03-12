@@ -7,12 +7,12 @@ from src.shared.domain import DomainEvent
 from src.shared.infrastructure.sync_event_bus import SyncEventBus
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class _FakeEventA(DomainEvent):
     ticker: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class _FakeEventB(DomainEvent):
     code: str
 
