@@ -107,12 +107,11 @@ Plans:
   2. Consensus engine outputs a fused signal with agreement level (e.g., "3/4 strategies agree: BUY") and overall confidence
   3. In Bear regime, quality/value strategies receive higher weight; in Bull regime, momentum strategies receive higher weight -- and the weighting is visible in output
   4. CLI `signal` command shows per-strategy breakdown, regime-adjusted weights, and the final fused recommendation with full reasoning chain
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 09-01: TBD
-- [ ] 09-02: TBD
-- [ ] 09-03: TBD
+- [ ] 09-01-PLAN.md -- Regime-weighted signal fusion domain service, GenerateSignalCommand regime_type, CAN SLIM market_uptrend derivation
+- [ ] 09-02-PLAN.md -- CLI signal rewired through DDD handler, bootstrap CoreSignalAdapter wiring, Rich output with reasoning chain
 
 ### Phase 10: Korean Broker Integration
 **Goal**: Users can execute paper trades on KOSPI/KOSDAQ through the KIS broker with the same risk controls and approval workflow as US equities
@@ -159,6 +158,6 @@ Note: Phases 7 and 8 both depend on Phase 6 (not on each other). Phase 9 depends
 | 6. Live Data Pipeline & Korean Data | v1.1 | 1/3 | In Progress | - |
 | 7. Technical Scoring Engine | v1.1 | 2/3 | Gap Closure | - |
 | 8. Market Regime Detection | v1.1 | 2/3 | Gap Closure | - |
-| 9. Multi-Strategy Signal Fusion | v1.1 | 0/3 | Not started | - |
+| 9. Multi-Strategy Signal Fusion | v1.1 | 0/2 | Not started | - |
 | 10. Korean Broker Integration | v1.1 | 0/1 | Not started | - |
 | 11. Commercial FastAPI REST API | v1.1 | 0/2 | Not started | - |
