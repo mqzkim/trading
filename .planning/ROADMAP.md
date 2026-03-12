@@ -80,12 +80,12 @@ Plans:
   3. Approved orders execute as bracket orders (entry + stop-loss + take-profit) on Alpaca paper trading, with execution status tracked and logged
   4. CLI dashboard displays portfolio overview (positions, P&L, drawdown status) and stock screener allows interactive filtering/ranking by score
   5. Watchlist management (add/remove/list) and monitoring alerts (stop hit, target reached, drawdown tier change) notify the user of actionable events
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
-- [ ] 04-03: TBD
+- [ ] 04-01-PLAN.md — Execution bounded context: TradePlan/BracketSpec VOs, TradePlanService, AlpacaExecutionAdapter with mock fallback (EXEC-01, EXEC-03, EXEC-04)
+- [ ] 04-02-PLAN.md — CLI dashboard, stock screener, watchlist management (INTF-01, INTF-02, INTF-03)
+- [ ] 04-03-PLAN.md — Human approval workflow, monitoring alerts, execution wiring (EXEC-02, INTF-04)
 
 ## Progress
 
