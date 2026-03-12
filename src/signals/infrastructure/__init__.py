@@ -4,5 +4,11 @@
 from .sqlite_repo import SqliteSignalRepository
 from .in_memory_repo import InMemorySignalRepository
 from .core_signal_adapter import CoreSignalAdapter
+from .duckdb_signal_store import DuckDBSignalStore
 
-__all__ = ["SqliteSignalRepository", "InMemorySignalRepository", "CoreSignalAdapter"]
+__all__ = [
+    "SqliteSignalRepository",
+    "InMemorySignalRepository",
+    "CoreSignalAdapter",
+    "DuckDBSignalStore",
+]
