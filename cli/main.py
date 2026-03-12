@@ -700,20 +700,25 @@ def ingest(
     tickers: list[str] = typer.Argument(None, help="Ticker symbols to ingest"),
     universe: str = typer.Option(None, "--universe", "-u", help="Universe name (e.g. sp500)"),
     max_concurrent: int = typer.Option(5, "--concurrent", help="Max concurrent ingestions"),
+    regime: bool = typer.Option(False, "--regime", help="Ingest regime data (VIX, S&P 500, yield curve)"),
+    market: str = typer.Option("us", "--market", "-m", help="Market (us|kr)"),
 ):
     """Ingest market data for given tickers or a universe."""
-    from src.data_ingest.infrastructure.pipeline import DataPipeline
+    if regime:
+        _ingest_regime(tickers, market)
+        return
 
     if not tickers and not universe:
         console.print("[bold red]Error: Provide ticker symbols or --universe flag.[/bold red]")
         raise typer.Exit(code=1)
+
+    from src.data_ingest.infrastructure.pipeline import DataPipeline
 
     pipeline = DataPipeline(max_concurrent=max_concurrent)
 
     try:
         if universe:
             console.print(f"[dim]Ingesting universe: {universe}...[/dim]")
-            # Use the pipeline's universe provider (ingest_universe with no tickers)
             result = asyncio.run(pipeline.ingest_universe())
         else:
             console.print(f"[dim]Ingesting {len(tickers)} tickers...[/dim]")
@@ -732,6 +737,43 @@ def ingest(
         console.print(table)
     finally:
         asyncio.run(pipeline.close())
+
+
+def _ingest_regime(tickers: list[str] | None, market: str) -> None:
+    """Handle regime data ingestion flow."""
+    if market.lower() == "kr":
+        console.print("[bold red]Error: Regime data is US-market-only. Cannot use --regime with --market kr.[/bold red]")
+        raise typer.Exit(code=1)
+
+    if tickers:
+        console.print("[bold red]Error: --regime does not accept ticker symbols. Regime data has no per-ticker granularity.[/bold red]")
+        raise typer.Exit(code=1)
+
+    from src.data_ingest.infrastructure.regime_data_client import RegimeDataClient
+    from src.data_ingest.infrastructure.duckdb_store import DuckDBStore
+
+    console.print("[dim]Ingesting regime data (VIX, S&P 500, yield curve)...[/dim]")
+
+    client = RegimeDataClient()
+    df = client.fetch_regime_history(years=2)
+
+    store = DuckDBStore()
+    store.connect()
+    try:
+        store.store_regime_data(df)
+    finally:
+        store.close()
+
+    # Display results
+    table = Table(title="Regime Data Ingestion", show_header=True, header_style="bold cyan")
+    table.add_column("Metric", style="bold")
+    table.add_column("Value", justify="right")
+
+    table.add_row("Rows Stored", f"[green]{len(df)}[/green]")
+    table.add_row("Date Range", f"{df['date'].min()} to {df['date'].max()}")
+    table.add_row("Columns", ", ".join(c for c in df.columns if c != "date"))
+
+    console.print(table)
 
 
 def _fetch_ohlcv_for_backtest(symbol: str, start: str, end: str):
