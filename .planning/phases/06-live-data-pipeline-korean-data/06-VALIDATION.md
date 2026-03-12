@@ -38,16 +38,13 @@ created: 2026-03-12
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 06-01-01 | 01 | 1 | DATA-01 | unit | `pytest tests/unit/test_yfinance_adapter.py -x` | ✅ | ⬜ pending |
-| 06-01-02 | 01 | 1 | DATA-01 | integration | `pytest tests/integration/test_data_ingest.py -x` | ✅ | ⬜ pending |
-| 06-01-03 | 01 | 1 | DATA-02 | unit | `pytest tests/unit/test_edgartools_client.py -x` | ✅ | ⬜ pending |
-| 06-02-01 | 02 | 1 | DATA-03 | unit | `pytest tests/unit/test_quality_checker.py -x` | ✅ | ⬜ pending |
-| 06-02-02 | 02 | 1 | DATA-03 | integration | `pytest tests/integration/test_data_ingest.py::test_pipeline_quality_failure -x` | ✅ | ⬜ pending |
-| 06-03-01 | 03 | 2 | DATA-04 | unit | `pytest tests/unit/test_pykrx_client.py -x` | ❌ W0 | ⬜ pending |
-| 06-03-02 | 03 | 2 | DATA-05 | unit | `pytest tests/unit/test_pykrx_client.py -x` | ❌ W0 | ⬜ pending |
-| 06-03-03 | 03 | 2 | DATA-04/05 | unit | `pytest tests/unit/test_cli_ingest.py -x` | ✅ | ⬜ pending |
-| 06-04-01 | 04 | 2 | DATA-06 | unit | `pytest tests/unit/test_regime_data_store.py -x` | ❌ W0 | ⬜ pending |
-| 06-04-02 | 04 | 2 | DATA-06 | unit | `pytest tests/unit/test_duckdb_store.py -x` | ✅ | ⬜ pending |
+| 06-01-01 | 01 | 1 | DATA-02 | unit | `pytest tests/unit/test_edgartools_client.py tests/unit/test_data_ingest_vos.py -x` | ✅ | ⬜ pending |
+| 06-01-02 | 01 | 1 | DATA-03 | unit | `pytest tests/unit/test_quality_checker.py -x` | ✅ | ⬜ pending |
+| 06-01-03 | 01 | 1 | DATA-01 | unit | `pytest tests/unit/test_yfinance_adapter.py -x` | ✅ | ⬜ pending |
+| 06-02-01 | 02 | 2 | DATA-04/05 | unit | `pytest tests/unit/test_pykrx_client.py tests/unit/test_duckdb_store.py -x` | ❌ W0 | ⬜ pending |
+| 06-02-02 | 02 | 2 | DATA-04/05 | unit | `pytest tests/unit/test_cli_ingest.py tests/unit/test_quality_checker.py -x` | ✅ | ⬜ pending |
+| 06-03-01 | 03 | 1 | DATA-06 | unit | `pytest tests/unit/test_regime_data_client.py tests/unit/test_duckdb_store.py -x` | ❌ W0 | ⬜ pending |
+| 06-03-02 | 03 | 1 | DATA-06 | unit | `pytest tests/unit/test_cli_ingest.py -x` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -56,7 +53,7 @@ created: 2026-03-12
 ## Wave 0 Requirements
 
 - [ ] `tests/unit/test_pykrx_client.py` — stubs for DATA-04, DATA-05 (pykrx OHLCV + fundamentals)
-- [ ] `tests/unit/test_regime_data_store.py` — stubs for DATA-06 (regime data DuckDB storage)
+- [ ] `tests/unit/test_regime_data_client.py` — stubs for DATA-06 (regime data client)
 - [ ] `pip install pykrx` — pykrx not yet in dependencies
 
 ---
