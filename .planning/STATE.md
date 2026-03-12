@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
-status: in-progress
-stopped_at: Completed 06-03-PLAN.md
-last_updated: "2026-03-12T06:15:43.790Z"
+status: completed
+stopped_at: Completed 06-02-PLAN.md
+last_updated: "2026-03-12T06:29:11.358Z"
 last_activity: 2026-03-12 -- Completed Plan 06-03 (Regime Data Ingestion Pipeline)
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 83
 ---
 
@@ -54,6 +54,7 @@ Progress: [████████░░] 83%
 |-------|-------|-------|----------|
 | 5. Tech Debt & Infrastructure | 3/3 | 22 min | 7.3 min |
 | 6. Live Data Pipeline & Korean Data | 2/3 | 11 min | 5.5 min |
+| Phase 06 P02 | 10min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -79,6 +80,8 @@ Recent decisions affecting current work:
 - [06-01]: Symbol VO isupper() or isdigit() for multi-market validation
 - [Phase 06]: RegimeDataClient uses yfinance directly (not core/data/market.py) to avoid caching interference with historical data
 - [Phase 06]: CLI --market parameter added early with default 'us' for future Korean market wiring
+- [Phase 06]: Korean fundamentals stored in separate kr_fundamentals table (not SEC EDGAR financials schema)
+- [Phase 06]: Pipeline routes via MarketType enum: US->yfinance+edgartools, KR->pykrx
 
 ### Pending Todos
 
@@ -95,6 +98,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T06:15:43.788Z
-Stopped at: Completed 06-03-PLAN.md
+Last session: 2026-03-12T06:29:11.356Z
+Stopped at: Completed 06-02-PLAN.md
 Resume file: None
