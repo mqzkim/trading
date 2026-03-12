@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
 status: executing
-stopped_at: "Completed 05-02-PLAN.md"
-last_updated: "2026-03-12T03:41:14Z"
-last_activity: 2026-03-12 -- Completed Plan 05-02 (Code-Level Tech Debt)
+stopped_at: "Completed 05-03-PLAN.md (Phase 05 complete)"
+last_updated: "2026-03-12T03:56:07Z"
+last_activity: 2026-03-12 -- Completed Plan 05-03 (Bootstrap CLI & Event Wiring)
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 15
-  completed_plans: 2
-  percent: 13
+  completed_plans: 3
+  percent: 20
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 ## Current Position
 
 Phase: 5 of 11 (Tech Debt & Infrastructure Foundation) -- first phase of v1.1
-Plan: 2 of 3 in current phase
-Status: Executing
-Last activity: 2026-03-12 -- Completed Plan 05-02 (Code-Level Tech Debt)
+Plan: 3 of 3 in current phase (PHASE COMPLETE)
+Status: Phase 05 Complete
+Last activity: 2026-03-12 -- Completed Plan 05-03 (Bootstrap CLI & Event Wiring)
 
-Progress: [##░░░░░░░░] 13%
+Progress: [##░░░░░░░░] 20%
 
 ## Performance Metrics
 
@@ -52,7 +52,7 @@ Progress: [##░░░░░░░░] 13%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 5. Tech Debt & Infrastructure | 2/3 | 12 min | 6 min |
+| 5. Tech Debt & Infrastructure | 3/3 | 22 min | 7.3 min |
 
 ## Accumulated Context
 
@@ -70,6 +70,9 @@ Recent decisions affecting current work:
 - [05-02]: TakeProfitLevels moved to shared kernel with backward-compat re-export
 - [05-02]: AST-based boundary tests for cross-context import enforcement
 - [05-02]: ScoreUpdatedEvent stored in result dict (bus publish deferred to Plan 03)
+- [05-03]: Lazy bootstrap context via _get_ctx() -- bootstrap() called once on first handler-using command
+- [05-03]: Event bus wired with minimal logging handler (no side effects) per RESEARCH pitfall 3
+- [05-03]: Core/ commands (regime, score, signal, analyze) keep existing imports; full DDD migration deferred to Phase 6+
 
 ### Pending Todos
 
@@ -87,5 +90,5 @@ Carried forward from v1.0:
 ## Session Continuity
 
 Last session: 2026-03-12
-Stopped at: Completed 05-02-PLAN.md
+Stopped at: Completed 05-03-PLAN.md (Phase 05 complete)
 Resume file: None
