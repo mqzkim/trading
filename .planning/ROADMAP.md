@@ -91,11 +91,11 @@ Plans:
   2. Regime changes require 3 consecutive days of confirmation before the system transitions -- premature flips are suppressed
   3. RegimeChangedEvent is published to EventBus and consumed by scoring context to adjust weights
   4. CLI `regime --history 90` shows regime transitions over the past 90 days with dates and durations
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 08-01: TBD
-- [ ] 08-02: TBD
+- [ ] 08-01-PLAN.md -- Handler data-fetch (with ADX), 3-day confirmation logic, RegimeChangedEvent publishing via EventBus
+- [ ] 08-02-PLAN.md -- ConcreteRegimeWeightAdjuster for scoring, CLI regime rewired through DDD handler with --history flag
 
 ### Phase 9: Multi-Strategy Signal Fusion
 **Goal**: Users receive consensus-based trade signals where 4 independent strategies vote, weighted by current market regime -- with full reasoning for every recommendation
