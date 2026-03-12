@@ -73,6 +73,18 @@ class DuckDBStore:
                 PRIMARY KEY (ticker, period_end, form_type)
             )
         """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS regime_data (
+                date DATE PRIMARY KEY,
+                vix DOUBLE,
+                sp500_close DOUBLE,
+                sp500_ma200 DOUBLE,
+                sp500_ratio DOUBLE,
+                yield_10y DOUBLE,
+                yield_3m DOUBLE,
+                yield_spread_bps DOUBLE
+            )
+        """)
 
     # ── OHLCV ────────────────────────────────────────────────────────
 
@@ -99,6 +111,42 @@ class DuckDBStore:
         assert self._conn is not None
         query = "SELECT * FROM ohlcv WHERE ticker = ?"
         params: list = [ticker]
+
+        if start_date is not None:
+            query += " AND date >= ?"
+            params.append(start_date)
+        if end_date is not None:
+            query += " AND date <= ?"
+            params.append(end_date)
+
+        query += " ORDER BY date"
+        return self._conn.execute(query, params).fetchdf()
+
+    # ── Regime Data ─────────────────────────────────────────────────
+
+    def store_regime_data(self, df: pd.DataFrame) -> None:
+        """Batch insert/upsert regime data rows from a DataFrame.
+
+        DataFrame must have columns: date, vix, sp500_close, sp500_ma200,
+        sp500_ratio, yield_10y, yield_3m, yield_spread_bps.
+        Uses INSERT OR REPLACE for upsert semantics on date primary key.
+        """
+        assert self._conn is not None
+        if df.empty:
+            return
+        self._conn.execute(
+            "INSERT OR REPLACE INTO regime_data SELECT * FROM df"
+        )
+
+    def get_regime_data(
+        self,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> pd.DataFrame:
+        """Query regime data, optionally filtered by date range."""
+        assert self._conn is not None
+        query = "SELECT * FROM regime_data WHERE 1=1"
+        params: list = []
 
         if start_date is not None:
             query += " AND date >= ?"
