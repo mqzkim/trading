@@ -91,11 +91,12 @@ Plans:
   2. Regime changes require 3 consecutive days of confirmation before the system transitions -- premature flips are suppressed
   3. RegimeChangedEvent is published to EventBus and consumed by scoring context to adjust weights
   4. CLI `regime --history 90` shows regime transitions over the past 90 days with dates and durations
-**Plans:** 2 plans
+**Plans:** 3 plans
 
 Plans:
-- [ ] 08-01-PLAN.md -- Handler data-fetch (with ADX), 3-day confirmation logic, RegimeChangedEvent publishing via EventBus
-- [ ] 08-02-PLAN.md -- ConcreteRegimeWeightAdjuster for scoring, CLI regime rewired through DDD handler with --history flag
+- [x] 08-01-PLAN.md -- Handler data-fetch (with ADX), 3-day confirmation logic, RegimeChangedEvent publishing via EventBus
+- [x] 08-02-PLAN.md -- ConcreteRegimeWeightAdjuster for scoring, CLI regime rewired through DDD handler with --history flag
+- [ ] 08-03-PLAN.md -- Gap closure: wire regime_adjuster through ScoreSymbolHandler to CompositeScoringService
 
 ### Phase 9: Multi-Strategy Signal Fusion
 **Goal**: Users receive consensus-based trade signals where 4 independent strategies vote, weighted by current market regime -- with full reasoning for every recommendation
@@ -157,7 +158,7 @@ Note: Phases 7 and 8 both depend on Phase 6 (not on each other). Phase 9 depends
 | 5. Tech Debt & Infrastructure Foundation | v1.1 | 3/3 | Complete | 2026-03-12 |
 | 6. Live Data Pipeline & Korean Data | v1.1 | 1/3 | In Progress | - |
 | 7. Technical Scoring Engine | v1.1 | 2/3 | Gap Closure | - |
-| 8. Market Regime Detection | v1.1 | 0/2 | Not started | - |
+| 8. Market Regime Detection | v1.1 | 2/3 | Gap Closure | - |
 | 9. Multi-Strategy Signal Fusion | v1.1 | 0/3 | Not started | - |
 | 10. Korean Broker Integration | v1.1 | 0/1 | Not started | - |
 | 11. Commercial FastAPI REST API | v1.1 | 0/2 | Not started | - |
