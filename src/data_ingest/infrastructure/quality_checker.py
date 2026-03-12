@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from src.data_ingest.domain.value_objects import DataQualityReport
@@ -41,13 +42,15 @@ class QualityChecker:
         ticker: str,
         df: pd.DataFrame,
         max_stale_days: int = 3,
+        now: pd.Timestamp | None = None,
     ) -> DataQualityReport:
         """Validate OHLCV DataFrame quality.
 
         Args:
             ticker: Stock symbol.
             df: OHLCV DataFrame with DatetimeIndex.
-            max_stale_days: Maximum allowed days since last data point.
+            max_stale_days: Maximum allowed business days since last data point.
+            now: Override current timestamp for testing (default: now).
 
         Returns:
             DataQualityReport VO with pass/fail and specific failure reasons.
@@ -62,16 +65,18 @@ class QualityChecker:
         if missing_pct > 5.0:
             failures.append(f"Missing values: {missing_pct:.1f}% (threshold: 5%)")
 
-        # 2. Stale data check (>max_stale_days = fail)
+        # 2. Stale data check using business days (>max_stale_days = fail)
         stale_days = 0
         if len(df) > 0:
             last_date = pd.Timestamp(df.index.max())
-            now = pd.Timestamp.now().normalize()
-            stale_days = (now - last_date).days
+            current = now if now is not None else pd.Timestamp.now().normalize()
+            stale_days = int(
+                np.busday_count(last_date.date(), current.date())
+            )
 
             if stale_days > max_stale_days:
                 failures.append(
-                    f"Stale data: {stale_days} days since last update "
+                    f"Stale data: {stale_days} business days since last update "
                     f"(threshold: {max_stale_days})"
                 )
 
