@@ -8,6 +8,8 @@ from src.signals.domain import (
     MethodologyResult,
     SignalFusionService,
     ISignalRepository,
+    SIGNAL_STRATEGY_WEIGHTS,
+    DEFAULT_SIGNAL_WEIGHTS,
 )
 from .commands import GenerateSignalCommand
 
@@ -71,10 +73,17 @@ class GenerateSignalHandler:
     def handle(self, cmd: GenerateSignalCommand) -> Result:
         symbol = cmd.symbol.upper()
 
+        # 0. Derive market_uptrend from regime for CAN SLIM (SIGNAL-01)
+        if self._adapter is not None and cmd.symbol_data is not None and cmd.regime_type is not None:
+            market_uptrend = cmd.regime_type in ("Bull", "Sideways")
+            cmd_symbol_data = {**cmd.symbol_data, "market_uptrend": market_uptrend}
+        else:
+            cmd_symbol_data = cmd.symbol_data
+
         # 1. 방법론별 점수 수집 -> MethodologyResult 리스트 구성
         try:
-            if self._adapter is not None and cmd.symbol_data is not None:
-                results = self._evaluate_via_adapter(cmd.symbol_data)
+            if self._adapter is not None and cmd_symbol_data is not None:
+                results = self._evaluate_via_adapter(cmd_symbol_data)
             else:
                 results = self._evaluate_via_clients(symbol, cmd.methodologies)
         except Exception as e:
@@ -89,14 +98,16 @@ class GenerateSignalHandler:
         else:
             composite_score = sum(r.score for r in results) / len(results)
 
-        # 3. 합의 시그널 생성
+        # 3. 합의 시그널 생성 (regime-weighted)
         direction, strength = self._fusion.fuse(
             results=results,
             composite_score=composite_score,
             safety_passed=cmd.safety_passed,
+            regime_type=cmd.regime_type,
         )
 
-        # 4. 추론 트레이스 생성
+        # 4. 추론 트레이스 생성 (with regime context and strategy weights)
+        weights = SIGNAL_STRATEGY_WEIGHTS.get(cmd.regime_type, DEFAULT_SIGNAL_WEIGHTS) if cmd.regime_type else DEFAULT_SIGNAL_WEIGHTS
         reasoning_trace = self._build_reasoning_trace(
             symbol=symbol,
             direction=direction.value,
@@ -104,9 +115,16 @@ class GenerateSignalHandler:
             margin_of_safety=cmd.margin_of_safety,
             methodology_results=results,
             safety_passed=cmd.safety_passed,
+            regime_type=cmd.regime_type,
+            strategy_weights=weights,
         )
 
-        # 5. 저장
+        # 5. Structured methodology directions for CLI consumption
+        methodology_directions = {
+            r.methodology.value: r.direction.value for r in results
+        }
+
+        # 6. 저장
         metadata = {
             "methodologies": [r.methodology.value for r in results],
             "scores": {r.methodology.value: r.score for r in results},
@@ -133,6 +151,9 @@ class GenerateSignalHandler:
             "margin_of_safety": cmd.margin_of_safety,
             "methodology_scores": {r.methodology.value: r.score for r in results},
             "reasoning_trace": reasoning_trace,
+            "regime_type": cmd.regime_type,
+            "strategy_weights": weights,
+            "methodology_directions": methodology_directions,
         })
 
     # -- Adapter path -----------------------------------------------------------
@@ -227,12 +248,19 @@ class GenerateSignalHandler:
         margin_of_safety: float,
         methodology_results: list[MethodologyResult],
         safety_passed: bool,
+        regime_type: str | None = None,
+        strategy_weights: dict[str, float] | None = None,
     ) -> str:
         """Build human-readable reasoning trace citing specific data points."""
         lines = [f"{symbol}: {direction}"]
         lines.append(f"  Composite Score: {composite_score:.1f}/100")
         lines.append(f"  Margin of Safety: {margin_of_safety:.1%}")
         lines.append(f"  Safety Gate: {'PASS' if safety_passed else 'FAIL'}")
+        if regime_type:
+            lines.append(f"  Regime: {regime_type}")
+        if strategy_weights:
+            weight_strs = [f"{k.replace('_', ' ').title()} {v:.0%}" for k, v in strategy_weights.items()]
+            lines.append(f"  Strategy Weights: {', '.join(weight_strs)}")
         for r in methodology_results:
             # Use display names for readability
             display_name = r.methodology.value.replace("_", " ").title()
@@ -244,7 +272,8 @@ class GenerateSignalHandler:
                 display_name = "Dual Momentum"
             elif display_name == "Trend Following":
                 display_name = "Trend Following"
-            lines.append(f"  {display_name}: {r.direction.value} (score {r.score:.1f}/100)")
+            weight_str = f", weight {strategy_weights.get(r.methodology.value, 0.25):.0%}" if strategy_weights else ""
+            lines.append(f"  {display_name}: {r.direction.value} (score {r.score:.1f}/100{weight_str})")
         return "\n".join(lines)
 
     # -- Infrastructure delegation (legacy) -------------------------------------
