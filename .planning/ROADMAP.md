@@ -59,7 +59,7 @@ Plans:
   2. Data quality layer detects and reports missing values, outliers, and stale data before any scoring proceeds
   3. `ingest --market kr` fetches KOSPI/KOSDAQ OHLCV and fundamentals (PER/PBR/DIV) from pykrx for a given Korean ticker
   4. Regime detection data sources (VIX, S&P 500 index, yield curve) are ingested and stored in the analytics DB
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 - [ ] 06-01-PLAN.md -- Fix edgartools ticker bug, extend Ticker/Symbol VOs for Korean format, business-day staleness
@@ -154,7 +154,7 @@ Note: Phases 7 and 8 both depend on Phase 6 (not on each other). Phase 9 depends
 | 3. Decision Engine | v1.0 | 3/3 | Complete | 2026-03-12 |
 | 4. Execution and Interface | v1.0 | 3/3 | Complete | 2026-03-12 |
 | 5. Tech Debt & Infrastructure Foundation | v1.1 | 3/3 | Complete | 2026-03-12 |
-| 6. Live Data Pipeline & Korean Data | v1.1 | 0/3 | Not started | - |
+| 6. Live Data Pipeline & Korean Data | 1/3 | In Progress|  | - |
 | 7. Technical Scoring Engine | v1.1 | 0/2 | Not started | - |
 | 8. Market Regime Detection | v1.1 | 0/2 | Not started | - |
 | 9. Multi-Strategy Signal Fusion | v1.1 | 0/3 | Not started | - |

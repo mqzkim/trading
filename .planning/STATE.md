@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
-status: completed
-stopped_at: Completed 05-03-PLAN.md (Phase 05 complete)
-last_updated: "2026-03-12T04:04:01.406Z"
-last_activity: 2026-03-12 -- Completed Plan 05-03 (Bootstrap CLI & Event Wiring)
+status: in-progress
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-03-12T06:06:44Z"
+last_activity: 2026-03-12 -- Completed Plan 06-01 (US Pipeline Fixes & Multi-Market VOs)
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 3
-  completed_plans: 3
-  percent: 20
+  completed_plans: 1
+  percent: 27
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 5 -- Tech Debt & Infrastructure Foundation
+**Current focus:** Phase 6 -- Live Data Pipeline & Korean Data
 
 ## Current Position
 
-Phase: 5 of 11 (Tech Debt & Infrastructure Foundation) -- first phase of v1.1
-Plan: 3 of 3 in current phase (PHASE COMPLETE)
-Status: Phase 05 Complete
-Last activity: 2026-03-12 -- Completed Plan 05-03 (Bootstrap CLI & Event Wiring)
+Phase: 6 of 11 (Live Data Pipeline & Korean Data)
+Plan: 1 of 3 in current phase
+Status: Plan 06-01 Complete
+Last activity: 2026-03-12 -- Completed Plan 06-01 (US Pipeline Fixes & Multi-Market VOs)
 
-Progress: [##░░░░░░░░] 20%
+Progress: [###░░░░░░░] 27%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [##░░░░░░░░] 20%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 5. Tech Debt & Infrastructure | 3/3 | 22 min | 7.3 min |
+| 6. Live Data Pipeline & Korean Data | 1/3 | 6 min | 6.0 min |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [05-03]: Lazy bootstrap context via _get_ctx() -- bootstrap() called once on first handler-using command
 - [05-03]: Event bus wired with minimal logging handler (no side effects) per RESEARCH pitfall 3
 - [05-03]: Core/ commands (regime, score, signal, analyze) keep existing imports; full DDD migration deferred to Phase 6+
+- [06-01]: Ticker regex [A-Z0-9]{1,10} for both US and Korean tickers
+- [06-01]: QualityChecker uses numpy.busday_count for business-day staleness
+- [06-01]: Symbol VO isupper() or isdigit() for multi-market validation
 
 ### Pending Todos
 
@@ -81,8 +85,8 @@ None.
 ### Blockers/Concerns
 
 Carried forward from v1.0:
-- yfinance adjusted close behavior -- needs empirical validation (Phase 6)
-- edgartools XBRL coverage for smaller companies -- test against sample (Phase 6)
+- ~~yfinance adjusted close behavior -- needs empirical validation (Phase 6)~~ RESOLVED in 06-01 (DATA-01)
+- ~~edgartools XBRL coverage for smaller companies -- test against sample (Phase 6)~~ RESOLVED in 06-01 (DATA-02)
 - Alpaca paper trading does NOT simulate dividends -- separate tracking needed
 - python-kis KIS developer registration -- may require Korean brokerage account (Phase 10)
 - pykrx KOSDAQ small-cap fundamental coverage -- validate empirically (Phase 6)
@@ -90,5 +94,5 @@ Carried forward from v1.0:
 ## Session Continuity
 
 Last session: 2026-03-12
-Stopped at: Completed 05-03-PLAN.md (Phase 05 complete)
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
