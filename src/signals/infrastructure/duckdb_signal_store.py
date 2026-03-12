@@ -28,6 +28,7 @@ class DuckDBSignalStore(ISignalRepository):
         self._conn = conn
         self._ensure_table()
         self._ensure_scores_table()
+        self._ensure_valuation_results_table()
 
     def _ensure_table(self) -> None:
         """Create signals table if not exists."""
@@ -49,6 +50,17 @@ class DuckDBSignalStore(ISignalRepository):
                 composite_score DOUBLE,
                 risk_adjusted_score DOUBLE,
                 strategy VARCHAR
+            )
+        """)
+
+    def _ensure_valuation_results_table(self) -> None:
+        """Create valuation_results table if not exists."""
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS valuation_results (
+                ticker VARCHAR PRIMARY KEY,
+                intrinsic_value DOUBLE,
+                margin_of_safety DOUBLE,
+                has_margin BOOLEAN
             )
         """)
 
