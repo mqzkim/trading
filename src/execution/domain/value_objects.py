@@ -2,15 +2,51 @@
 
 TradePlan, OrderSpec (formerly BracketSpec), OrderResult: 불변 VO.
 TradePlanStatus: 상태 열거형.
+ExecutionMode: paper/live 모드 열거형.
+CooldownState: 드로다운 냉각기 상태.
 BracketSpec is a backward-compatible alias for OrderSpec.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
 from src.shared.domain import ValueObject
+
+
+class ExecutionMode(Enum):
+    """Execution mode: paper or live trading."""
+
+    PAPER = "paper"
+    LIVE = "live"
+
+
+@dataclass(frozen=True)
+class CooldownState:
+    """Drawdown cooldown state -- persisted in SQLite.
+
+    Frozen dataclass for immutability. Use dataclasses.replace() to create
+    modified copies (e.g., for deactivation or force override).
+    """
+
+    triggered_at: datetime
+    expires_at: datetime
+    current_tier: int
+    re_entry_pct: int = 0
+    reason: str = "drawdown"
+    is_active: bool = True
+    force_overridden: bool = False
+    id: Optional[int] = None
+
+    def is_expired(self) -> bool:
+        """Check if cooldown has expired based on current UTC time."""
+        return datetime.now(timezone.utc) > self.expires_at
+
+    def re_entry_allowed_pct(self) -> int:
+        """Return the allowed re-entry percentage of capital."""
+        return self.re_entry_pct
 
 
 class TradePlanStatus(Enum):

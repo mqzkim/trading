@@ -4,7 +4,7 @@ Uses pydantic-settings for typed, validated configuration.
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic_settings import BaseSettings
 
@@ -12,7 +12,18 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Trading system configuration. All values have safe defaults."""
 
-    # Alpaca broker
+    # Execution mode (paper default, explicit setting required for live)
+    EXECUTION_MODE: Literal["paper", "live"] = "paper"
+
+    # Alpaca paper trading
+    ALPACA_PAPER_KEY: Optional[str] = None
+    ALPACA_PAPER_SECRET: Optional[str] = None
+
+    # Alpaca live trading
+    ALPACA_LIVE_KEY: Optional[str] = None
+    ALPACA_LIVE_SECRET: Optional[str] = None
+
+    # Legacy (backward compat, mapped to paper)
     ALPACA_API_KEY: Optional[str] = None
     ALPACA_SECRET_KEY: Optional[str] = None
 

@@ -54,3 +54,20 @@ class TargetReachedAlertEvent(DomainEvent):
     symbol: str = ""
     current_price: float = 0.0
     target_price: float = 0.0
+
+
+@dataclass(frozen=True)
+class CooldownTriggeredEvent(DomainEvent):
+    """Drawdown cooldown triggered."""
+
+    tier: int = 0
+    reason: str = ""
+    expires_at: str = ""
+
+
+@dataclass(frozen=True)
+class KillSwitchActivatedEvent(DomainEvent):
+    """Emergency kill switch activated."""
+
+    liquidate: bool = False
+    reason: str = ""

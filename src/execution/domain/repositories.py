@@ -8,7 +8,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from .value_objects import OrderResult, OrderSpec, TradePlan, TradePlanStatus
+from .value_objects import CooldownState, OrderResult, OrderSpec, TradePlan, TradePlanStatus
 
 
 class ITradePlanRepository(ABC):
@@ -38,3 +38,30 @@ class IBrokerAdapter(ABC):
 
     @abstractmethod
     def get_account(self) -> dict: ...
+
+
+class ICooldownRepository(ABC):
+    """Cooldown state persistence interface.
+
+    Implementations persist CooldownState to storage (e.g., SQLite).
+    """
+
+    @abstractmethod
+    def save(self, state: CooldownState) -> int:
+        """Persist cooldown state. Returns assigned id."""
+        ...
+
+    @abstractmethod
+    def get_active(self) -> Optional[CooldownState]:
+        """Return active, non-expired cooldown or None."""
+        ...
+
+    @abstractmethod
+    def deactivate(self, cooldown_id: int) -> None:
+        """Mark cooldown as inactive."""
+        ...
+
+    @abstractmethod
+    def get_history(self) -> list[CooldownState]:
+        """Return all cooldown records ordered by triggered_at desc."""
+        ...

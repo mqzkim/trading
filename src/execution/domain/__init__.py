@@ -2,8 +2,18 @@
 
 DDD 규칙: 레이어 간 cross-import는 이 __init__.py를 통해서만.
 """
-from .value_objects import BracketSpec, OrderResult, OrderSpec, TradePlan, TradePlanStatus
+from .value_objects import (
+    BracketSpec,
+    CooldownState,
+    ExecutionMode,
+    OrderResult,
+    OrderSpec,
+    TradePlan,
+    TradePlanStatus,
+)
 from .events import (
+    CooldownTriggeredEvent,
+    KillSwitchActivatedEvent,
     OrderExecutedEvent,
     OrderFailedEvent,
     StopHitAlertEvent,
@@ -11,11 +21,13 @@ from .events import (
     TradePlanCreatedEvent,
 )
 from .services import TradePlanService
-from .repositories import IBrokerAdapter, ITradePlanRepository
+from .repositories import IBrokerAdapter, ICooldownRepository, ITradePlanRepository
 
 __all__ = [
     "TradePlan",
     "TradePlanStatus",
+    "ExecutionMode",
+    "CooldownState",
     "OrderSpec",
     "BracketSpec",
     "OrderResult",
@@ -24,7 +36,10 @@ __all__ = [
     "OrderFailedEvent",
     "StopHitAlertEvent",
     "TargetReachedAlertEvent",
+    "CooldownTriggeredEvent",
+    "KillSwitchActivatedEvent",
     "TradePlanService",
     "ITradePlanRepository",
     "IBrokerAdapter",
+    "ICooldownRepository",
 ]
