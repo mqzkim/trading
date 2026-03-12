@@ -5,11 +5,13 @@ from .core_risk_adapter import CoreRiskAdapter
 from .in_memory_repo import InMemoryPortfolioRepository, InMemoryPositionRepository
 from .sqlite_portfolio_repo import SqlitePortfolioRepository
 from .sqlite_position_repo import SqlitePositionRepository
+from .sqlite_watchlist_repo import SqliteWatchlistRepository
 
 __all__ = [
     "CoreRiskAdapter",
     "SqlitePositionRepository",
     "SqlitePortfolioRepository",
+    "SqliteWatchlistRepository",
     "InMemoryPositionRepository",
     "InMemoryPortfolioRepository",
 ]

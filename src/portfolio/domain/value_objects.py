@@ -1,8 +1,10 @@
 """Portfolio 도메인 — Value Objects."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date
 from enum import Enum
+from typing import Optional
 
 from src.shared.domain import ValueObject
 
@@ -125,3 +127,21 @@ class TakeProfitLevels(ValueObject):
             raise ValueError("진입 가격은 양수여야 합니다")
         if self.intrinsic_value <= 0:
             raise ValueError("내재 가치는 양수여야 합니다")
+
+
+@dataclass(frozen=True)
+class WatchlistEntry(ValueObject):
+    """Watchlist entry VO.
+
+    Tracks a symbol the user is watching with optional price alerts.
+    """
+
+    symbol: str = ""
+    added_date: date = field(default_factory=date.today)
+    notes: Optional[str] = None
+    alert_above: Optional[float] = None
+    alert_below: Optional[float] = None
+
+    def _validate(self) -> None:
+        if not self.symbol or not self.symbol.strip():
+            raise ValueError("Symbol must not be empty")

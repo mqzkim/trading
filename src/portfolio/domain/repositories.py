@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from .aggregates import Portfolio
 from .entities import Position
+from .value_objects import WatchlistEntry
 
 
 class IPositionRepository(ABC):
@@ -36,3 +37,19 @@ class IPortfolioRepository(ABC):
 
     @abstractmethod
     def find_by_id(self, portfolio_id: str) -> Optional[Portfolio]: ...
+
+
+class IWatchlistRepository(ABC):
+    """워치리스트 저장소 인터페이스."""
+
+    @abstractmethod
+    def add(self, entry: WatchlistEntry) -> None: ...
+
+    @abstractmethod
+    def remove(self, symbol: str) -> None: ...
+
+    @abstractmethod
+    def find_all(self) -> List[WatchlistEntry]: ...
+
+    @abstractmethod
+    def find_by_symbol(self, symbol: str) -> Optional[WatchlistEntry]: ...

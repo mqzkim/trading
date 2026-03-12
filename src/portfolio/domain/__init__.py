@@ -2,7 +2,7 @@
 from .aggregates import Portfolio
 from .entities import Position
 from .events import DrawdownAlertEvent, PositionClosedEvent, PositionOpenedEvent
-from .repositories import IPortfolioRepository, IPositionRepository
+from .repositories import IPortfolioRepository, IPositionRepository, IWatchlistRepository
 from .services import PortfolioRiskService
 from .value_objects import (
     ATRStop,
@@ -12,6 +12,7 @@ from .value_objects import (
     RiskTier,
     SectorWeight,
     TakeProfitLevels,
+    WatchlistEntry,
 )
 
 __all__ = [
@@ -30,4 +31,6 @@ __all__ = [
     "PortfolioRiskService",
     "IPositionRepository",
     "IPortfolioRepository",
+    "IWatchlistRepository",
+    "WatchlistEntry",
 ]

@@ -4,7 +4,6 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.text import Text
 
 app = typer.Typer(name="trading", help="Trading System CLI")
 console = Console()
@@ -307,6 +306,196 @@ def analyze(
         subtitle=f"Capital: ${capital:,.0f} | Strategy: {strategy}",
         border_style="blue",
     ))
+
+
+@app.command()
+def dashboard(
+    portfolio_id: str = typer.Option("default", "--portfolio-id", help="Portfolio ID"),
+):
+    """Show portfolio dashboard with positions and drawdown status."""
+    from src.portfolio.infrastructure.sqlite_position_repo import SqlitePositionRepository
+    from src.portfolio.infrastructure.sqlite_portfolio_repo import SqlitePortfolioRepository
+    from src.portfolio.domain.value_objects import DrawdownLevel
+
+    pos_repo = SqlitePositionRepository()
+    port_repo = SqlitePortfolioRepository()
+
+    portfolio = port_repo.find_by_id(portfolio_id)
+    positions = pos_repo.find_all_open()
+
+    # Portfolio header
+    if portfolio:
+        value = portfolio.total_value_or_initial
+        dd = portfolio.drawdown
+        dd_level = portfolio.drawdown_level
+    else:
+        value = 100_000.0
+        dd = 0.0
+        dd_level = DrawdownLevel.NORMAL
+
+    dd_color = {
+        DrawdownLevel.NORMAL: "green",
+        DrawdownLevel.CAUTION: "yellow",
+        DrawdownLevel.WARNING: "red",
+        DrawdownLevel.CRITICAL: "bold red",
+    }.get(dd_level, "white")
+
+    console.print(Panel(
+        f"[bold]Value:[/bold] ${value:,.2f}  |  "
+        f"[bold]Drawdown:[/bold] [{dd_color}]{dd * 100:.1f}%[/{dd_color}]  |  "
+        f"[bold]Level:[/bold] [{dd_color}]{dd_level.value.upper()}[/{dd_color}]",
+        title="Portfolio Dashboard",
+        border_style="blue",
+    ))
+
+    if not positions:
+        console.print("[dim]No open positions.[/dim]")
+        return
+
+    table = Table(show_header=True, header_style="bold cyan")
+    table.add_column("Symbol", style="bold")
+    table.add_column("Qty", justify="right")
+    table.add_column("Entry Price", justify="right")
+    table.add_column("Market Value", justify="right")
+    table.add_column("Stop Price", justify="right")
+    table.add_column("Sector")
+    table.add_column("Strategy")
+
+    for pos in positions:
+        stop_str = f"${pos.atr_stop.stop_price:,.2f}" if pos.atr_stop else "-"
+        table.add_row(
+            pos.symbol,
+            str(pos.quantity),
+            f"${pos.entry_price:,.2f}",
+            f"${pos.market_value:,.2f}",
+            stop_str,
+            pos.sector,
+            pos.strategy,
+        )
+
+    console.print(table)
+
+
+@app.command()
+def screener(
+    top_n: int = typer.Option(20, "--top-n", help="Number of results"),
+    min_score: float = typer.Option(60.0, "--min-score", help="Minimum composite score"),
+    signal_filter: str = typer.Option("BUY", "--signal", help="Signal filter (BUY/SELL/HOLD)"),
+    output: str = typer.Option("table", "--output", "-o", help="table|json"),
+):
+    """Screen top-N stocks by risk-adjusted score."""
+    import duckdb
+    from src.signals.infrastructure.duckdb_signal_store import DuckDBSignalStore
+
+    conn = duckdb.connect("data/analytics.duckdb")
+    store = DuckDBSignalStore(conn)
+    results = store.query_top_n(top_n=top_n, min_composite=min_score, signal_filter=signal_filter)
+
+    if output == "json":
+        console.print_json(json.dumps(results, default=str))
+        return
+
+    if not results:
+        console.print("[dim]No stocks match criteria.[/dim]")
+        return
+
+    table = Table(title="Stock Screener", show_header=True, header_style="bold cyan")
+    table.add_column("Rank", justify="right", style="bold")
+    table.add_column("Symbol", style="bold")
+    table.add_column("Composite", justify="right")
+    table.add_column("Risk-Adj", justify="right")
+    table.add_column("Intrinsic Val", justify="right")
+    table.add_column("MoS%", justify="right")
+    table.add_column("Signal", justify="center")
+    table.add_column("Strength", justify="right")
+
+    for i, r in enumerate(results, 1):
+        sig = r.get("direction", "-")
+        sig_color = {"BUY": "green", "SELL": "red", "HOLD": "yellow"}.get(sig, "white")
+        mos = r.get("margin_of_safety")
+        mos_str = f"{mos * 100:.1f}%" if mos is not None else "-"
+        iv = r.get("intrinsic_value")
+        iv_str = f"${iv:,.2f}" if iv is not None else "-"
+        strength = r.get("strength")
+        strength_str = f"{strength:.1f}" if strength is not None else "-"
+
+        table.add_row(
+            str(i),
+            r.get("symbol", "-"),
+            f"{r.get('composite_score', 0):.1f}",
+            f"{r.get('risk_adjusted_score', 0):.1f}",
+            iv_str,
+            mos_str,
+            f"[{sig_color}]{sig}[/{sig_color}]",
+            strength_str,
+        )
+
+    console.print(table)
+
+
+@app.command()
+def watchlist_add(
+    symbol: str = typer.Argument(..., help="Ticker symbol to add"),
+    notes: str = typer.Option(None, "--notes", "-n", help="Notes about this symbol"),
+    alert_above: float = typer.Option(None, "--alert-above", help="Alert when price goes above"),
+    alert_below: float = typer.Option(None, "--alert-below", help="Alert when price goes below"),
+):
+    """Add a symbol to the watchlist."""
+    from src.portfolio.domain.value_objects import WatchlistEntry
+    from src.portfolio.infrastructure.sqlite_watchlist_repo import SqliteWatchlistRepository
+
+    repo = SqliteWatchlistRepository()
+    entry = WatchlistEntry(
+        symbol=symbol.upper(),
+        notes=notes,
+        alert_above=alert_above,
+        alert_below=alert_below,
+    )
+    repo.add(entry)
+    console.print(f"[green]Added {symbol.upper()} to watchlist.[/green]")
+
+
+@app.command()
+def watchlist_remove(
+    symbol: str = typer.Argument(..., help="Ticker symbol to remove"),
+):
+    """Remove a symbol from the watchlist."""
+    from src.portfolio.infrastructure.sqlite_watchlist_repo import SqliteWatchlistRepository
+
+    repo = SqliteWatchlistRepository()
+    repo.remove(symbol.upper())
+    console.print(f"[yellow]Removed {symbol.upper()} from watchlist.[/yellow]")
+
+
+@app.command()
+def watchlist_list():
+    """List all watchlist entries."""
+    from src.portfolio.infrastructure.sqlite_watchlist_repo import SqliteWatchlistRepository
+
+    repo = SqliteWatchlistRepository()
+    entries = repo.find_all()
+
+    if not entries:
+        console.print("[dim]Watchlist is empty.[/dim]")
+        return
+
+    table = Table(title="Watchlist", show_header=True, header_style="bold cyan")
+    table.add_column("Symbol", style="bold")
+    table.add_column("Added")
+    table.add_column("Notes")
+    table.add_column("Alert Above", justify="right")
+    table.add_column("Alert Below", justify="right")
+
+    for e in entries:
+        table.add_row(
+            e.symbol,
+            str(e.added_date),
+            e.notes or "-",
+            f"${e.alert_above:,.2f}" if e.alert_above else "-",
+            f"${e.alert_below:,.2f}" if e.alert_below else "-",
+        )
+
+    console.print(table)
 
 
 if __name__ == "__main__":
