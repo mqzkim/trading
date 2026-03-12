@@ -45,7 +45,7 @@ def _make_portfolio(initial_value: float = 100_000.0, drawdown: float = 0.0, lev
 
 
 def _setup_bootstrap_ctx(positions=None, portfolio=None):
-    """Create a mock bootstrap context and inject it into cli.main._ctx."""
+    """Create a mock bootstrap context and inject it into cli.main._ctx_cache."""
     mock_portfolio_handler = MagicMock()
     mock_portfolio_handler._position_repo.find_all_open.return_value = positions or []
     mock_portfolio_handler._portfolio_repo.find_by_id.return_value = portfolio
@@ -58,14 +58,16 @@ def _setup_bootstrap_ctx(positions=None, portfolio=None):
         "score_handler": MagicMock(),
         "signal_handler": MagicMock(),
         "regime_handler": MagicMock(),
+        "capital": 100_000.0,
+        "market": "us",
     }
-    cli.main._ctx = ctx
+    cli.main._ctx_cache["us"] = ctx
     return ctx
 
 
 def _teardown_ctx():
-    """Reset cli.main._ctx to None after test."""
-    cli.main._ctx = None
+    """Reset cli.main._ctx_cache after test."""
+    cli.main._ctx_cache.clear()
 
 
 class TestDashboardCommand:

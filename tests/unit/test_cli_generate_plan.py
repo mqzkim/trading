@@ -2,19 +2,38 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from typer.testing import CliRunner
+
+import cli.main
 from cli.main import app
 
 runner = CliRunner()
 
-# Patch at source module since cli/main.py uses lazy import inside function body
-_BOOTSTRAP = "src.bootstrap.bootstrap"
+
+def _setup_ctx(handler=None):
+    """Inject mock bootstrap context into cli.main._ctx_cache."""
+    ctx = {
+        "trade_plan_handler": handler or MagicMock(),
+        "portfolio_handler": MagicMock(),
+        "bus": MagicMock(),
+        "db_factory": MagicMock(),
+        "score_handler": MagicMock(),
+        "signal_handler": MagicMock(),
+        "regime_handler": MagicMock(),
+        "capital": 100_000.0,
+        "market": "us",
+    }
+    cli.main._ctx_cache["us"] = ctx
+    return ctx
+
+
+def _teardown_ctx():
+    cli.main._ctx_cache.clear()
 
 
 class TestGeneratePlanCommand:
     """Tests for the 'trading generate-plan' CLI command."""
 
-    @patch(_BOOTSTRAP)
-    def test_generate_plan_displays_plan(self, mock_bootstrap):
+    def test_generate_plan_displays_plan(self):
         """'trading generate-plan AAPL' displays plan details."""
         mock_plan = MagicMock()
         mock_plan.symbol = "AAPL"
@@ -30,26 +49,23 @@ class TestGeneratePlanCommand:
 
         mock_handler = MagicMock()
         mock_handler.generate.return_value = mock_plan
-        mock_bootstrap.return_value = {
-            "trade_plan_handler": mock_handler,
-            "bus": MagicMock(),
-        }
+        _setup_ctx(handler=mock_handler)
+        try:
+            result = runner.invoke(app, ["generate-plan", "AAPL"])
+            assert result.exit_code == 0
+            assert "AAPL" in result.output
+            assert "150" in result.output
+        finally:
+            _teardown_ctx()
 
-        result = runner.invoke(app, ["generate-plan", "AAPL"])
-        assert result.exit_code == 0
-        assert "AAPL" in result.output
-        assert "150" in result.output
-
-    @patch(_BOOTSTRAP)
-    def test_generate_plan_rejected(self, mock_bootstrap):
+    def test_generate_plan_rejected(self):
         """Rejected plan shows rejection message."""
         mock_handler = MagicMock()
         mock_handler.generate.return_value = None
-        mock_bootstrap.return_value = {
-            "trade_plan_handler": mock_handler,
-            "bus": MagicMock(),
-        }
-
-        result = runner.invoke(app, ["generate-plan", "AAPL"])
-        assert result.exit_code == 0
-        assert "reject" in result.output.lower() or "denied" in result.output.lower()
+        _setup_ctx(handler=mock_handler)
+        try:
+            result = runner.invoke(app, ["generate-plan", "AAPL"])
+            assert result.exit_code == 0
+            assert "reject" in result.output.lower() or "denied" in result.output.lower()
+        finally:
+            _teardown_ctx()

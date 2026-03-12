@@ -38,12 +38,14 @@ from src.execution.infrastructure import AlpacaExecutionAdapter
 
 def bootstrap(
     db_factory: DBFactory | None = None,
+    market: str = "us",
 ) -> dict:
     """Create a fully wired application context.
 
     Args:
         db_factory: Optional DBFactory for test injection.
                     If None, creates a default one with data_dir="data".
+        market: Market to wire execution for ("us" or "kr").
 
     Returns:
         Dict with pre-wired handlers, event bus, and db_factory.
@@ -97,14 +99,33 @@ def bootstrap(
         position_repo=position_repo,
     )
 
-    # TradePlanHandler requires TradePlanService and AlpacaExecutionAdapter.
-    # Create with defaults -- AlpacaExecutionAdapter will fail gracefully
-    # if ALPACA_API_KEY is not set (paper trading only).
+    # -- Broker adapter + capital (market-conditional) --
+    from src.execution.domain.repositories import IBrokerAdapter as _IBrokerAdapter
+    from src.settings import settings
+
+    adapter: _IBrokerAdapter
+    capital: float
+    if market == "kr":
+        from src.execution.infrastructure.kis_adapter import KisExecutionAdapter
+
+        adapter = KisExecutionAdapter(
+            app_key=settings.KIS_APP_KEY,
+            app_secret=settings.KIS_APP_SECRET,
+            account_no=settings.KIS_ACCOUNT_NO,
+        )
+        capital = settings.KR_CAPITAL
+    else:
+        adapter = AlpacaExecutionAdapter(
+            api_key=settings.ALPACA_API_KEY,
+            secret_key=settings.ALPACA_SECRET_KEY,
+        )
+        capital = settings.US_CAPITAL
+
     trade_plan_service = TradePlanService()
     trade_plan_handler = TradePlanHandler(
         trade_plan_service=trade_plan_service,
         trade_plan_repo=trade_plan_repo,
-        execution_adapter=AlpacaExecutionAdapter(),
+        execution_adapter=adapter,
     )
 
     # -- Event subscriptions --
@@ -141,4 +162,6 @@ def bootstrap(
         "trade_plan_handler": trade_plan_handler,
         "score_events": score_events,
         "regime_adjuster": regime_adjuster,
+        "capital": capital,
+        "market": market,
     }

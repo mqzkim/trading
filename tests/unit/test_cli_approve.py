@@ -35,7 +35,7 @@ def _mock_plan_dict(**overrides) -> dict:
 
 
 def _setup_bootstrap_ctx(handler=None, portfolio_handler=None):
-    """Create a mock bootstrap context dict and inject it into cli.main._ctx."""
+    """Create a mock bootstrap context dict and inject it into cli.main._ctx_cache."""
     ctx = {
         "trade_plan_handler": handler or MagicMock(),
         "portfolio_handler": portfolio_handler or MagicMock(),
@@ -44,14 +44,16 @@ def _setup_bootstrap_ctx(handler=None, portfolio_handler=None):
         "score_handler": MagicMock(),
         "signal_handler": MagicMock(),
         "regime_handler": MagicMock(),
+        "capital": 100_000.0,
+        "market": "us",
     }
-    cli.main._ctx = ctx
+    cli.main._ctx_cache["us"] = ctx
     return ctx
 
 
 def _teardown_ctx():
-    """Reset cli.main._ctx to None after test."""
-    cli.main._ctx = None
+    """Reset cli.main._ctx_cache after test."""
+    cli.main._ctx_cache.clear()
 
 
 class TestApproveCommand:

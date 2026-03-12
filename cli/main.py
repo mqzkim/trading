@@ -9,17 +9,16 @@ from rich.panel import Panel
 app = typer.Typer(name="trading", help="Trading System CLI")
 console = Console()
 
-# -- Bootstrap context (lazy-loaded) --
-_ctx: dict | None = None
+# -- Bootstrap context (lazy-loaded, keyed by market) --
+_ctx_cache: dict[str, dict] = {}
 
 
-def _get_ctx() -> dict:
-    """Lazily bootstrap the application context and cache it."""
-    global _ctx
-    if _ctx is None:
+def _get_ctx(market: str = "us") -> dict:
+    """Lazily bootstrap the application context and cache it per market."""
+    if market not in _ctx_cache:
         from src.bootstrap import bootstrap
-        _ctx = bootstrap()
-    return _ctx
+        _ctx_cache[market] = bootstrap(market=market)
+    return _ctx_cache[market]
 
 
 @app.command()
@@ -780,11 +779,12 @@ def approve(
 def execute(
     symbol: str = typer.Argument(..., help="Ticker symbol to execute"),
     force: bool = typer.Option(False, "--force", help="Skip confirmation"),
+    market: str = typer.Option("us", "--market", "-m", help="Market (us|kr)"),
 ):
     """Execute an approved trade plan as a bracket order."""
     from src.execution.application.commands import ExecuteOrderCommand
 
-    ctx = _get_ctx()
+    ctx = _get_ctx(market=market)
     handler = ctx["trade_plan_handler"]
 
     symbol = symbol.upper()
@@ -1010,16 +1010,17 @@ def _fetch_ohlcv_for_backtest(symbol: str, start: str, end: str):
 @app.command(name="generate-plan")
 def generate_plan(
     symbol: str = typer.Argument(..., help="Ticker symbol"),
-    capital: float = typer.Option(100000.0, "--capital", "-c", help="Portfolio capital"),
+    capital: float = typer.Option(0.0, "--capital", "-c", help="Portfolio capital (0=use market default)"),
     strategy: str = typer.Option("swing", "--strategy", "-s", help="swing|position"),
     output: str = typer.Option("table", "--output", "-o", help="table|json"),
+    market: str = typer.Option("us", "--market", "-m", help="Market (us|kr)"),
 ):
     """Generate a trade plan for a symbol."""
-    from src.bootstrap import bootstrap
     from src.execution.application.commands import GenerateTradePlanCommand
 
-    ctx = bootstrap()
+    ctx = _get_ctx(market=market)
     handler = ctx["trade_plan_handler"]
+    effective_capital = capital if capital > 0 else ctx["capital"]
 
     symbol = symbol.upper()
     console.print(f"[dim]Generating trade plan for {symbol}...[/dim]")
@@ -1028,7 +1029,7 @@ def generate_plan(
         symbol=symbol,
         entry_price=100.0,  # placeholder -- real price from data client
         atr=3.0,
-        capital=capital,
+        capital=effective_capital,
         peak_value=capital,
         current_value=capital,
         intrinsic_value=120.0,

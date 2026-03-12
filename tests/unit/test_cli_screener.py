@@ -49,7 +49,7 @@ _SIGNAL_STORE = "src.signals.infrastructure.duckdb_signal_store.DuckDBSignalStor
 
 
 def _setup_bootstrap_ctx():
-    """Create a mock bootstrap context with db_factory and inject into cli.main._ctx."""
+    """Create a mock bootstrap context with db_factory and inject into cli.main._ctx_cache."""
     mock_db_factory = MagicMock()
     mock_db_factory.duckdb_conn.return_value = MagicMock()
 
@@ -61,14 +61,16 @@ def _setup_bootstrap_ctx():
         "score_handler": MagicMock(),
         "signal_handler": MagicMock(),
         "regime_handler": MagicMock(),
+        "capital": 100_000.0,
+        "market": "us",
     }
-    cli.main._ctx = ctx
+    cli.main._ctx_cache["us"] = ctx
     return ctx
 
 
 def _teardown_ctx():
-    """Reset cli.main._ctx to None after test."""
-    cli.main._ctx = None
+    """Reset cli.main._ctx_cache after test."""
+    cli.main._ctx_cache.clear()
 
 
 class TestScreenerCommand:
