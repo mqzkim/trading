@@ -9,6 +9,7 @@ from src.data_ingest.domain.value_objects import (
     DataQualityReport,
     FilingDate,
     FinancialStatement,
+    MarketType,
     OHLCV,
     Ticker,
 )
@@ -16,6 +17,7 @@ from src.data_ingest.domain.events import (
     DataIngestedEvent,
     QualityCheckFailedEvent,
 )
+from src.scoring.domain.value_objects import Symbol
 from src.shared.domain import DomainEvent, ValueObject
 
 
@@ -59,6 +61,31 @@ class TestTicker:
     def test_ticker_is_value_object(self) -> None:
         t = Ticker(ticker="AAPL")
         assert isinstance(t, ValueObject)
+
+    def test_korean_6digit_ticker(self) -> None:
+        t = Ticker(ticker="005930")
+        assert t.ticker == "005930"
+
+    def test_korean_short_ticker(self) -> None:
+        t = Ticker(ticker="035420")
+        assert t.ticker == "035420"
+
+    def test_lowercase_non_numeric_raises(self) -> None:
+        with pytest.raises(ValueError):
+            Ticker(ticker="abc")
+
+
+class TestMarketType:
+    def test_us_value(self) -> None:
+        assert MarketType.US.value == "us"
+
+    def test_kr_value(self) -> None:
+        assert MarketType.KR.value == "kr"
+
+    def test_members(self) -> None:
+        members = {m.name for m in MarketType}
+        assert "US" in members
+        assert "KR" in members
 
 
 # ── OHLCV ───────────────────────────────────────────────────────────
@@ -326,6 +353,34 @@ class TestDataIngestedEvent:
     def test_has_occurred_on(self) -> None:
         e = DataIngestedEvent(ticker="AAPL", ohlcv_rows=756, financial_quarters=12)
         assert e.occurred_on is not None
+
+
+# ── Scoring Symbol VO (Korean ticker support) ─────────────────────
+
+
+class TestScoringSymbolKorean:
+    def test_us_ticker_succeeds(self) -> None:
+        s = Symbol(ticker="AAPL")
+        assert s.ticker == "AAPL"
+
+    def test_korean_numeric_ticker_succeeds(self) -> None:
+        s = Symbol(ticker="005930")
+        assert s.ticker == "005930"
+
+    def test_lowercase_non_numeric_raises(self) -> None:
+        with pytest.raises(ValueError):
+            Symbol(ticker="abc")
+
+    def test_empty_raises(self) -> None:
+        with pytest.raises(ValueError):
+            Symbol(ticker="")
+
+    def test_too_long_raises(self) -> None:
+        with pytest.raises(ValueError):
+            Symbol(ticker="ABCDEFGHIJK")  # 11 chars
+
+
+# ── Domain Events ──────────────────────────────────────────────────
 
 
 class TestQualityCheckFailedEvent:
