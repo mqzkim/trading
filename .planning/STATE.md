@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
 status: in-progress
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-03-12T10:36:09.000Z"
-last_activity: 2026-03-12 -- Completed Plan 08-01 (Regime Handler Wiring)
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-03-12T10:44:09.000Z"
+last_activity: 2026-03-12 -- Completed Plan 08-02 (Regime Scoring Weights and CLI Rewiring)
 progress:
   total_phases: 8
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 11
-  completed_plans: 10
-  percent: 91
+  completed_plans: 11
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 ## Current Position
 
 Phase: 8 of 11 (Market Regime Detection)
-Plan: 1 of 2 in current phase
-Status: Plan 08-01 Complete
-Last activity: 2026-03-12 -- Completed Plan 08-01 (Regime Handler Wiring)
+Plan: 2 of 2 in current phase
+Status: Phase 08 Complete
+Last activity: 2026-03-12 -- Completed Plan 08-02 (Regime Scoring Weights and CLI Rewiring)
 
-Progress: [█████████ ] 91%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [█████████ ] 91%
 | Phase 07 P02 | 4min | 1 task | 3 files |
 | Phase 07 P03 | 6min | 2 tasks | 5 files |
 | Phase 08 P01 | 6min | 2 tasks | 7 files |
+| Phase 08 P02 | 5min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Recent decisions affecting current work:
 - [Phase 08]: Confirmation state tracked via _last_confirmed_type instance variable for accurate event previous_regime field
 - [Phase 08]: ADX added to RegimeDataClient.fetch_regime_snapshot() (infrastructure layer, not handler)
 - [Phase 08]: yield_spread (percentage) added alongside yield_spread_bps for handler compatibility
+- [Phase 08]: REGIME_SCORING_WEIGHTS in scoring domain services (not value_objects) -- weights are behavior
+- [Phase 08]: ConcreteRegimeWeightAdjuster caches regime via on_regime_changed() for implicit adjust_weights()
+- [Phase 08]: CLI regime --history accesses handler._regime_repo directly (no separate query handler)
 
 ### Pending Todos
 
@@ -112,6 +116,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T10:36:09Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-03-12T10:44:09Z
+Stopped at: Completed 08-02-PLAN.md
 Resume file: None
