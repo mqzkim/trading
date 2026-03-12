@@ -55,9 +55,9 @@ Requirements for Stabilization & Expansion milestone. Each maps to roadmap phase
 
 ### Korean Broker
 
-- [ ] **KR-01**: python-kis 기반 KIS 브로커 어댑터 (IBrokerRepository 구현)
+- [x] **KR-01**: python-kis 기반 KIS 브로커 어댑터 (IBrokerRepository 구현)
 - [ ] **KR-02**: KIS 모의투자 지원 (mock trading 환경)
-- [ ] **KR-03**: KRW 통화 처리 및 포지션 사이징 적용
+- [x] **KR-03**: KRW 통화 처리 및 포지션 사이징 적용
 
 ### Commercial API
 
@@ -133,9 +133,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | SIGNAL-05 | Phase 9 | Complete |
 | SIGNAL-06 | Phase 9 | Complete |
 | SIGNAL-07 | Phase 9 | Complete |
-| KR-01 | Phase 10 | Pending |
+| KR-01 | Phase 10 | Complete |
 | KR-02 | Phase 10 | Pending |
-| KR-03 | Phase 10 | Pending |
+| KR-03 | Phase 10 | Complete |
 | API-01 | Phase 11 | Pending |
 | API-02 | Phase 11 | Pending |
 | API-03 | Phase 11 | Pending |

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
-status: completed
-stopped_at: Phase 10 context gathered
-last_updated: "2026-03-12T18:51:35.915Z"
-last_activity: 2026-03-12 -- Completed Plan 09-02 (CLI Signal DDD Rewiring)
+status: in-progress
+stopped_at: Completed 10-01-PLAN.md (Broker Interface Abstraction)
+last_updated: "2026-03-12T19:33:27.478Z"
+last_activity: 2026-03-12 -- Completed Plan 10-01 (Broker Interface Abstraction)
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 12
-  completed_plans: 14
+  total_plans: 14
+  completed_plans: 15
   percent: 100
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 9 -- Multi-Strategy Signal Fusion
+**Current focus:** Phase 10 -- Korean Broker Integration
 
 ## Current Position
 
-Phase: 9 of 11 (Multi-Strategy Signal Fusion)
-Plan: 2 of 2 in current phase
-Status: Phase 09 complete (all plans done)
-Last activity: 2026-03-12 -- Completed Plan 09-02 (CLI Signal DDD Rewiring)
+Phase: 10 of 11 (Korean Broker Integration)
+Plan: 1 of 2 in current phase
+Status: Plan 10-01 complete, Plan 10-02 remaining
+Last activity: 2026-03-12 -- Completed Plan 10-01 (Broker Interface Abstraction)
 
 Progress: [██████████] 100%
 
@@ -63,6 +63,7 @@ Progress: [██████████] 100%
 | Phase 08 P03 | 4min | 2 tasks | 3 files |
 | Phase 09 P01 | 4min | 2 tasks | 5 files |
 | Phase 09 P02 | 5min | 1 task | 4 files |
+| Phase 10 P01 | 4min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -111,6 +112,9 @@ Recent decisions affecting current work:
 - [Phase 09]: CLI signal command routes through DDD handlers (regime -> score -> signal), no legacy core imports
 - [Phase 09]: symbol_data built in CLI layer via _build_signal_symbol_data, not inside handler
 - [Phase 09]: DetectRegimeCommand with sentinel zeros for auto-fetch in signal command (same pattern as regime command)
+- [Phase 10]: OrderSpec.stop_loss_price and take_profit_price are Optional[float]=None for Korean market support
+- [Phase 10]: Alpaca real bracket path guards against None with explicit ValueError
+- [Phase 10]: BracketSpec = OrderSpec alias preserves all existing code
 
 ### Pending Todos
 
@@ -127,6 +131,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T18:51:35.913Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-korean-broker-integration/10-CONTEXT.md
+Last session: 2026-03-12T19:32:00Z
+Stopped at: Completed 10-01-PLAN.md (Broker Interface Abstraction)
+Resume file: .planning/phases/10-korean-broker-integration/10-01-SUMMARY.md
