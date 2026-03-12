@@ -55,8 +55,8 @@
 
 ## Category 8: Backtesting (BACK)
 
-- [ ] **BACK-01**: Walk-Forward Validation — out-of-sample 검증, Sharpe t-stat > 2, PBO < 10% 목표
-- [ ] **BACK-02**: 성과 리포트 — Sharpe ratio, max drawdown, win rate, profit factor 등 핵심 메트릭
+- [x] **BACK-01**: Walk-Forward Validation — out-of-sample 검증, Sharpe t-stat > 2, PBO < 10% 목표
+- [x] **BACK-02**: 성과 리포트 — Sharpe ratio, max drawdown, win rate, profit factor 등 핵심 메트릭
 
 ---
 
@@ -93,8 +93,8 @@
 | RISK-03 | Phase 3: Decision Engine | Complete |
 | RISK-04 | Phase 3: Decision Engine | Complete |
 | RISK-05 | Phase 3: Decision Engine | Complete |
-| BACK-01 | Phase 3: Decision Engine | Pending |
-| BACK-02 | Phase 3: Decision Engine | Pending |
+| BACK-01 | Phase 3: Decision Engine | Complete |
+| BACK-02 | Phase 3: Decision Engine | Complete |
 | EXEC-01 | Phase 4: Execution and Interface | Pending |
 | EXEC-02 | Phase 4: Execution and Interface | Pending |
 | EXEC-03 | Phase 4: Execution and Interface | Pending |
