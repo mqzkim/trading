@@ -121,11 +121,11 @@ Plans:
   1. KIS broker adapter implements IBrokerRepository and connects to KIS paper trading environment
   2. Trade plans for Korean stocks show position sizes in KRW with proper lot sizing (Korean market minimums)
   3. The full workflow (score -> signal -> plan -> approve -> execute) works end-to-end for a KOSPI ticker in paper trading mode
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 
 Plans:
-- [ ] 10-01-PLAN.md -- IBrokerAdapter ABC, OrderSpec (BracketSpec generalization), TradePlanHandler interface rewiring
-- [ ] 10-02-PLAN.md -- KisExecutionAdapter (mock-first), bootstrap --market routing, CLI execute --market kr, settings KIS/KR_CAPITAL
+- [x] 10-01-PLAN.md -- IBrokerAdapter ABC, OrderSpec (BracketSpec generalization), TradePlanHandler interface rewiring
+- [x] 10-02-PLAN.md -- KisExecutionAdapter (mock-first), bootstrap --market routing, CLI execute --market kr, settings KIS/KR_CAPITAL
 
 ### Phase 11: Commercial FastAPI REST API
 **Goal**: External users can query QuantScore, RegimeRadar, and SignalFusion through authenticated REST endpoints with tiered rate limiting and legal disclaimers
@@ -160,5 +160,5 @@ Note: Phases 7 and 8 both depend on Phase 6 (not on each other). Phase 9 depends
 | 7. Technical Scoring Engine | v1.1 | 2/3 | Gap Closure | - |
 | 8. Market Regime Detection | v1.1 | 2/3 | Gap Closure | - |
 | 9. Multi-Strategy Signal Fusion | v1.1 | 1/2 | In Progress | - |
-| 10. Korean Broker Integration | 1/2 | In Progress|  | - |
+| 10. Korean Broker Integration | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 11. Commercial FastAPI REST API | v1.1 | 0/2 | Not started | - |

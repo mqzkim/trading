@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
 status: in-progress
-stopped_at: Completed 10-01-PLAN.md (Broker Interface Abstraction)
+stopped_at: Completed 10-02-PLAN.md (KIS Execution Adapter & Market Routing)
 last_updated: "2026-03-12T19:33:27.478Z"
-last_activity: 2026-03-12 -- Completed Plan 10-01 (Broker Interface Abstraction)
+last_activity: 2026-03-12 -- Completed Phase 10 (Korean Broker Integration)
 progress:
   total_phases: 7
   completed_phases: 5
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 ## Current Position
 
 Phase: 10 of 11 (Korean Broker Integration)
-Plan: 1 of 2 in current phase
-Status: Plan 10-01 complete, Plan 10-02 remaining
-Last activity: 2026-03-12 -- Completed Plan 10-01 (Broker Interface Abstraction)
+Plan: 2 of 2 in current phase (PHASE COMPLETE)
+Status: Phase 10 complete, all plans executed
+Last activity: 2026-03-12 -- Completed Plan 10-02 (KIS Execution Adapter & Market Routing)
 
 Progress: [██████████] 100%
 
@@ -64,6 +64,7 @@ Progress: [██████████] 100%
 | Phase 09 P01 | 4min | 2 tasks | 5 files |
 | Phase 09 P02 | 5min | 1 task | 4 files |
 | Phase 10 P01 | 4min | 2 tasks | 9 files |
+| Phase 10 P02 | 8min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,10 @@ Recent decisions affecting current work:
 - [Phase 10]: OrderSpec.stop_loss_price and take_profit_price are Optional[float]=None for Korean market support
 - [Phase 10]: Alpaca real bracket path guards against None with explicit ValueError
 - [Phase 10]: BracketSpec = OrderSpec alias preserves all existing code
+- [Phase 10]: pydantic-settings for typed config with .env support and safe defaults
+- [Phase 10]: KIS adapter mock=True hardcoded (no real trading path in Phase 10)
+- [Phase 10]: CLI _ctx_cache keyed by market string for multi-market context caching
+- [Phase 10]: capital in bootstrap context dict (not TradePlanHandler attribute)
 
 ### Pending Todos
 
@@ -131,6 +136,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T19:32:00Z
-Stopped at: Completed 10-01-PLAN.md (Broker Interface Abstraction)
-Resume file: .planning/phases/10-korean-broker-integration/10-01-SUMMARY.md
+Last session: 2026-03-12T19:42:00Z
+Stopped at: Completed 10-02-PLAN.md (KIS Execution Adapter & Market Routing)
+Resume file: .planning/phases/10-korean-broker-integration/10-02-SUMMARY.md
