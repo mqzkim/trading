@@ -33,7 +33,7 @@ class TestRegimeDataClientSnapshot:
 
     @patch("src.data_ingest.infrastructure.regime_data_client.yf")
     def test_snapshot_returns_all_keys(self, mock_yf: MagicMock) -> None:
-        """Snapshot must contain all 8 regime data keys."""
+        """Snapshot must contain all 10 regime data keys (including adx and yield_spread)."""
         sp500_hist = _make_history(250, date(2024, 1, 2))
         vix_hist = _make_history(5, date(2026, 3, 7), [18.5] * 5)
         tnx_hist = _make_history(5, date(2026, 3, 7), [4.25] * 5)
@@ -58,6 +58,7 @@ class TestRegimeDataClientSnapshot:
         expected_keys = {
             "date", "vix", "sp500_close", "sp500_ma200",
             "sp500_ratio", "yield_10y", "yield_3m", "yield_spread_bps",
+            "adx", "yield_spread",
         }
         assert set(result.keys()) == expected_keys
 
