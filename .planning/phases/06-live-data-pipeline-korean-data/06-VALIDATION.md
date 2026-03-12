@@ -45,7 +45,7 @@ created: 2026-03-12
 | 06-02-02 | 02 | 1 | DATA-03 | integration | `pytest tests/integration/test_data_ingest.py::test_pipeline_quality_failure -x` | ✅ | ⬜ pending |
 | 06-03-01 | 03 | 2 | DATA-04 | unit | `pytest tests/unit/test_pykrx_client.py -x` | ❌ W0 | ⬜ pending |
 | 06-03-02 | 03 | 2 | DATA-05 | unit | `pytest tests/unit/test_pykrx_client.py -x` | ❌ W0 | ⬜ pending |
-| 06-03-03 | 03 | 2 | DATA-04/05 | unit | `pytest tests/unit/test_cli_ingest_kr.py -x` | ❌ W0 | ⬜ pending |
+| 06-03-03 | 03 | 2 | DATA-04/05 | unit | `pytest tests/unit/test_cli_ingest.py -x` | ✅ | ⬜ pending |
 | 06-04-01 | 04 | 2 | DATA-06 | unit | `pytest tests/unit/test_regime_data_store.py -x` | ❌ W0 | ⬜ pending |
 | 06-04-02 | 04 | 2 | DATA-06 | unit | `pytest tests/unit/test_duckdb_store.py -x` | ✅ | ⬜ pending |
 
@@ -56,7 +56,6 @@ created: 2026-03-12
 ## Wave 0 Requirements
 
 - [ ] `tests/unit/test_pykrx_client.py` — stubs for DATA-04, DATA-05 (pykrx OHLCV + fundamentals)
-- [ ] `tests/unit/test_cli_ingest_kr.py` — stubs for DATA-04/05 CLI integration (ingest --market kr)
 - [ ] `tests/unit/test_regime_data_store.py` — stubs for DATA-06 (regime data DuckDB storage)
 - [ ] `pip install pykrx` — pykrx not yet in dependencies
 
