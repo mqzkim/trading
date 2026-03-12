@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
 status: in-progress
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-03-12T06:06:44Z"
-last_activity: 2026-03-12 -- Completed Plan 06-01 (US Pipeline Fixes & Multi-Market VOs)
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-03-12T06:15:43.790Z"
+last_activity: 2026-03-12 -- Completed Plan 06-03 (Regime Data Ingestion Pipeline)
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 1
-  percent: 27
+  total_plans: 6
+  completed_plans: 5
+  percent: 83
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 ## Current Position
 
 Phase: 6 of 11 (Live Data Pipeline & Korean Data)
-Plan: 1 of 3 in current phase
-Status: Plan 06-01 Complete
-Last activity: 2026-03-12 -- Completed Plan 06-01 (US Pipeline Fixes & Multi-Market VOs)
+Plan: 3 of 3 in current phase
+Status: Plan 06-03 Complete
+Last activity: 2026-03-12 -- Completed Plan 06-03 (Regime Data Ingestion Pipeline)
 
-Progress: [###░░░░░░░] 27%
+Progress: [████████░░] 83%
 
 ## Performance Metrics
 
@@ -53,7 +53,7 @@ Progress: [###░░░░░░░] 27%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 5. Tech Debt & Infrastructure | 3/3 | 22 min | 7.3 min |
-| 6. Live Data Pipeline & Korean Data | 1/3 | 6 min | 6.0 min |
+| 6. Live Data Pipeline & Korean Data | 2/3 | 11 min | 5.5 min |
 
 ## Accumulated Context
 
@@ -77,6 +77,8 @@ Recent decisions affecting current work:
 - [06-01]: Ticker regex [A-Z0-9]{1,10} for both US and Korean tickers
 - [06-01]: QualityChecker uses numpy.busday_count for business-day staleness
 - [06-01]: Symbol VO isupper() or isdigit() for multi-market validation
+- [Phase 06]: RegimeDataClient uses yfinance directly (not core/data/market.py) to avoid caching interference with historical data
+- [Phase 06]: CLI --market parameter added early with default 'us' for future Korean market wiring
 
 ### Pending Todos
 
@@ -93,6 +95,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12
-Stopped at: Completed 06-01-PLAN.md
+Last session: 2026-03-12T06:15:43.788Z
+Stopped at: Completed 06-03-PLAN.md
 Resume file: None

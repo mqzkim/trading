@@ -26,7 +26,7 @@ Requirements for Stabilization & Expansion milestone. Each maps to roadmap phase
 - [x] **DATA-03**: 데이터 품질 검증 레이어 (결측/이상치 탐지)
 - [ ] **DATA-04**: pykrx 기반 KOSPI/KOSDAQ OHLCV 데이터 수집 어댑터
 - [ ] **DATA-05**: pykrx 기반 한국 시장 재무제표 수집 (PER/PBR/DIV)
-- [ ] **DATA-06**: 레짐 감지용 데이터 수집 (VIX, S&P 500, 수익률 곡선)
+- [x] **DATA-06**: 레짐 감지용 데이터 수집 (VIX, S&P 500, 수익률 곡선)
 
 ### Technical Scoring
 
@@ -116,7 +116,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | DATA-03 | Phase 6 | Complete |
 | DATA-04 | Phase 6 | Pending |
 | DATA-05 | Phase 6 | Pending |
-| DATA-06 | Phase 6 | Pending |
+| DATA-06 | Phase 6 | Complete |
 | TECH-01 | Phase 7 | Pending |
 | TECH-02 | Phase 7 | Pending |
 | TECH-03 | Phase 7 | Pending |
