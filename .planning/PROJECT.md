@@ -31,12 +31,28 @@ Every recommendation must be explainable and risk-controlled — the system prio
 
 ### Active
 
+#### Tech Debt Stabilization
 - [ ] Fix DuckDB/SQLite scoring store mismatch (screener integration)
+- [ ] Fix table name/column mismatches in screener valuations join
 - [ ] Add missing CLI commands (ingest, generate-plan, backtest)
 - [ ] Wire G-Score blending and regime adjustment in DDD handler path
 - [ ] Publish domain events to EventBus (currently defined but unused)
-- [ ] Live data pipeline validation with real APIs
-- [ ] Korean market support (KOSPI/KOSDAQ)
+- [ ] Fix cross-context domain import (execution → portfolio)
+- [ ] Resolve remaining 10 tech debt items from v1.0 audit
+
+#### Live Data Validation
+- [ ] Live data pipeline validation with real APIs (yfinance, SEC EDGAR)
+- [ ] Empirical validation of adjusted close behavior
+- [ ] XBRL coverage testing for smaller companies
+
+#### New Capabilities
+- [ ] Technical scoring engine (RSI, MACD, moving averages, ADX, OBV)
+- [ ] Market regime detection (Bull/Bear/Sideways/Crisis via VIX, S&P 200MA, ADX, yield curve)
+- [ ] Multi-strategy signal fusion (CAN SLIM, Magic Formula, Dual Momentum, Trend Following)
+- [ ] Korean market support (KOSPI/KOSDAQ data ingestion, KIS broker integration)
+
+#### Commercial API
+- [ ] FastAPI REST API for QuantScore, RegimeRadar, SignalFusion products
 
 ### Out of Scope
 
@@ -44,7 +60,20 @@ Every recommendation must be explainable and risk-controlled — the system prio
 - Web/GUI dashboard — CLI first, Streamlit/Next.js in future version
 - Real-time intraday trading — daily granularity for mid-term holding
 - Options/derivatives — stock-only
-- Social/sentiment scoring — focus on fundamentals first
+- Social/sentiment scoring — focus on fundamentals + technicals first
+
+## Current Milestone: v1.1 Stabilization & Expansion
+
+**Goal:** Stabilize v1.0 tech debt, validate with live data, and expand capabilities with technical scoring, regime detection, multi-strategy signal fusion, Korean market support, and commercial API products.
+
+**Target features:**
+- Tech debt resolution (16 items from v1.0 audit)
+- Live data pipeline validation (yfinance, SEC EDGAR)
+- Technical scoring engine (RSI, MACD, MA, ADX, OBV)
+- Market regime detection (Bull/Bear/Sideways/Crisis)
+- Multi-strategy signal fusion (CAN SLIM, Magic Formula, Dual Momentum, Trend Following)
+- Korean market support (KOSPI/KOSDAQ + KIS broker)
+- Commercial API (FastAPI: QuantScore, RegimeRadar, SignalFusion)
 
 ## Context
 
@@ -81,4 +110,4 @@ Legacy core/ path provides working alternatives where DDD path has wiring gaps.
 | Coarse 4-phase roadmap | Strict dependency chain, each phase standalone | ✓ Good — clean execution, 12 plans in 10 days |
 
 ---
-*Last updated: 2026-03-12 after v1.0 milestone*
+*Last updated: 2026-03-12 after v1.1 milestone start*
