@@ -250,3 +250,63 @@ class TestCLITechnicalSubScoreDisplay:
 
         output = buf.getvalue()
         assert "Technical Indicators" not in output
+
+
+# -- Gap closure tests (07-03) --
+
+
+class TestHandlerEndToEndSubScoresAndWeights:
+    """Integration: handler with known inputs produces sub-scores and correct composite."""
+
+    def test_handler_end_to_end_sub_scores_and_weights(self) -> None:
+        handler = ScoreSymbolHandler(
+            score_repo=FakeScoreRepo(),
+            fundamental_client=FakeClient({"fundamental_score": 80, "z_score": 3.5, "m_score": -3.0}),
+            technical_client=FakeClient({
+                "technical_score": 60,
+                "rsi": 45.0, "macd_histogram": 1.5, "close": 150.0,
+                "ma50": 148.0, "ma200": 140.0, "adx": 28.0, "obv_change_pct": 5.0,
+            }),
+            sentiment_client=FakeClient({"sentiment_score": 50}),
+        )
+        result = handler.handle(ScoreSymbolCommand(symbol="TEST", strategy="swing")).unwrap()
+
+        # Sub-scores present with 5 entries
+        assert len(result["technical_sub_scores"]) == 5
+
+        # Composite uses 40/40/20: fund*0.40 + tech*0.40 + sent*0.20
+        # Technical value comes from TechnicalScoringService (not the raw 60)
+        assert result["composite_score"] > 0
+        # Verify it's NOT the old 35/40/25 result
+        new_composite = 0.40 * 80 + 0.40 * result["technical_score"] + 0.20 * 50
+        # The actual composite should match the 40/40/20 formula (within rounding)
+        assert abs(result["composite_score"] - new_composite) < 1.0
+
+
+class TestCLIDoesNotImportLegacyScoring:
+    """CLI score command must NOT import from core.scoring.composite."""
+
+    def test_cli_score_does_not_import_legacy_scoring(self) -> None:
+        import ast
+        with open("cli/main.py") as f:
+            tree = ast.parse(f.read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                assert "core.scoring.composite" not in node.module, \
+                    "CLI still imports from core.scoring.composite (legacy path)"
+
+
+class TestHandlerErrorProducesErrResult:
+    """When data client raises, handler returns Err, not crash."""
+
+    def test_handler_error_produces_err_result(self) -> None:
+        class CrashingClient:
+            def get(self, symbol: str):
+                raise ConnectionError("API down")
+
+        handler = ScoreSymbolHandler(
+            score_repo=FakeScoreRepo(),
+            fundamental_client=CrashingClient(),
+        )
+        result = handler.handle(ScoreSymbolCommand(symbol="FAIL"))
+        assert not result.is_ok()
