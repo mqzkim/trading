@@ -168,6 +168,130 @@ class TestQualityCheckerOHLCV:
         assert isinstance(report.stale_days, int)
 
 
+class TestQualityCheckerBusinessDayStaleness:
+    """Test business-day-aware staleness logic."""
+
+    def test_friday_to_monday_passes_default_threshold(self) -> None:
+        """Friday data checked on Monday = 1 business day, under default 3."""
+        from src.data_ingest.infrastructure.quality_checker import QualityChecker
+
+        # Build a DataFrame ending on a Friday
+        friday = pd.Timestamp("2026-03-06")  # A known Friday
+        n = 50
+        dates = pd.bdate_range(end=friday, periods=n)
+        prices = np.full(n, 100.0)
+        df = pd.DataFrame(
+            {
+                "open": prices,
+                "high": prices + 2,
+                "low": prices - 2,
+                "close": prices + 0.5,
+                "volume": np.full(n, 500000, dtype=int),
+            },
+            index=dates,
+        )
+
+        checker = QualityChecker()
+        # Simulate "now" as Monday (3 calendar days, but 1 business day)
+        monday = pd.Timestamp("2026-03-09")
+        report = checker.validate_ohlcv("AAPL", df, max_stale_days=3, now=monday)
+
+        assert report.passed is True
+        # stale_days should reflect business days, not calendar
+        assert report.stale_days <= 3
+
+    def test_5_business_days_ago_fails_default(self) -> None:
+        """Data from 5+ business days ago fails with default max_stale_days=3."""
+        from src.data_ingest.infrastructure.quality_checker import QualityChecker
+
+        # Data ending 5 business days before "now"
+        last_data = pd.Timestamp("2026-03-02")  # Monday
+        now = pd.Timestamp("2026-03-09")  # Following Monday = 5 bdays
+        n = 50
+        dates = pd.bdate_range(end=last_data, periods=n)
+        prices = np.full(n, 100.0)
+        df = pd.DataFrame(
+            {
+                "open": prices,
+                "high": prices + 2,
+                "low": prices - 2,
+                "close": prices + 0.5,
+                "volume": np.full(n, 500000, dtype=int),
+            },
+            index=dates,
+        )
+
+        checker = QualityChecker()
+        report = checker.validate_ohlcv("AAPL", df, max_stale_days=3, now=now)
+
+        assert report.passed is False
+        assert report.stale_days > 3
+        assert any("business day" in f.lower() for f in report.failures)
+
+    def test_custom_threshold_5_allows_5_bdays(self) -> None:
+        """max_stale_days=5 allows data from 5 business days ago."""
+        from src.data_ingest.infrastructure.quality_checker import QualityChecker
+
+        last_data = pd.Timestamp("2026-03-02")  # Monday
+        now = pd.Timestamp("2026-03-09")  # Following Monday = 5 bdays
+        n = 50
+        dates = pd.bdate_range(end=last_data, periods=n)
+        prices = np.full(n, 100.0)
+        df = pd.DataFrame(
+            {
+                "open": prices,
+                "high": prices + 2,
+                "low": prices - 2,
+                "close": prices + 0.5,
+                "volume": np.full(n, 500000, dtype=int),
+            },
+            index=dates,
+        )
+
+        checker = QualityChecker()
+        report = checker.validate_ohlcv("AAPL", df, max_stale_days=5, now=now)
+
+        assert report.passed is True
+
+    def test_empty_dataframe_stale_days_zero(self) -> None:
+        """Empty DataFrame returns stale_days=0 (no regression)."""
+        from src.data_ingest.infrastructure.quality_checker import QualityChecker
+
+        df = pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+
+        checker = QualityChecker()
+        report = checker.validate_ohlcv("AAPL", df)
+
+        assert report.stale_days == 0
+
+    def test_weekend_gap_does_not_trigger_stale(self) -> None:
+        """Weekend-only gap (Friday to Monday) should not trigger stale warning."""
+        from src.data_ingest.infrastructure.quality_checker import QualityChecker
+
+        friday = pd.Timestamp("2026-03-06")
+        monday = pd.Timestamp("2026-03-09")
+        n = 50
+        dates = pd.bdate_range(end=friday, periods=n)
+        prices = np.full(n, 100.0)
+        df = pd.DataFrame(
+            {
+                "open": prices,
+                "high": prices + 2,
+                "low": prices - 2,
+                "close": prices + 0.5,
+                "volume": np.full(n, 500000, dtype=int),
+            },
+            index=dates,
+        )
+
+        checker = QualityChecker()
+        report = checker.validate_ohlcv("AAPL", df, max_stale_days=3, now=monday)
+
+        assert report.passed is True
+        # No stale-related failure
+        assert not any("stale" in f.lower() for f in report.failures)
+
+
 class TestQualityCheckerFinancials:
     """Test financial data quality validation."""
 
