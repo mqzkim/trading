@@ -12,9 +12,9 @@ From raw market data to risk-controlled trade execution in 4 phases. The pipelin
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Data Foundation** - Data ingestion pipeline with point-in-time awareness, dual-DB storage, and DDD shared kernel
-- [ ] **Phase 2: Analysis Core** - Scoring engine (safety gates + composite) and valuation ensemble (DCF + EPV + relative multiples)
-- [ ] **Phase 3: Decision Engine** - Signal generation, risk management, position sizing, and backtesting validation
+- [x] **Phase 1: Data Foundation** - Data ingestion pipeline with point-in-time awareness, dual-DB storage, and DDD shared kernel (completed 2026-03-12)
+- [x] **Phase 2: Analysis Core** - Scoring engine (safety gates + composite) and valuation ensemble (DCF + EPV + relative multiples) (completed 2026-03-12)
+- [x] **Phase 3: Decision Engine** - Signal generation, risk management, position sizing, and backtesting validation (completed 2026-03-12)
 - [x] **Phase 4: Execution and Interface** - Trade plans, human approval, Alpaca paper trading, CLI dashboard, and monitoring (completed 2026-03-12)
 
 ## Phase Details
@@ -32,9 +32,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Domain VOs, DuckDB/SQLite stores, async event bus, dependency install
-- [ ] 01-02-PLAN.md — YFinance adapter, edgartools SEC client, universe provider, quality checker
-- [ ] 01-03-PLAN.md — Core scoring adapter (F/Z/M-Score), end-to-end data pipeline
+- [x] 01-01-PLAN.md — Domain VOs, DuckDB/SQLite stores, async event bus, dependency install
+- [x] 01-02-PLAN.md — YFinance adapter, edgartools SEC client, universe provider, quality checker
+- [x] 01-03-PLAN.md — Core scoring adapter (F/Z/M-Score), end-to-end data pipeline
 
 ### Phase 2: Analysis Core
 **Goal**: Users can score any US equity on fundamental quality and estimate its intrinsic value through an ensemble of valuation models
@@ -49,9 +49,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — G-Score (SCOR-05) + composite score update with regime interface (SCOR-06)
-- [ ] 02-02-PLAN.md — Valuation domain VOs/events + DCF/EPV/Relative pure math (VALU-01, VALU-02, VALU-03)
-- [ ] 02-03-PLAN.md — Ensemble valuation + margin of safety + infrastructure wiring (VALU-04, VALU-05)
+- [x] 02-01-PLAN.md — G-Score (SCOR-05) + composite score update with regime interface (SCOR-06)
+- [x] 02-02-PLAN.md — Valuation domain VOs/events + DCF/EPV/Relative pure math (VALU-01, VALU-02, VALU-03)
+- [x] 02-03-PLAN.md — Ensemble valuation + margin of safety + infrastructure wiring (VALU-04, VALU-05)
 
 ### Phase 3: Decision Engine
 **Goal**: Users can generate ranked buy/hold/sell signals backed by validated positive expectancy, with mathematically sized positions and portfolio-level risk controls
@@ -66,9 +66,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Signal engine with reasoning traces + DuckDB screener/ranker (SIGN-01, SIGN-02)
-- [ ] 03-02-PLAN.md — Risk management: CoreRiskAdapter, take-profit levels, sector limits (RISK-01 through RISK-05)
-- [ ] 03-03-PLAN.md — Backtest bounded context: walk-forward validation + performance reports (BACK-01, BACK-02)
+- [x] 03-01-PLAN.md — Signal engine with reasoning traces + DuckDB screener/ranker (SIGN-01, SIGN-02)
+- [x] 03-02-PLAN.md — Risk management: CoreRiskAdapter, take-profit levels, sector limits (RISK-01 through RISK-05)
+- [x] 03-03-PLAN.md — Backtest bounded context: walk-forward validation + performance reports (BACK-01, BACK-02)
 
 ### Phase 4: Execution and Interface
 **Goal**: Users can review trade plans, approve orders through CLI, execute via Alpaca paper trading, and monitor positions through an interactive dashboard
@@ -83,9 +83,9 @@ Plans:
 **Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 04-01-PLAN.md — Execution bounded context: TradePlan/BracketSpec VOs, TradePlanService, AlpacaExecutionAdapter with mock fallback (EXEC-01, EXEC-03, EXEC-04)
-- [ ] 04-02-PLAN.md — CLI dashboard, stock screener, watchlist management (INTF-01, INTF-02, INTF-03)
-- [ ] 04-03-PLAN.md — Human approval workflow, monitoring alerts, execution wiring (EXEC-02, INTF-04)
+- [x] 04-01-PLAN.md — Execution bounded context: TradePlan/BracketSpec VOs, TradePlanService, AlpacaExecutionAdapter with mock fallback (EXEC-01, EXEC-03, EXEC-04)
+- [x] 04-02-PLAN.md — CLI dashboard, stock screener, watchlist management (INTF-01, INTF-02, INTF-03)
+- [x] 04-03-PLAN.md — Human approval workflow, monitoring alerts, execution wiring (EXEC-02, INTF-04)
 
 ## Progress
 
@@ -96,5 +96,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Data Foundation | 3/3 | Complete | 2026-03-12 |
 | 2. Analysis Core | 3/3 | Complete | 2026-03-12 |
-| 3. Decision Engine | 1/3 | In Progress | - |
+| 3. Decision Engine | 3/3 | Complete | 2026-03-12 |
 | 4. Execution and Interface | 3/3 | Complete   | 2026-03-12 |
