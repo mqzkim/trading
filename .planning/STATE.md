@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
 status: completed
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-03-12T06:35:06.724Z"
-last_activity: 2026-03-12 -- Completed Plan 06-03 (Regime Data Ingestion Pipeline)
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-12T08:08:51.363Z"
+last_activity: 2026-03-12 -- Completed Plan 07-01 (TechnicalScoringService Domain Layer)
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 8
+  completed_plans: 7
   percent: 83
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 6 -- Live Data Pipeline & Korean Data
+**Current focus:** Phase 7 -- Technical Scoring Engine
 
 ## Current Position
 
-Phase: 6 of 11 (Live Data Pipeline & Korean Data)
-Plan: 3 of 3 in current phase
-Status: Plan 06-03 Complete
-Last activity: 2026-03-12 -- Completed Plan 06-03 (Regime Data Ingestion Pipeline)
+Phase: 7 of 11 (Technical Scoring Engine)
+Plan: 1 of 2 in current phase
+Status: Plan 07-01 Complete
+Last activity: 2026-03-12 -- Completed Plan 07-01 (TechnicalScoringService Domain Layer)
 
 Progress: [████████░░] 83%
 
@@ -55,6 +55,7 @@ Progress: [████████░░] 83%
 | 5. Tech Debt & Infrastructure | 3/3 | 22 min | 7.3 min |
 | 6. Live Data Pipeline & Korean Data | 2/3 | 11 min | 5.5 min |
 | Phase 06 P02 | 10min | 2 tasks | 11 files |
+| Phase 07 P01 | 8min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -82,6 +83,9 @@ Recent decisions affecting current work:
 - [Phase 06]: CLI --market parameter added early with default 'us' for future Korean market wiring
 - [Phase 06]: Korean fundamentals stored in separate kr_fundamentals table (not SEC EDGAR financials schema)
 - [Phase 06]: Pipeline routes via MarketType enum: US->yfinance+edgartools, KR->pykrx
+- [Phase 07]: RSI inverted scoring: low RSI (oversold) = high score (buying opportunity for swing traders)
+- [Phase 07]: STRATEGY_WEIGHTS swing updated from 35/40/25 to 40/40/20 per TECH-03 requirement
+- [Phase 07]: OBV scored by percentage change (60-day lookback) to normalize across stock capitalizations
 
 ### Pending Todos
 
@@ -98,6 +102,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T06:29:11.356Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-03-12T08:08:51.360Z
+Stopped at: Completed 07-01-PLAN.md
 Resume file: None
