@@ -20,6 +20,14 @@ _METHOD_NAME_MAP: dict[str, str] = {
     "trend_following": "TREND_FOLLOWING",
 }
 
+# core/signals/ evaluator result "signal" key -> MethodologyType mapping
+_SIGNAL_KEY_TO_METHOD: dict[str, str] = {
+    "CAN SLIM": "CAN_SLIM",
+    "Magic Formula": "MAGIC_FORMULA",
+    "Dual Momentum": "DUAL_MOMENTUM",
+    "Trend Following": "TREND_FOLLOWING",
+}
+
 
 class SignalError(Exception):
     def __init__(self, message: str, code: str):
@@ -30,18 +38,21 @@ class SignalError(Exception):
 class GenerateSignalHandler:
     """단일 종목 시그널 생성 유스케이스.
 
-    1. 각 방법론별 점수 수집 (Infrastructure 위임 또는 core/ fallback)
+    1. 각 방법론별 점수 수집 (CoreSignalAdapter 또는 개별 클라이언트 또는 fallback)
     2. MethodologyResult 리스트 생성
     3. composite_score 산출 (cmd에 제공되면 사용, 없으면 방법론 scores 평균)
-    4. SignalFusionService.fuse() 호출 → (SignalDirection, SignalStrength)
-    5. ISignalRepository.save() 저장
-    6. Ok(result dict) 반환
+    4. SignalFusionService.fuse() 호출 -> (SignalDirection, SignalStrength)
+    5. 추론 트레이스 생성
+    6. ISignalRepository.save() 저장
+    7. Ok(result dict) 반환
     """
 
     def __init__(
         self,
         signal_repo: ISignalRepository,
-        # 방법론별 클라이언트 (Infrastructure에서 주입)
+        # CoreSignalAdapter (Infrastructure에서 주입) -- 우선 사용
+        signal_adapter=None,
+        # 방법론별 클라이언트 (레거시 호환)
         can_slim_client=None,
         magic_formula_client=None,
         dual_momentum_client=None,
@@ -49,6 +60,7 @@ class GenerateSignalHandler:
     ):
         self._signal_repo = signal_repo
         self._fusion = SignalFusionService()
+        self._adapter = signal_adapter
         self._clients = {
             "can_slim": can_slim_client,
             "magic_formula": magic_formula_client,
@@ -59,38 +71,12 @@ class GenerateSignalHandler:
     def handle(self, cmd: GenerateSignalCommand) -> Result:
         symbol = cmd.symbol.upper()
 
-        # 1. 각 방법론별 점수 수집 → MethodologyResult 리스트 구성
+        # 1. 방법론별 점수 수집 -> MethodologyResult 리스트 구성
         try:
-            results: list[MethodologyResult] = []
-            for method_name in cmd.methodologies:
-                data = self._get_methodology_score(symbol, method_name)
-
-                enum_key = _METHOD_NAME_MAP.get(method_name)
-                if enum_key is None:
-                    continue
-                try:
-                    method_type = MethodologyType(enum_key)
-                except ValueError:
-                    continue
-
-                raw_direction = data.get("direction", "HOLD")
-                try:
-                    direction = SignalDirection(raw_direction.upper())
-                except ValueError:
-                    direction = SignalDirection.HOLD
-
-                score = float(data.get("score", 50.0))
-                # score 범위 클램핑 (도메인 validation 대비)
-                score = max(0.0, min(100.0, score))
-
-                results.append(
-                    MethodologyResult(
-                        methodology=method_type,
-                        score=score,
-                        direction=direction,
-                        reason=str(data.get("reason", "")),
-                    )
-                )
+            if self._adapter is not None and cmd.symbol_data is not None:
+                results = self._evaluate_via_adapter(cmd.symbol_data)
+            else:
+                results = self._evaluate_via_clients(symbol, cmd.methodologies)
         except Exception as e:
             return Err(SignalError(f"Methodology scoring failed: {e}", "SCORING_ERROR"))
 
@@ -103,20 +89,32 @@ class GenerateSignalHandler:
         else:
             composite_score = sum(r.score for r in results) / len(results)
 
-        # 3. 합의 시그널 생성 — fuse()는 tuple[SignalDirection, SignalStrength] 반환
+        # 3. 합의 시그널 생성
         direction, strength = self._fusion.fuse(
             results=results,
             composite_score=composite_score,
             safety_passed=cmd.safety_passed,
         )
 
-        # 4. 저장
+        # 4. 추론 트레이스 생성
+        reasoning_trace = self._build_reasoning_trace(
+            symbol=symbol,
+            direction=direction.value,
+            composite_score=composite_score,
+            margin_of_safety=cmd.margin_of_safety,
+            methodology_results=results,
+            safety_passed=cmd.safety_passed,
+        )
+
+        # 5. 저장
         metadata = {
             "methodologies": [r.methodology.value for r in results],
             "scores": {r.methodology.value: r.score for r in results},
             "composite_score": composite_score,
             "consensus_count": strength.consensus_count,
             "safety_passed": cmd.safety_passed,
+            "margin_of_safety": cmd.margin_of_safety,
+            "reasoning_trace": reasoning_trace,
         }
         self._signal_repo.save(
             symbol=symbol,
@@ -132,10 +130,124 @@ class GenerateSignalHandler:
             "consensus_count": strength.consensus_count,
             "methodology_count": len(results),
             "composite_score": composite_score,
+            "margin_of_safety": cmd.margin_of_safety,
             "methodology_scores": {r.methodology.value: r.score for r in results},
+            "reasoning_trace": reasoning_trace,
         })
 
-    # ── Infrastructure 위임 ──────────────────────────────────────────
+    # -- Adapter path -----------------------------------------------------------
+
+    def _evaluate_via_adapter(self, symbol_data: dict) -> list[MethodologyResult]:
+        """Use CoreSignalAdapter to run all 4 evaluators."""
+        raw_results = self._adapter.evaluate_all(symbol_data)
+        return self._raw_to_methodology_results(raw_results)
+
+    # -- Legacy client path -----------------------------------------------------
+
+    def _evaluate_via_clients(
+        self, symbol: str, methodologies: tuple[str, ...]
+    ) -> list[MethodologyResult]:
+        """Use individual clients or fallback for each methodology."""
+        results: list[MethodologyResult] = []
+        for method_name in methodologies:
+            data = self._get_methodology_score(symbol, method_name)
+
+            enum_key = _METHOD_NAME_MAP.get(method_name)
+            if enum_key is None:
+                continue
+            try:
+                method_type = MethodologyType(enum_key)
+            except ValueError:
+                continue
+
+            raw_direction = data.get("direction", data.get("signal", "HOLD"))
+            try:
+                direction = SignalDirection(raw_direction.upper())
+            except ValueError:
+                direction = SignalDirection.HOLD
+
+            score = float(data.get("score", 50.0))
+            score = max(0.0, min(100.0, score))
+
+            results.append(
+                MethodologyResult(
+                    methodology=method_type,
+                    score=score,
+                    direction=direction,
+                    reason=str(data.get("reason", "")),
+                )
+            )
+        return results
+
+    def _raw_to_methodology_results(self, raw_results: list[dict]) -> list[MethodologyResult]:
+        """Convert raw evaluator dicts to MethodologyResult VOs."""
+        results: list[MethodologyResult] = []
+        for data in raw_results:
+            methodology_name = data.get("methodology", "")
+            enum_key = _SIGNAL_KEY_TO_METHOD.get(methodology_name)
+            if enum_key is None:
+                continue
+            try:
+                method_type = MethodologyType(enum_key)
+            except ValueError:
+                continue
+
+            raw_signal = data.get("signal", "HOLD")
+            try:
+                direction = SignalDirection(raw_signal.upper())
+            except ValueError:
+                direction = SignalDirection.HOLD
+
+            score = float(data.get("score", 50.0))
+            score_max = float(data.get("score_max", 100))
+            # Normalize to 0-100 scale
+            if score_max > 0 and score_max != 100:
+                normalized = (score / score_max) * 100
+            else:
+                normalized = score
+            normalized = max(0.0, min(100.0, normalized))
+
+            results.append(
+                MethodologyResult(
+                    methodology=method_type,
+                    score=normalized,
+                    direction=direction,
+                    reason=str(data.get("reason", "")),
+                )
+            )
+        return results
+
+    # -- Reasoning trace --------------------------------------------------------
+
+    def _build_reasoning_trace(
+        self,
+        symbol: str,
+        direction: str,
+        composite_score: float,
+        margin_of_safety: float,
+        methodology_results: list[MethodologyResult],
+        safety_passed: bool,
+    ) -> str:
+        """Build human-readable reasoning trace citing specific data points."""
+        lines = [f"{symbol}: {direction}"]
+        lines.append(f"  Composite Score: {composite_score:.1f}/100")
+        lines.append(f"  Margin of Safety: {margin_of_safety:.1%}")
+        lines.append(f"  Safety Gate: {'PASS' if safety_passed else 'FAIL'}")
+        for r in methodology_results:
+            # Use display names for readability
+            display_name = r.methodology.value.replace("_", " ").title()
+            if display_name == "Can Slim":
+                display_name = "CAN SLIM"
+            elif display_name == "Magic Formula":
+                display_name = "Magic Formula"
+            elif display_name == "Dual Momentum":
+                display_name = "Dual Momentum"
+            elif display_name == "Trend Following":
+                display_name = "Trend Following"
+            lines.append(f"  {display_name}: {r.direction.value} (score {r.score:.1f}/100)")
+        return "\n".join(lines)
+
+    # -- Infrastructure delegation (legacy) -------------------------------------
 
     def _get_methodology_score(self, symbol: str, method: str) -> dict:
         client = self._clients.get(method)
@@ -157,5 +269,4 @@ class GenerateSignalHandler:
                 return compute_trend_following(symbol)
         except ImportError:
             pass
-        # 기본값 반환
-        return {"score": 50.0, "direction": "HOLD", "reason": "fallback default"}
+        return {"score": 50.0, "signal": "HOLD", "reason": "fallback default"}

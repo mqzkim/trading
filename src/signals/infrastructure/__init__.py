@@ -3,5 +3,6 @@
 """
 from .sqlite_repo import SqliteSignalRepository
 from .in_memory_repo import InMemorySignalRepository
+from .core_signal_adapter import CoreSignalAdapter
 
-__all__ = ["SqliteSignalRepository", "InMemorySignalRepository"]
+__all__ = ["SqliteSignalRepository", "InMemorySignalRepository", "CoreSignalAdapter"]

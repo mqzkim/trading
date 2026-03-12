@@ -13,6 +13,10 @@ class GenerateSignalCommand:
     safety_passed: bool = True
     # 복합 점수 (None이면 방법론 평균 사용)
     composite_score: float | None = None
+    # 밸류에이션 갭 (valuation context에서 전달, 기본 0.0)
+    margin_of_safety: float = 0.0
+    # 시장 데이터 (CoreSignalAdapter로 전달)
+    symbol_data: dict | None = None
 
 
 @dataclass(frozen=True)
