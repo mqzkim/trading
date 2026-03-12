@@ -48,9 +48,9 @@
 
 ## Category 7: Interface (INTF)
 
-- [ ] **INTF-01**: CLI Dashboard — 포트폴리오 뷰, P&L, 포지션 현황, 드로다운 상태
-- [ ] **INTF-02**: Stock Screener CLI — 스코어 기반 종목 선별/랭킹 인터랙티브 뷰
-- [ ] **INTF-03**: Watchlist 관리 — 관심종목 CRUD + 알림 설정
+- [x] **INTF-01**: CLI Dashboard — 포트폴리오 뷰, P&L, 포지션 현황, 드로다운 상태
+- [x] **INTF-02**: Stock Screener CLI — 스코어 기반 종목 선별/랭킹 인터랙티브 뷰
+- [x] **INTF-03**: Watchlist 관리 — 관심종목 CRUD + 알림 설정
 - [ ] **INTF-04**: 모니터링 알림 — stop hit, target reached, drawdown tier 변경 알림
 
 ## Category 8: Backtesting (BACK)
@@ -99,9 +99,9 @@
 | EXEC-02 | Phase 4: Execution and Interface | Pending |
 | EXEC-03 | Phase 4: Execution and Interface | Pending |
 | EXEC-04 | Phase 4: Execution and Interface | Pending |
-| INTF-01 | Phase 4: Execution and Interface | Pending |
-| INTF-02 | Phase 4: Execution and Interface | Pending |
-| INTF-03 | Phase 4: Execution and Interface | Pending |
+| INTF-01 | Phase 4: Execution and Interface | Complete |
+| INTF-02 | Phase 4: Execution and Interface | Complete |
+| INTF-03 | Phase 4: Execution and Interface | Complete |
 | INTF-04 | Phase 4: Execution and Interface | Pending |
 
 ---

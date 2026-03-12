@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: completed
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-03-12T01:28:57.534Z"
-last_activity: "2026-03-12 -- Plan 03-03 executed (backtest validation: walk-forward, profit factor, DuckDB persistence)"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-12T02:02:35.765Z"
+last_activity: 2026-03-12 -- Plan 04-02 executed (CLI dashboard, screener, watchlist commands)
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 9
-  completed_plans: 9
-  percent: 100
+  total_plans: 12
+  completed_plans: 11
+  percent: 92
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-12)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 3 complete -- signals, risk management, backtest validation all done
+**Current focus:** Phase 4 in progress -- execution and interface (2 of 3 plans done)
 
 ## Current Position
 
-Phase: 3 of 4 (Decision Engine) -- COMPLETE
-Plan: 3 of 3 in current phase
-Status: Phase 03 complete (all 3 plans), ready for Phase 04
-Last activity: 2026-03-12 -- Plan 03-03 executed (backtest validation: walk-forward, profit factor, DuckDB persistence)
+Phase: 4 of 4 (Execution & Interface)
+Plan: 2 of 3 in current phase
+Status: Plan 04-02 complete (CLI dashboard, screener, watchlist), 04-03 remaining
+Last activity: 2026-03-12 -- Plan 04-02 executed (CLI dashboard, screener, watchlist commands)
 
-Progress: [██████████] 100%
+Progress: [█████████░] 92%
 
 ## Performance Metrics
 
@@ -64,6 +64,8 @@ Progress: [██████████] 100%
 | Phase 03 P01 | 5min | 2 tasks | 7 files |
 | Phase 03 P02 | 7min | 2 tasks | 10 files |
 | Phase 03 P03 | 5min | 2 tasks | 14 files |
+| Phase 04 P01 | 4min | 2 tasks | 13 files |
+| Phase 04 P02 | 5min | 1 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -108,6 +110,13 @@ Recent decisions affecting current work:
 - [Phase 03]: Profit factor computed in BacktestValidationService only (never modify core/backtest/metrics.py)
 - [Phase 03]: DuckDB backtest_results uses sequence-based auto-increment IDs to preserve all historical runs
 - [Phase 03]: Walk-forward profit_factor = 0.0 (per-split trade logs not exposed by core)
+- [Phase 04]: WatchlistEntry uses same frozen dataclass + _validate() pattern as existing portfolio VOs
+- [Phase 04]: SqliteWatchlistRepository shares data/portfolio.db with positions (same DB, separate table)
+- [Phase 04]: CLI commands use local imports inside function body (matching existing pattern)
+- [Phase 04-01]: alpaca-py imports inside methods only (never module-level) to avoid SDK init on import
+- [Phase 04-01]: Mock fallback on any credential absence or API failure
+- [Phase 04-01]: SQLite trade_plans table shares data/portfolio.db with positions for consistency
+- [Phase 04-01]: TakeProfitLevels VO reused from portfolio domain for take-profit price computation
 
 ### Pending Todos
 
@@ -122,6 +131,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-12T01:22:42.863Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-03-12T02:02:09.988Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
