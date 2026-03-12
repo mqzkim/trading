@@ -28,7 +28,7 @@ Full details: [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md)
 - [ ] **Phase 7: Technical Scoring Engine** - Integrate 5 technical indicators into DDD scoring, combine with fundamental scores, wire CLI through DDD handler
 - [ ] **Phase 8: Market Regime Detection** - Wire regime classifier with live data, publish regime events, auto-adjust scoring weights
 - [ ] **Phase 9: Multi-Strategy Signal Fusion** - Implement 4 strategies, build consensus engine, add regime-weighted aggregation
-- [ ] **Phase 10: Korean Broker Integration** - KIS broker adapter with paper trading, KRW currency handling
+- [x] **Phase 10: Korean Broker Integration** - KIS broker adapter with paper trading, KRW currency handling (completed 2026-03-12)
 - [ ] **Phase 11: Commercial FastAPI REST API** - QuantScore + RegimeRadar + SignalFusion endpoints with JWT auth and rate limiting
 
 ## Phase Details
@@ -121,7 +121,7 @@ Plans:
   1. KIS broker adapter implements IBrokerRepository and connects to KIS paper trading environment
   2. Trade plans for Korean stocks show position sizes in KRW with proper lot sizing (Korean market minimums)
   3. The full workflow (score -> signal -> plan -> approve -> execute) works end-to-end for a KOSPI ticker in paper trading mode
-**Plans:** 2/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 10-01-PLAN.md -- IBrokerAdapter ABC, OrderSpec (BracketSpec generalization), TradePlanHandler interface rewiring
@@ -160,5 +160,5 @@ Note: Phases 7 and 8 both depend on Phase 6 (not on each other). Phase 9 depends
 | 7. Technical Scoring Engine | v1.1 | 2/3 | Gap Closure | - |
 | 8. Market Regime Detection | v1.1 | 2/3 | Gap Closure | - |
 | 9. Multi-Strategy Signal Fusion | v1.1 | 1/2 | In Progress | - |
-| 10. Korean Broker Integration | v1.1 | 2/2 | Complete | 2026-03-12 |
+| 10. Korean Broker Integration | v1.1 | Complete    | 2026-03-12 | 2026-03-12 |
 | 11. Commercial FastAPI REST API | v1.1 | 0/2 | Not started | - |
