@@ -41,10 +41,10 @@
 
 ## Category 6: Execution (EXEC)
 
-- [ ] **EXEC-01**: Trade Plan 생성 — entry/stop/target/size/reasoning 포함 구조화된 트레이드 플랜
+- [x] **EXEC-01**: Trade Plan 생성 — entry/stop/target/size/reasoning 포함 구조화된 트레이드 플랜
 - [ ] **EXEC-02**: Human Approval CLI — 주문 전 사람 승인 필수 워크플로우 (Y/N + 수정 가능)
-- [ ] **EXEC-03**: Alpaca Paper Trading — alpaca-py SDK 기반 모의 트레이딩 주문 실행
-- [ ] **EXEC-04**: Bracket Order — entry + stop-loss + take-profit 일괄 주문
+- [x] **EXEC-03**: Alpaca Paper Trading — alpaca-py SDK 기반 모의 트레이딩 주문 실행
+- [x] **EXEC-04**: Bracket Order — entry + stop-loss + take-profit 일괄 주문
 
 ## Category 7: Interface (INTF)
 
@@ -95,10 +95,10 @@
 | RISK-05 | Phase 3: Decision Engine | Complete |
 | BACK-01 | Phase 3: Decision Engine | Complete |
 | BACK-02 | Phase 3: Decision Engine | Complete |
-| EXEC-01 | Phase 4: Execution and Interface | Pending |
+| EXEC-01 | Phase 4: Execution and Interface | Complete |
 | EXEC-02 | Phase 4: Execution and Interface | Pending |
-| EXEC-03 | Phase 4: Execution and Interface | Pending |
-| EXEC-04 | Phase 4: Execution and Interface | Pending |
+| EXEC-03 | Phase 4: Execution and Interface | Complete |
+| EXEC-04 | Phase 4: Execution and Interface | Complete |
 | INTF-01 | Phase 4: Execution and Interface | Complete |
 | INTF-02 | Phase 4: Execution and Interface | Complete |
 | INTF-03 | Phase 4: Execution and Interface | Complete |
