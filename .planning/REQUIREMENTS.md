@@ -33,7 +33,7 @@ Requirements for Stabilization & Expansion milestone. Each maps to roadmap phase
 - [x] **TECH-01**: RSI/MACD/MA/ADX/OBV 5개 지표를 DDD 스코어링 컨텍스트에 통합
 - [x] **TECH-02**: 기술적 복합 점수 (0-100) 산출 (가중 합산)
 - [x] **TECH-03**: 기존 CompositeScore에 기술 점수 통합 (기본40%/기술40%/센티먼트20%)
-- [ ] **TECH-04**: 서브 스코어 분해 출력 (5개 지표별 개별 점수 + 설명)
+- [x] **TECH-04**: 서브 스코어 분해 출력 (5개 지표별 개별 점수 + 설명)
 
 ### Regime Detection
 
@@ -120,7 +120,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | TECH-01 | Phase 7 | Complete |
 | TECH-02 | Phase 7 | Complete |
 | TECH-03 | Phase 7 | Complete |
-| TECH-04 | Phase 7 | Pending |
+| TECH-04 | Phase 7 | Complete |
 | REGIME-01 | Phase 8 | Pending |
 | REGIME-02 | Phase 8 | Pending |
 | REGIME-03 | Phase 8 | Pending |
