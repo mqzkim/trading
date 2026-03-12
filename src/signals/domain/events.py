@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from src.shared.domain import DomainEvent
-from .value_objects import SignalDirection
 
 
 @dataclass(frozen=True)

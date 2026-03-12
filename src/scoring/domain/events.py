@@ -1,9 +1,8 @@
 """Scoring 도메인 — Domain Events."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from src.shared.domain import DomainEvent
-from .value_objects import Symbol, CompositeScore
 
 
 @dataclass(frozen=True, kw_only=True)

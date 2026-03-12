@@ -4,7 +4,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from .value_objects import Symbol, CompositeScore
+from .value_objects import CompositeScore
 
 
 class IScoreRepository(ABC):

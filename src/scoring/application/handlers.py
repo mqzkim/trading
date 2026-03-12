@@ -102,10 +102,21 @@ class ScoreSymbolHandler:
             sentiment=sentiment,
             strategy=cmd.strategy,
             tail_risk_penalty=cmd.tail_risk_penalty,
+            g_score=fundamental_data.get("g_score"),
+            is_growth_stock=fundamental_data.get("is_growth_stock", False),
         )
 
         # 5. 결과 저장 (Repository)
         self._score_repo.save(symbol, composite)
+
+        # 6. 도메인 이벤트 생성 (bus publish는 Plan 03에서 wiring)
+        event = ScoreUpdatedEvent(
+            symbol=symbol,
+            composite_score=composite.value,
+            risk_adjusted_score=composite.risk_adjusted,
+            safety_passed=True,
+            strategy=composite.strategy,
+        )
 
         result = {
             "symbol": symbol,
@@ -119,6 +130,7 @@ class ScoreSymbolHandler:
             "f_score": fundamental.f_score,
             "z_score": fundamental.z_score,
             "m_score": fundamental.m_score,
+            "event": event,
         }
         return Ok(result)
 
@@ -129,17 +141,17 @@ class ScoreSymbolHandler:
         if self._fundamental_client:
             return self._fundamental_client.get(symbol)
         # Fallback: 기존 로직 직접 import
-        from core.scoring.fundamental import compute_fundamental_score  # type: ignore
-        return compute_fundamental_score(symbol)
+        from core.scoring.fundamental import compute_fundamental_score  # type: ignore[import-untyped]
+        return compute_fundamental_score(symbol)  # type: ignore[arg-type, call-arg]
 
     def _get_technical(self, symbol: str) -> dict:
         if self._technical_client:
             return self._technical_client.get(symbol)
-        from core.scoring.technical import compute_technical_score  # type: ignore
-        return compute_technical_score(symbol)
+        from core.scoring.technical import compute_technical_score  # type: ignore[import-untyped]
+        return compute_technical_score(symbol)  # type: ignore[call-arg]
 
     def _get_sentiment(self, symbol: str) -> dict:
         if self._sentiment_client:
             return self._sentiment_client.get(symbol)
-        from core.scoring.sentiment import compute_sentiment_score  # type: ignore
-        return compute_sentiment_score(symbol)
+        from core.scoring.sentiment import compute_sentiment_score  # type: ignore[import-untyped]
+        return compute_sentiment_score(symbol)  # type: ignore[arg-type]
