@@ -1,734 +1,1007 @@
-# Architecture Patterns: v1.1 Integration
+# Architecture Patterns: v1.2 Production Trading & Dashboard
 
-**Domain:** Quantitative trading system -- expanding from fundamental-only to multi-factor scoring, regime-aware signals, Korean market, and commercial API
-**Researched:** 2026-03-12
-**Overall Confidence:** HIGH (based on direct codebase analysis of 20K LOC across 8 bounded contexts)
+**Domain:** Automated trading pipeline, live execution, strategy/budget approval, and web dashboard integration into existing DDD architecture
+**Researched:** 2026-03-13
+**Overall Confidence:** HIGH (based on direct codebase analysis of existing 20K+ LOC system plus verified library research)
 
 ---
 
 ## Executive Summary
 
-The v1.0 system already has a well-structured DDD architecture with 8 bounded contexts (`data_ingest`, `scoring`, `signals`, `regime`, `portfolio`, `execution`, `valuation`, `backtest`), an `AsyncEventBus` (defined but not yet wired for cross-context communication), and a dual-database strategy (DuckDB for analytics, SQLite for operational data). The `core/` wrapper layer provides proven mathematical logic that DDD adapters delegate to.
+The v1.2 milestone introduces four capabilities -- automated pipeline scheduler, live trading, strategy/budget approval workflow, and web dashboard -- into an existing DDD system with 8 bounded contexts, a dual-database (DuckDB + SQLite) architecture, and a working but mostly unwired async event bus.
 
-The v1.1 features integrate as follows:
+The critical architectural finding is that these four features require **one new bounded context** (`scheduler`), **one new presentation layer** (`dashboard`), and **significant modifications to two existing contexts** (`execution` for live trading + approval workflow, `portfolio` for real-time monitoring). The existing event bus, which was defined but largely dormant in v1.0-v1.1, becomes the backbone for v1.2 -- the scheduler publishes pipeline stage events, the execution context publishes order events, and the dashboard subscribes to all of them for real-time updates.
 
-1. **Technical Scoring Engine** -- NOT a new bounded context. It extends the existing `scoring` context. The `TechnicalScore` VO already exists. The `core/scoring/technical.py` already computes RSI, MACD, MA, ADX, OBV. The gap is that `ScoringHandler._get_technical()` currently falls through to a core/ import that expects a pre-computed indicators dict. The integration point is building a proper `CoreTechnicalAdapter` in `scoring/infrastructure/` that takes a ticker, fetches OHLCV from DuckDB, computes indicators via `core/data/indicators.py`, then computes technical score via `core/scoring/technical.py`.
+The AlpacaExecutionAdapter already has a `paper=True` flag. Switching to live is a one-line configuration change (`paper=False`), but the real work is the safeguards around it: budget enforcement, daily spending limits, circuit breakers, and error recovery. These safeguards are new domain logic in `execution/domain/` that wraps the existing IBrokerAdapter.
 
-2. **Regime Detection** -- Already its own bounded context (`src/regime/`). The domain service, entities, VOs, repository, and handler are all implemented. The gap is: (a) no infrastructure adapter to fetch live VIX/S&P500/ADX/yield curve data, (b) `RegimeChangedEvent` is defined but never published to the `AsyncEventBus`, (c) `RegimeWeightAdjuster` protocol exists in `scoring` but only `NoOpRegimeAdjuster` is implemented.
+For the web dashboard, the recommended approach is **FastAPI + Jinja2 + HTMX + SSE** -- server-side rendered HTML with HTMX for partial updates and Server-Sent Events for real-time streaming. This avoids introducing a JavaScript SPA framework, stays within the Python-centric stack, and leverages the existing FastAPI infrastructure from the commercial API. The dashboard is a separate FastAPI app mounted alongside (not replacing) the commercial API.
 
-3. **Multi-Strategy Signal Fusion** -- The `signals` context already defines the 4-methodology fusion (CAN SLIM, Magic Formula, Dual Momentum, Trend Following) with `SignalFusionService`. The `core/signals/` has implementations for each. The gap is: individual methodology evaluators need to be wired as proper infrastructure adapters instead of lazy `from core.signals.xyz import` fallbacks in the handler. This is a wiring/stabilization task, not an architecture change.
-
-4. **Korean Market Support** -- This DOES require architectural changes. The `data_ingest` context currently hardcodes US market assumptions (SEC EDGAR for financials, yfinance for OHLCV, uppercase-only tickers). Korean market needs: (a) a `KRXDataClient` infrastructure adapter alongside `YFinanceClient`, (b) a `KISBrokerAdapter` in `execution/infrastructure/` alongside `AlpacaAdapter`, (c) ticker format changes (Korean tickers are 6-digit numbers like `005930`), (d) financial data from KIS API instead of SEC EDGAR. The pattern is: add new infrastructure adapters, keep domain pure.
-
-5. **Commercial FastAPI API** -- Already scaffolded at `commercial/api/` with routes for scoring, regime, and signals. The gap is: (a) missing signal fusion route in the v1 DDD-backed routers, (b) no rate limiting or Redis caching, (c) batch scoring needs optimization. The API is a thin presentation layer over existing DDD handlers -- no new bounded contexts needed.
-
-**Key architectural conclusion: No new bounded contexts are needed. All v1.1 features are either extensions to existing contexts (technical scoring, signal fusion) or new infrastructure adapters within existing contexts (Korean market, regime data fetching). The commercial API is a presentation layer concern.**
+**Key architectural decision: The pipeline scheduler, approval workflow, and live execution are personal-use features (not commercial). They share the same DDD handlers and domain logic as the CLI, but are orchestrated by a new `scheduler` bounded context instead of manual CLI commands.**
 
 ---
 
-## Current Architecture (As-Is)
+## Current Architecture (As-Is, post-v1.1)
 
-### Bounded Contexts and Their States
-
-| Context | DDD Layers | core/ Wrapper | Events Defined | Events Published | DB |
-|---------|-----------|---------------|----------------|------------------|----|
-| `data_ingest` | domain, infrastructure | `core/data/` | `DataIngestedEvent`, `QualityCheckFailedEvent` | Yes (in pipeline) | DuckDB |
-| `scoring` | domain, application, infrastructure | `core/scoring/` | `ScoreUpdatedEvent` | No (defined only) | SQLite |
-| `valuation` | domain, infrastructure | `core/valuation/` | None | N/A | DuckDB |
-| `signals` | domain, application, infrastructure | `core/signals/` | `SignalGeneratedEvent` | No (defined only) | SQLite, DuckDB |
-| `regime` | domain, application, infrastructure | `core/regime/` | `RegimeChangedEvent` | No (defined only) | SQLite |
-| `portfolio` | domain, application, infrastructure | personal/ | `PositionOpenedEvent`, `PositionClosedEvent`, `DrawdownAlertEvent` | No (defined only) | SQLite |
-| `execution` | domain, application, infrastructure | personal/ | None defined | N/A | SQLite |
-| `backtest` | domain, application, infrastructure | `core/backtest/` | None defined | N/A | DuckDB |
-
-### Key Architectural Patterns Already In Place
-
-1. **Adapter Pattern**: `core/` provides mathematical logic; `src/*/infrastructure/*_adapter.py` wraps it for DDD compliance. Example: `CoreScoringAdapter` wraps `core/scoring/fundamental.py`.
-
-2. **Repository Interface in Domain**: `IScoreRepository`, `ISignalRepository`, `IRegimeRepository` are ABCs defined in `domain/repositories.py`, implemented in `infrastructure/sqlite_repo.py`.
-
-3. **Value Object Validation**: All VOs inherit from `ValueObject` base class with `_validate()` method called on construction. Frozen dataclasses enforce immutability.
-
-4. **Command/Handler Pattern**: Application layer uses `Command` dataclasses dispatched to `Handler` classes. Handlers orchestrate: validate input -> call domain service -> save via repository -> return `Result[Ok, Err]`.
-
-5. **Dual Database**: DuckDB for analytical queries (OHLCV screening, batch operations); SQLite for operational persistence (scores, signals, regimes, positions, trade plans).
-
-6. **Protocol-Based Extension Points**: `RegimeWeightAdjuster(Protocol)` in `scoring/domain/services.py` is the designated hook for regime -> scoring integration.
-
-### Data Flow (Current)
+### System Overview
 
 ```
-User (CLI)
+User (CLI: Typer+Rich)
     |
     v
-DataPipeline.ingest_universe()
-    |-- YFinanceClient.fetch_ohlcv() --> DuckDB (ohlcv table)
-    |-- EdgartoolsClient.fetch_financials() --> DuckDB (financials table)
-    |-- publishes DataIngestedEvent (but no subscribers wired)
+bootstrap.py (Composition Root)
+    |-- SyncEventBus (CLI context, used for regime -> scoring weight adjustment)
+    |-- DBFactory (DuckDB analytics + SQLite operational)
+    |-- 5 handlers: score, signal, regime, portfolio, trade_plan
+    |-- 1 broker adapter: AlpacaExecutionAdapter (paper=True) or KisExecutionAdapter
     v
-ScoreSymbolHandler.handle()
-    |-- _get_fundamental() --> core/scoring/fundamental (lazy import)
-    |-- _get_technical() --> core/scoring/technical (lazy import)
-    |-- _get_sentiment() --> core/scoring/sentiment (lazy import)
-    |-- SafetyFilterService.check() --> SafetyGate VO
-    |-- CompositeScoringService.compute() --> CompositeScore VO
-    |-- IScoreRepository.save() --> SQLite
-    v
-GenerateSignalHandler.handle()
-    |-- CoreSignalAdapter.evaluate_all() or lazy core/ imports
-    |-- SignalFusionService.fuse() --> (direction, strength)
-    |-- ISignalRepository.save() --> SQLite
-    v
-TradePlanService.generate_plan()
-    |-- personal/execution/planner.plan_entry()
-    |-- Risk gates (drawdown, position limits)
-    |-- TradePlan VO --> SQLite
-    v
-Human Approval --> AlpacaAdapter.submit_order()
+Manual Pipeline: ingest -> score -> signal -> plan -> approve -> execute
+    (each step is a separate CLI command)
 ```
 
-**Critical observation**: The pipeline is currently procedural (each step calls the next). The `AsyncEventBus` exists but events are not published except in `DataPipeline`. This means scoring, signals, regime, and portfolio do NOT react to events -- they are called imperatively.
+### Key Existing Components
+
+| Component | State | v1.2 Impact |
+|-----------|-------|-------------|
+| `SyncEventBus` | Active, wires RegimeChangedEvent -> scoring weights | Must support async for scheduler/dashboard |
+| `AsyncEventBus` | Exists, unused in production | Becomes the primary bus for v1.2 |
+| `TradePlanHandler` | generate -> approve -> execute lifecycle | Extend with budget/strategy approval workflow |
+| `AlpacaExecutionAdapter` | paper=True, mock fallback | Add paper=False path with safeguards |
+| `DataPipeline` | async ingest_universe() | Becomes first stage of automated pipeline |
+| `ITradePlanRepository` | save/find_pending/find_by_symbol/update_status | Add find_by_date_range, budget tracking queries |
+| `TradePlanStatus` | PENDING/APPROVED/REJECTED/MODIFIED/EXECUTED/FAILED | Add BUDGET_CHECK, AUTO_APPROVED states |
+
+### Data Flow (Current -- Manual)
+
+```
+CLI: ingest AAPL MSFT GOOG  --> DataPipeline.ingest_universe()  --> DuckDB
+CLI: score AAPL              --> ScoreSymbolHandler.handle()     --> SQLite
+CLI: signal AAPL             --> GenerateSignalHandler.handle()  --> SQLite
+CLI: plan AAPL               --> TradePlanHandler.generate()     --> SQLite (PENDING)
+CLI: approve AAPL            --> TradePlanHandler.approve()      --> SQLite (APPROVED)
+CLI: execute AAPL            --> TradePlanHandler.execute()      --> Alpaca (paper)
+CLI: monitor                 --> Position/Portfolio read          --> Display
+```
+
+Each step is triggered manually by the user via CLI commands. There is no orchestration layer that chains these steps together.
 
 ---
 
-## Target Architecture (v1.1 To-Be)
+## Target Architecture (v1.2 To-Be)
 
-### Component Boundary Changes
-
-No new bounded contexts. Changes are within existing contexts:
+### New Components
 
 ```
-EXISTING CONTEXTS (modified):
-  data_ingest/
-    infrastructure/
-      + krx_data_client.py        # Korean OHLCV + financials via KIS API
-      + market_adapter_factory.py  # Factory: market -> appropriate client
-      ~ yfinance_client.py        # No change
-      ~ duckdb_store.py           # Add market column to tables
-
-  scoring/
-    infrastructure/
-      + core_technical_adapter.py  # Proper adapter: ticker -> OHLCV -> indicators -> score
-      ~ core_scoring_adapter.py   # No change
+NEW BOUNDED CONTEXT:
+  src/scheduler/
     domain/
-      ~ value_objects.py           # TechnicalScore already exists, no change
-
-  regime/
-    infrastructure/
-      + regime_data_fetcher.py     # Fetch VIX, S&P500, ADX, yield curve from yfinance/FRED
+      entities.py          # PipelineRun, ScheduleConfig
+      value_objects.py     # PipelineStage, RunStatus, DailyBudget, StrategyApproval
+      events.py            # PipelineStartedEvent, StageCompletedEvent, PipelineCompletedEvent
+      services.py          # PipelineOrchestratorService (chains stages)
+      repositories.py      # IPipelineRunRepository, IScheduleConfigRepository
+      __init__.py
     application/
-      ~ handlers.py               # Wire data fetcher, publish RegimeChangedEvent
-
-  signals/
+      commands.py          # RunPipelineCommand, ApproveStrategyCommand, SetBudgetCommand
+      handlers.py          # PipelineRunHandler, StrategyApprovalHandler
+      __init__.py
     infrastructure/
-      + methodology_adapters.py    # Proper adapters for each of 4 strategies
-      ~ core_signal_adapter.py     # Already wraps all 4, may just need cleanup
+      apscheduler_adapter.py   # APScheduler integration
+      sqlite_pipeline_repo.py  # Pipeline run history
+      sqlite_config_repo.py    # Schedule + approval config
+      __init__.py
+    DOMAIN.md
 
-  execution/
+NEW PRESENTATION LAYER:
+  dashboard/
+    app.py                 # FastAPI app (personal dashboard, not commercial)
+    routes/
+      overview.py          # Portfolio overview, P&L
+      pipeline.py          # Pipeline status, history
+      approval.py          # Strategy/budget approval forms
+      trades.py            # Trade history, execution log
+      risk.py              # Risk dashboard (drawdown, exposure)
+      sse.py               # SSE endpoint for real-time updates
+    templates/
+      base.html            # Jinja2 base template (HTMX + DaisyUI/Tailwind)
+      overview.html         # Portfolio overview page
+      pipeline.html        # Pipeline status page
+      approval.html        # Approval workflow page
+      trades.html          # Trade history page
+      risk.html            # Risk metrics page
+      partials/            # HTMX partial templates for live updates
+    static/
+      css/                 # Tailwind output
+      js/                  # Minimal JS (HTMX only, no framework)
+    __init__.py
+
+MODIFIED EXISTING CONTEXTS:
+  src/execution/
+    domain/
+      value_objects.py     # + DailyBudget, BudgetStatus, ExecutionMode (PAPER/LIVE)
+      events.py            # Already has OrderExecutedEvent, OrderFailedEvent
+      services.py          # + BudgetEnforcementService, CircuitBreakerService
+      repositories.py      # + IBudgetRepository
+    application/
+      commands.py          # + AutoExecuteWithBudgetCommand
+      handlers.py          # + AutoExecutionHandler (budget-checked execution)
     infrastructure/
-      + kis_broker_adapter.py      # Korean broker (KIS OpenAPI)
-      ~ alpaca_adapter.py          # No change
+      alpaca_adapter.py    # paper=False support (already designed, add safeguards)
+      sqlite_budget_repo.py  # NEW: daily budget tracking
+      order_monitor.py       # NEW: real-time order status polling
 
-  portfolio/
+  src/portfolio/
     domain/
-      ~ value_objects.py           # Ticker validation must support Korean format
+      events.py            # Already has DrawdownAlertEvent (wire it to bus)
+    application/
+      handlers.py          # + get_dashboard_summary() query method
 
-EXISTING LAYERS (modified):
-  shared/
-    domain/
-      + market.py                  # Market enum (US, KR) used across contexts
-
-  commercial/api/
-    routers/
-      + signals.py                 # v1 DDD-backed signal fusion endpoint
-      ~ scoring.py                 # Add batch scoring optimization
-      ~ regime.py                  # Add historical regime endpoint
-    + middleware/
-      + rate_limiter.py            # Token bucket rate limiting
-      + cache.py                   # Redis cache layer
+  src/shared/
+    infrastructure/
+      event_bus.py         # Already async-capable, no changes needed
 ```
 
-### Integration Point 1: Technical Scoring Engine
+### Component Boundaries (v1.2)
 
-**Current state**: `TechnicalScore` VO exists in `scoring/domain/value_objects.py`. `core/scoring/technical.py` computes the score. `core/data/indicators.py` computes RSI, MACD, MA, ADX, OBV.
+| Component | Responsibility | Communicates With | New/Modified |
+|-----------|---------------|-------------------|--------------|
+| `scheduler` | Pipeline orchestration, cron scheduling, strategy/budget config | All handlers via commands, event bus | **NEW** bounded context |
+| `execution` (modified) | Live execution with budget enforcement, order monitoring | scheduler (receives auto-execute commands), portfolio (risk checks), broker (Alpaca live) | **Modified** -- budget service, live mode, circuit breaker |
+| `portfolio` (modified) | Dashboard summary queries, real-time P&L | execution (receives order results), dashboard (serves summaries) | **Modified** -- dashboard query methods |
+| `dashboard` | Web UI presentation layer | scheduler, execution, portfolio via handlers + SSE via event bus | **NEW** presentation layer |
+| `data_ingest` | Unchanged | scheduler triggers ingest_universe() | Unchanged |
+| `scoring` | Unchanged | scheduler triggers score commands | Unchanged |
+| `signals` | Unchanged | scheduler triggers signal commands | Unchanged |
+| `regime` | Unchanged | scheduler triggers regime detection | Unchanged |
 
-**Gap**: `ScoreSymbolHandler._get_technical()` does a lazy `from core.scoring.technical import compute_technical_score`, which expects `(df, indicators)` but the handler passes just a symbol string.
+---
 
-**Solution**: Create `CoreTechnicalAdapter` in `scoring/infrastructure/`:
+## Integration Point 1: Automated Pipeline Scheduler
 
-```python
-# scoring/infrastructure/core_technical_adapter.py
-class CoreTechnicalAdapter:
-    """Fetches OHLCV from DuckDB, computes indicators, returns technical score."""
+### Architecture Decision: APScheduler as In-Process Scheduler
 
-    def __init__(self, duckdb_store: DuckDBStore):
-        self._store = duckdb_store
+**Use APScheduler** (v3.x stable, not v4 alpha) with `AsyncIOScheduler` running inside the same process as the FastAPI dashboard. APScheduler provides persistent job stores (SQLite-backed), cron-style scheduling, and misfire grace time -- all needed for a daily trading pipeline.
 
-    def compute(self, ticker: str) -> dict:
-        # 1. Get OHLCV from DuckDB (already ingested)
-        df = self._store.get_ohlcv(ticker)
-        if df.empty:
-            return {"technical_score": 50.0}  # neutral fallback
+**Why not systemd cron / external scheduler:** The pipeline scheduler needs access to the same DDD handlers, event bus, and database connections as the rest of the system. Running it in-process avoids inter-process communication complexity. APScheduler's SQLite job store provides restart resilience.
 
-        # 2. Compute indicators via core/data/indicators.py
-        from core.data.indicators import compute_all
-        indicators = compute_all(df)
+**Why not Celery/Temporal:** Overkill for a single-user system with one daily pipeline run. The pipeline is sequential (ingest -> score -> signal -> plan -> execute), not a distributed workflow.
 
-        # 3. Compute technical score via core/scoring/technical.py
-        from core.scoring.technical import compute_technical_score
-        return compute_technical_score(df, indicators)
-```
+### Pipeline Orchestration Service
 
-**Modification to `ScoreSymbolHandler`**: Inject `CoreTechnicalAdapter` as `technical_client` parameter. Remove lazy import fallback.
-
-**Data flow change**: None. Technical scoring already fits within the `scoring` handler's existing flow. The adapter just needs to be properly wired.
-
-**Complexity**: LOW. This is a wiring task, not a design task. The math exists in `core/scoring/technical.py` and `core/data/indicators.py`.
-
-### Integration Point 2: Regime Detection (Live Data + EventBus Wiring)
-
-**Current state**: `regime/` context is complete: `RegimeDetectionService` classifies Bull/Bear/Sideways/Crisis from VIX, S&P500, ADX, YieldCurve. `DetectRegimeHandler` creates `MarketRegime` entity. `SqliteRegimeRepository` persists results. BUT: no way to fetch live indicator data, and `RegimeChangedEvent` is never published.
-
-**Gap 1 -- Data Fetching**: Handler requires `vix`, `sp500_price`, `sp500_ma200`, `adx`, `yield_spread` as command inputs. No infrastructure adapter fetches these.
-
-**Solution**: Create `RegimeDataFetcher` in `regime/infrastructure/`:
+The `PipelineOrchestratorService` in `scheduler/domain/` defines the pipeline as a sequence of stages. Each stage maps to an existing DDD handler:
 
 ```python
-# regime/infrastructure/regime_data_fetcher.py
-class RegimeDataFetcher:
-    """Fetches VIX, S&P 500 price/MA200, ADX, yield curve from market data."""
+# scheduler/domain/services.py
+class PipelineOrchestratorService:
+    """Orchestrates the daily trading pipeline as a sequence of stages.
 
-    def __init__(self, duckdb_store: DuckDBStore):
-        self._store = duckdb_store
+    Each stage wraps an existing DDD handler. The service enforces
+    stage ordering, tracks progress, and publishes stage events.
+    """
 
-    async def fetch(self) -> DetectRegimeCommand:
-        # VIX: fetch ^VIX from yfinance (or DuckDB if pre-ingested)
-        # S&P 500: fetch ^GSPC, compute MA200
-        # ADX: compute from S&P 500 OHLCV
-        # Yield curve: fetch ^TNX (10Y) and ^IRX (3M) or use FRED API
+    STAGES = [
+        PipelineStage.DATA_INGEST,    # DataPipeline.ingest_universe()
+        PipelineStage.REGIME_DETECT,   # DetectRegimeHandler.handle()
+        PipelineStage.SCORE,           # ScoreSymbolHandler.handle() x N tickers
+        PipelineStage.SIGNAL,          # GenerateSignalHandler.handle() x scored tickers
+        PipelineStage.PLAN,            # TradePlanHandler.generate() x BUY signals
+        PipelineStage.BUDGET_CHECK,    # BudgetEnforcementService.check()
+        PipelineStage.AUTO_EXECUTE,    # TradePlanHandler.execute() within budget
+    ]
+
+    def run_pipeline(self, run_config: PipelineRunConfig) -> PipelineRun:
+        """Execute all stages sequentially. Returns run summary."""
         ...
 ```
 
-**Gap 2 -- EventBus Publishing**: `MarketRegime.transition_to()` creates `RegimeChangedEvent` and calls `self.add_domain_event()`, but the handler never extracts and publishes domain events.
-
-**Solution**: Modify `DetectRegimeHandler` to:
-1. After saving, check if regime changed vs previous
-2. If changed, publish `RegimeChangedEvent` to `AsyncEventBus`
-3. Subscribers: `CompositeScoringService` adjusts weights via `RegimeWeightAdjuster`
-
-**Gap 3 -- Regime -> Scoring Integration**: `RegimeWeightAdjuster(Protocol)` is defined. Only `NoOpRegimeAdjuster` exists. Need a real implementation.
-
-**Solution**: Create `LiveRegimeAdjuster` implementing `RegimeWeightAdjuster`:
+### Pipeline Run Entity
 
 ```python
-# scoring/infrastructure/regime_weight_adjuster.py
-class LiveRegimeAdjuster:
-    """Adjusts scoring weights based on current market regime."""
-
-    def __init__(self, regime_repo: IRegimeRepository):
-        self._regime_repo = regime_repo
-
-    def adjust_weights(self, strategy: str, regime_type: str | None = None) -> dict[str, float]:
-        if regime_type is None:
-            latest = self._regime_repo.find_latest()
-            regime_type = latest.regime_type.value if latest else None
-
-        base_weights = STRATEGY_WEIGHTS.get(strategy, STRATEGY_WEIGHTS[DEFAULT_STRATEGY])
-
-        if regime_type == "Crisis":
-            # In crisis: boost fundamental weight, reduce technical
-            return {"fundamental": 0.55, "technical": 0.20, "sentiment": 0.25}
-        elif regime_type == "Bear":
-            return {"fundamental": 0.45, "technical": 0.30, "sentiment": 0.25}
-        elif regime_type == "Bull":
-            return {"fundamental": 0.30, "technical": 0.45, "sentiment": 0.25}
-        return base_weights
+# scheduler/domain/entities.py
+@dataclass
+class PipelineRun(Entity):
+    run_id: str
+    started_at: datetime
+    completed_at: datetime | None = None
+    status: RunStatus = RunStatus.RUNNING  # RUNNING, COMPLETED, FAILED, ABORTED
+    stages: list[StageResult] = field(default_factory=list)
+    tickers_processed: int = 0
+    signals_generated: int = 0
+    plans_created: int = 0
+    orders_executed: int = 0
+    budget_remaining: float = 0.0
 ```
 
-**Data flow change**: Regime detection becomes a prerequisite step in the scoring pipeline. Order: `DataIngest -> Regime -> Scoring -> Signals`.
-
-**Complexity**: MEDIUM. Data fetching requires new infrastructure code. EventBus wiring requires modifying handlers. But all domain logic is already implemented.
-
-### Integration Point 3: Multi-Strategy Signal Fusion
-
-**Current state**: All 4 methodology evaluators exist in `core/signals/` (canslim.py, magic_formula.py, dual_momentum.py, trend_following.py). `SignalFusionService` in `signals/domain/services.py` performs 3/4 consensus voting. `GenerateSignalHandler` orchestrates the flow.
-
-**Gap**: The handler has two code paths:
-1. `_evaluate_via_adapter()` -- uses `CoreSignalAdapter`, requires `symbol_data` dict
-2. `_evaluate_via_clients()` -- falls through to lazy `from core.signals.xyz import` calls
-
-Neither path is cleanly wired. The handler mixes infrastructure concerns (core/ imports) into application logic.
-
-**Solution**: Clean up `CoreSignalAdapter` to handle the full flow internally:
+### Schedule Configuration
 
 ```python
-# signals/infrastructure/core_signal_adapter.py (enhanced)
-class CoreSignalAdapter:
-    """Evaluates all 4 methodologies using core/ implementations."""
-
-    def __init__(self, duckdb_store: DuckDBStore):
-        self._store = duckdb_store
-
-    def evaluate_all(self, ticker: str) -> list[dict]:
-        # 1. Fetch OHLCV + financials from DuckDB
-        # 2. Prepare symbol_data dict
-        # 3. Run each evaluator (canslim, magic_formula, etc.)
-        # 4. Return standardized results
-        ...
+# scheduler/domain/value_objects.py
+@dataclass(frozen=True)
+class ScheduleConfig(ValueObject):
+    """Daily pipeline schedule configuration."""
+    cron_expression: str = "0 10 * * 1-5"  # 10:00 AM, weekdays (after market open)
+    market: str = "US"
+    universe: str = "sp500"
+    enabled: bool = True
+    max_tickers: int = 100  # limit per run to control duration
 ```
 
-**Modification to `GenerateSignalHandler`**: Simplify to single path -- always use adapter. Remove lazy imports.
+### APScheduler Integration
 
-**Data flow change**: None. Signal generation already follows scoring in the pipeline.
-
-**Complexity**: LOW. This is adapter cleanup, not new logic.
-
-### Integration Point 4: Korean Market Support
-
-**Current state**: The system assumes US market exclusively:
-- `data_ingest/domain/value_objects.py`: `Ticker` regex requires `^[A-Z]{1,10}$`
-- `data_ingest/infrastructure/yfinance_client.py`: Wraps `CoreDataClient` (US-focused)
-- `data_ingest/infrastructure/edgartools_client.py`: SEC EDGAR = US only
-- `execution/infrastructure/alpaca_adapter.py`: Alpaca = US only
-- `scoring/domain/value_objects.py`: `Symbol` requires uppercase letters only
-
-**Changes needed**:
-
-1. **Shared Market Enum** (new file in `shared/domain/`):
 ```python
-# shared/domain/market.py
-class Market(Enum):
-    US = "US"      # NYSE, NASDAQ
-    KR = "KR"      # KOSPI, KOSDAQ
+# scheduler/infrastructure/apscheduler_adapter.py
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+
+class APSchedulerAdapter:
+    """Wraps APScheduler for pipeline scheduling."""
+
+    def __init__(self, db_path: str, pipeline_handler: PipelineRunHandler):
+        jobstores = {"default": SQLAlchemyJobStore(url=f"sqlite:///{db_path}")}
+        self._scheduler = AsyncIOScheduler(jobstores=jobstores)
+        self._handler = pipeline_handler
+
+    async def start(self) -> None:
+        self._scheduler.start()
+
+    async def stop(self) -> None:
+        self._scheduler.shutdown()
+
+    def schedule_daily_pipeline(self, config: ScheduleConfig) -> None:
+        self._scheduler.add_job(
+            self._handler.run_daily,
+            trigger=CronTrigger.from_crontab(config.cron_expression),
+            id="daily_pipeline",
+            replace_existing=True,
+            misfire_grace_time=3600,  # 1 hour grace for missed runs
+        )
 ```
 
-2. **Ticker Validation** (modify `data_ingest/domain/value_objects.py`):
+### Data Flow Change
+
+```
+BEFORE (v1.1): User manually runs each CLI command in sequence
+AFTER  (v1.2): APScheduler triggers PipelineOrchestratorService daily
+
+APScheduler (cron: "0 10 * * 1-5")
+    |
+    v
+PipelineOrchestratorService.run_pipeline()
+    |
+    |-- Stage 1: DataPipeline.ingest_universe()        --> DuckDB
+    |   publishes: StageCompletedEvent(DATA_INGEST)
+    |
+    |-- Stage 2: DetectRegimeHandler.handle()           --> SQLite
+    |   publishes: StageCompletedEvent(REGIME_DETECT)
+    |
+    |-- Stage 3: ScoreSymbolHandler.handle() x N        --> SQLite
+    |   publishes: StageCompletedEvent(SCORE)
+    |
+    |-- Stage 4: GenerateSignalHandler.handle() x M     --> SQLite
+    |   publishes: StageCompletedEvent(SIGNAL)
+    |
+    |-- Stage 5: TradePlanHandler.generate() x BUY      --> SQLite
+    |   publishes: StageCompletedEvent(PLAN)
+    |
+    |-- Stage 6: BudgetEnforcementService.check()
+    |   filters plans within daily budget
+    |
+    |-- Stage 7: AutoExecutionHandler.execute() x approved
+    |   publishes: OrderExecutedEvent / OrderFailedEvent
+    |
+    v
+PipelineRun (COMPLETED) --> SQLite (pipeline history)
+    |
+    publishes: PipelineCompletedEvent
+    |
+    v
+Dashboard SSE --> Browser update
+```
+
+**Complexity:** MEDIUM. The orchestration logic is new but each stage delegates to existing handlers. The main risk is error handling between stages (what happens if scoring fails for 50% of tickers -- does the pipeline continue or abort?).
+
+---
+
+## Integration Point 2: Strategy/Budget Approval Workflow
+
+### Architecture Decision: Approval as Domain State, Not External Workflow
+
+The approval workflow is a domain concept in the `scheduler` bounded context, not an external workflow engine. The user approves a **strategy configuration** (which strategies to use, risk parameters) and a **daily budget** (max capital to deploy per day). Individual trade plans are then auto-approved within these constraints.
+
+This is deliberately different from v1.0's per-trade approval. In v1.2, the human approves the _rules_, not each _trade_.
+
+### Strategy Approval Value Objects
+
 ```python
-# Korean tickers are 6-digit numbers: "005930" (Samsung)
-# US tickers are 1-10 uppercase letters: "AAPL"
-_US_TICKER_RE = re.compile(r"^[A-Z]{1,10}$")
-_KR_TICKER_RE = re.compile(r"^\d{6}$")
+# scheduler/domain/value_objects.py
+@dataclass(frozen=True)
+class StrategyApproval(ValueObject):
+    """Human-approved strategy configuration for automated pipeline."""
+    strategy: str = "swing"                # swing | position
+    min_composite_score: float = 65.0      # minimum score to generate signal
+    min_signal_strength: float = 0.6       # minimum fusion strength for trade plan
+    max_positions: int = 10                # maximum concurrent positions
+    max_sector_exposure: float = 0.25      # 25% sector cap
+    approved_at: datetime | None = None
+    approved_by: str = "owner"             # single-user system
+    valid_until: datetime | None = None    # expiry for re-approval
+
+    def is_valid(self) -> bool:
+        if self.valid_until is None:
+            return self.approved_at is not None
+        return self.approved_at is not None and datetime.now(UTC) < self.valid_until
 
 @dataclass(frozen=True)
-class Ticker(ValueObject):
-    ticker: str
-    market: str = "US"
+class DailyBudget(ValueObject):
+    """Daily capital deployment limit for automated execution."""
+    max_daily_capital: float = 5000.0      # max USD to deploy per day
+    max_orders_per_day: int = 3            # max number of orders per day
+    max_single_order: float = 2500.0       # max capital per single order
+    approved_at: datetime | None = None
+    valid_until: datetime | None = None
 
-    def _validate(self) -> None:
-        if self.market == "KR":
-            if not _KR_TICKER_RE.match(self.ticker):
-                raise ValueError(f"KR ticker must be 6 digits: {self.ticker}")
-        else:
-            if not _US_TICKER_RE.match(self.ticker):
-                raise ValueError(f"US ticker must be uppercase letters: {self.ticker}")
+    def is_valid(self) -> bool:
+        if self.valid_until is None:
+            return self.approved_at is not None
+        return self.approved_at is not None and datetime.now(UTC) < self.valid_until
 ```
 
-3. **KRX Data Client** (new file in `data_ingest/infrastructure/`):
+### Approval State Machine
+
+```
+StrategyApproval lifecycle:
+  DRAFT --> [user reviews] --> APPROVED --> [time passes or user revokes] --> EXPIRED/REVOKED
+                          |
+                          +--> REJECTED
+
+DailyBudget lifecycle:
+  DRAFT --> [user sets amount] --> ACTIVE --> [daily reset at market open] --> ACTIVE (reset)
+                              |                                          |
+                              +--> PAUSED [user pauses]                  +--> EXHAUSTED (daily limit hit)
+
+TradePlan lifecycle (v1.2 extended):
+  PENDING --> BUDGET_CHECK --> AUTO_APPROVED --> EXECUTED
+                           |                |
+                           +--> BUDGET_EXCEEDED (deferred to next day)
+                                            |
+                                            +--> FAILED
+```
+
+### Budget Enforcement Service
+
 ```python
-# data_ingest/infrastructure/krx_data_client.py
-class KRXDataClient:
-    """Fetches Korean market data via KIS OpenAPI or pykrx."""
+# execution/domain/services.py (new addition)
+class BudgetEnforcementService:
+    """Enforces daily budget limits on trade plan auto-execution."""
 
-    async def fetch_ohlcv(self, ticker: str, days: int = 756) -> pd.DataFrame:
-        # KIS OpenAPI: domestic stock daily price
-        # or pykrx library for historical data
-        ...
-
-    async def fetch_financials(self, ticker: str) -> list[dict]:
-        # KIS API: financial statement data
-        # Korean financials use different reporting standards (K-IFRS)
-        ...
+    def check_budget(
+        self,
+        plan: TradePlan,
+        budget: DailyBudget,
+        today_spent: float,
+        today_orders: int,
+    ) -> BudgetCheckResult:
+        if not budget.is_valid():
+            return BudgetCheckResult(allowed=False, reason="Budget not approved")
+        if today_spent + plan.position_value > budget.max_daily_capital:
+            return BudgetCheckResult(allowed=False, reason="Daily capital limit exceeded")
+        if today_orders >= budget.max_orders_per_day:
+            return BudgetCheckResult(allowed=False, reason="Daily order count limit exceeded")
+        if plan.position_value > budget.max_single_order:
+            return BudgetCheckResult(allowed=False, reason="Single order limit exceeded")
+        return BudgetCheckResult(allowed=True, remaining=budget.max_daily_capital - today_spent - plan.position_value)
 ```
 
-4. **Market-Aware Data Pipeline** (modify `data_ingest/infrastructure/pipeline.py`):
-```python
-class DataPipeline:
-    def __init__(self, market: str = "US", ...):
-        self._market = market
-        if market == "KR":
-            self._data_client = KRXDataClient(self._semaphore)
-        else:
-            self._data_client = YFinanceClient(self._semaphore)
+### Dashboard Approval Flow
+
+```
+User opens Dashboard --> Approval page
+    |
+    v
+Sees current strategy config + daily budget
+    |-- Modifies parameters (score threshold, budget, etc.)
+    |-- Clicks "Approve Strategy" or "Set Daily Budget"
+    |
+    v
+POST /dashboard/api/approve-strategy  --> StrategyApprovalHandler.approve()
+POST /dashboard/api/set-budget        --> StrategyApprovalHandler.set_budget()
+    |
+    v
+Config stored in SQLite --> Scheduler reads at next pipeline run
 ```
 
-5. **KIS Broker Adapter** (new file in `execution/infrastructure/`):
-```python
-# execution/infrastructure/kis_broker_adapter.py
-class KISBrokerAdapter:
-    """Korean Investment & Securities OpenAPI broker adapter."""
-
-    def __init__(self, app_key: str, app_secret: str, paper: bool = True):
-        self._base_url = "https://openapivts.koreainvestment.com:29443" if paper \
-            else "https://openapi.koreainvestment.com:9443"
-        ...
-
-    async def submit_order(self, plan: TradePlan) -> OrderResult:
-        # KIS API: domestic stock order
-        ...
-```
-
-6. **DuckDB Schema** (modify `data_ingest/infrastructure/duckdb_store.py`):
-```sql
--- Add market column to existing tables
-ALTER TABLE ohlcv ADD COLUMN market VARCHAR DEFAULT 'US';
--- Update PRIMARY KEY to include market
--- (requires table recreation since DuckDB doesn't support ALTER PK)
-```
-
-**Data flow change**: The pipeline gains a `market` parameter that selects the appropriate infrastructure adapters. Domain logic (scoring, signals, regime) remains market-agnostic -- they operate on the same VOs regardless of market. Regime detection is US-specific (VIX, S&P 500) and should not apply to Korean stocks directly.
-
-**Key constraint**: Korean market scoring works for technicals (OHLCV is universal) but NOT for fundamentals (no SEC EDGAR, different financial reporting). The fundamental scoring path needs a Korean-specific adapter or must gracefully degrade when SEC data is unavailable.
-
-**Complexity**: HIGH. This touches data ingestion, ticker validation, broker integration, and financial data sources. But the DDD architecture handles it cleanly -- new infrastructure adapters, domain stays pure.
-
-### Integration Point 5: Commercial FastAPI API
-
-**Current state**: `commercial/api/` has:
-- `main.py`: FastAPI app with health, legacy routes, v1 DDD routes
-- `routers/scoring.py`: POST `/v1/score/{symbol}`, GET `/v1/score/{symbol}/latest`
-- `routers/regime.py`: GET `/v1/regime/current`
-- `schemas.py`: Pydantic models with disclaimer
-- `dependencies.py`: DI for handlers and repos
-
-**Gap**: Missing signal fusion v1 router, no rate limiting, no caching, no batch optimization, no API key management beyond basic verification.
-
-**Changes needed**:
-
-1. **Signal Fusion Router** (new file):
-```python
-# commercial/api/routers/signals.py
-router = APIRouter(prefix="/v1/signals", tags=["Signals"])
-
-@router.post("/{symbol}", response_model=SignalResponse)
-async def generate_signal(symbol: str, ...):
-    # Delegates to GenerateSignalHandler
-    ...
-```
-
-2. **Rate Limiting Middleware**:
-```python
-# commercial/api/middleware/rate_limiter.py
-# Token bucket per API key, configurable per plan tier
-```
-
-3. **Redis Caching**:
-```python
-# commercial/api/middleware/cache.py
-# Cache scoring results by (symbol, strategy) with TTL
-# Cache regime results with shorter TTL
-```
-
-4. **Batch Scoring Optimization**:
-```python
-@router.post("/batch", response_model=BatchScoreResponse)
-async def batch_score(request: BatchScoreRequest):
-    # Run scoring concurrently for up to 20 symbols
-    results = await asyncio.gather(*[score_one(s) for s in request.symbols])
-    ...
-```
-
-**Data flow change**: None. The API is a thin presentation layer. It calls the same DDD handlers that the CLI uses.
-
-**Complexity**: LOW-MEDIUM. The API scaffolding exists. Adding routes is straightforward. Rate limiting and caching are infrastructure concerns.
+**Complexity:** MEDIUM. The approval logic is straightforward state management. The main design challenge is defining the right granularity -- approving a strategy vs. approving individual trades vs. approving a daily budget. The recommended approach (approve rules, auto-execute within rules) matches the project constraint: "human approves strategy + daily budget, execution is automatic."
 
 ---
 
-## Data Flow (v1.1 Target)
+## Integration Point 3: Alpaca Live Trading
 
-### Daily Screening Pipeline
+### Architecture Decision: Same Adapter, Configuration Switch + Safeguard Layer
 
-```
-1. DataIngest
-   |-- Market=US: YFinanceClient + EdgartoolsClient -> DuckDB
-   |-- Market=KR: KRXDataClient -> DuckDB
-   |-- Publishes DataIngestedEvent
-   |
-   v
-2. Regime Detection (US market indicators)
-   |-- RegimeDataFetcher: VIX, S&P500, ADX, YieldCurve
-   |-- RegimeDetectionService.detect() -> RegimeType + confidence
-   |-- Publishes RegimeChangedEvent
-   |-- MarketRegime -> SQLite
-   |
-   v
-3. Scoring (per ticker)
-   |-- CoreScoringAdapter: fundamental score (F/Z/M/G-Score)
-   |-- CoreTechnicalAdapter: technical score (RSI/MACD/MA/ADX/OBV)
-   |-- Sentiment: neutral 50 (Phase 1), or external API later
-   |-- LiveRegimeAdjuster: adjusts weights based on current regime
-   |-- CompositeScoringService.compute() -> CompositeScore
-   |-- Publishes ScoreUpdatedEvent
-   |-- CompositeScore -> SQLite
-   |
-   v
-4. Signal Fusion (per ticker with score >= threshold)
-   |-- CoreSignalAdapter: 4 methodology evaluators
-   |-- SignalFusionService.fuse() -> consensus direction + strength
-   |-- Publishes SignalGeneratedEvent
-   |-- Signal -> SQLite
-   |
-   v
-5. Trade Plan (personal only, BUY signals)
-   |-- TradePlanService.generate_plan()
-   |-- Risk gates (drawdown, position limits, sector limits)
-   |-- TradePlan -> SQLite
-   |-- Human approval -> Execution
+The existing `AlpacaExecutionAdapter` already parameterizes `paper=True`. Live trading changes this to `paper=False`. However, live trading requires a safeguard layer that does not exist in v1.0.
+
+**What changes for live:**
+
+```python
+# settings.py (extended)
+class Settings(BaseSettings):
+    # Existing
+    ALPACA_API_KEY: Optional[str] = None
+    ALPACA_SECRET_KEY: Optional[str] = None
+
+    # NEW for v1.2
+    ALPACA_LIVE_API_KEY: Optional[str] = None    # separate live keys
+    ALPACA_LIVE_SECRET_KEY: Optional[str] = None
+    EXECUTION_MODE: str = "paper"                 # "paper" | "live"
+    LIVE_MAX_DAILY_CAPITAL: float = 5000.0
+    LIVE_MAX_SINGLE_ORDER: float = 2500.0
+    LIVE_CIRCUIT_BREAKER_LOSS: float = 0.03       # 3% daily loss triggers halt
 ```
 
-### EventBus Subscription Map (Target)
+### Safeguard Architecture
+
+The safeguard layer wraps `IBrokerAdapter` with pre-execution checks:
+
+```python
+# execution/domain/services.py (new)
+class SafeExecutionService:
+    """Wraps broker adapter with safety checks for live trading.
+
+    Enforces: budget limits, circuit breaker, position limits, drawdown defense.
+    All checks happen BEFORE the order reaches the broker adapter.
+    """
+
+    def __init__(
+        self,
+        broker: IBrokerAdapter,
+        budget_service: BudgetEnforcementService,
+        circuit_breaker: CircuitBreakerService,
+    ):
+        self._broker = broker
+        self._budget = budget_service
+        self._breaker = circuit_breaker
+
+    def execute_safely(self, spec: OrderSpec, budget: DailyBudget, ...) -> OrderResult:
+        # 1. Circuit breaker check (daily loss limit)
+        if self._breaker.is_tripped():
+            return OrderResult(status="CIRCUIT_BREAKER_TRIPPED", ...)
+
+        # 2. Budget enforcement
+        budget_check = self._budget.check_budget(...)
+        if not budget_check.allowed:
+            return OrderResult(status="BUDGET_EXCEEDED", ...)
+
+        # 3. Execute via broker
+        result = self._broker.submit_order(spec)
+
+        # 4. Update circuit breaker state
+        self._breaker.record_execution(result)
+
+        return result
+```
+
+### Circuit Breaker Service
+
+```python
+# execution/domain/services.py (new)
+class CircuitBreakerService:
+    """Halts all execution if daily losses exceed threshold.
+
+    Implements the 3-tier drawdown defense from project constraints:
+    - Tier 1 (10%): no new entries, monitoring only
+    - Tier 2 (15%): reduce positions 50%
+    - Tier 3 (20%): full liquidation, 1-month cooldown
+    """
+
+    def __init__(self, loss_threshold: float = 0.03):
+        self._daily_loss_threshold = loss_threshold
+        self._tripped = False
+        self._daily_pnl = 0.0
+
+    def is_tripped(self) -> bool:
+        return self._tripped
+
+    def record_execution(self, result: OrderResult) -> None:
+        # Track daily P&L from filled orders
+        ...
+
+    def reset_daily(self) -> None:
+        """Called at market open to reset daily circuit breaker."""
+        self._tripped = False
+        self._daily_pnl = 0.0
+```
+
+### Order Monitoring
+
+For live trading, the system needs to poll Alpaca for order status updates (fills, partial fills, rejections). This is a new infrastructure concern:
+
+```python
+# execution/infrastructure/order_monitor.py
+class AlpacaOrderMonitor:
+    """Polls Alpaca for order status updates and publishes events.
+
+    Runs as a background task in the FastAPI/scheduler process.
+    Polling interval: every 30 seconds during market hours.
+    """
+
+    def __init__(self, adapter: AlpacaExecutionAdapter, bus: AsyncEventBus):
+        self._adapter = adapter
+        self._bus = bus
+
+    async def poll_orders(self) -> None:
+        """Check pending orders for status changes."""
+        # Get open orders from Alpaca
+        # Compare with local state
+        # Publish OrderExecutedEvent / OrderFailedEvent for changes
+        ...
+```
+
+### Paper-to-Live Migration Path
 
 ```
-DataIngestedEvent
-  -> RegimeDataFetcher (trigger regime check when new data arrives)
-  -> (future: auto-score new tickers)
+Phase 1 (current): paper=True, manual CLI execution
+Phase 2 (v1.2a):   paper=True, automated pipeline with budget enforcement
+Phase 3 (v1.2b):   paper=False, automated pipeline with full safeguards
+```
+
+The migration is progressive. First, validate the automated pipeline works correctly with paper trading. Only then switch to live with real money. The budget enforcement and circuit breaker work identically in both modes.
+
+**Complexity:** MEDIUM-HIGH. The Alpaca API change is trivial, but the safeguard layer (budget enforcement, circuit breaker, order monitoring) is new domain logic that must be correct -- errors mean real money loss.
+
+---
+
+## Integration Point 4: Web Dashboard
+
+### Architecture Decision: FastAPI + Jinja2 + HTMX + SSE
+
+**Use FastAPI + Jinja2 templates + HTMX for interactions + SSE for real-time updates.** This approach:
+
+1. **Stays Python-centric** -- no JavaScript framework to learn, build, or maintain
+2. **Leverages existing FastAPI** -- the commercial API already runs FastAPI; the dashboard is a second FastAPI app
+3. **HTMX handles interactions** -- form submissions, partial page updates, polling -- without client-side state management
+4. **SSE for real-time** -- pipeline progress, order fills, portfolio P&L updates stream to the browser without WebSocket complexity
+5. **DaisyUI/Tailwind for styling** -- pre-built component library, no custom CSS design needed
+
+**Why not React/Vue/Svelte:** The project is Python-centric (20K+ LOC Python, zero JS). Adding a JavaScript SPA framework doubles the technology surface, requires a build pipeline (node, npm, webpack/vite), and introduces client-side state management complexity. HTMX achieves 90% of the interactivity with zero JavaScript framework code.
+
+**Why not Streamlit/Gradio:** These are designed for ML demos, not production dashboards. They lack fine-grained layout control, cannot handle complex forms (approval workflows), and have poor real-time streaming support.
+
+**Why SSE over WebSocket:** The dashboard is server-push-only (pipeline status, order updates, P&L changes). The browser never sends data back through the real-time channel -- form submissions use standard HTTP POST via HTMX. SSE is simpler (standard HTTP, auto-reconnect, no connection upgrade negotiation).
+
+### Dashboard Architecture
+
+```
+Browser (HTMX + SSE)
+    |
+    |-- HTTP GET/POST --> FastAPI routes --> Jinja2 templates
+    |                         |
+    |                         |-- Read: handlers, repositories (same as CLI/API)
+    |                         |-- Write: approval commands, budget commands
+    |
+    |-- SSE stream    --> /dashboard/sse/events
+                            |
+                            |-- Subscribes to AsyncEventBus
+                            |-- Streams: PipelineStageEvent, OrderEvent, PortfolioEvent
+```
+
+### Dashboard Pages
+
+| Page | URL | Data Source | Real-Time? |
+|------|-----|------------|------------|
+| Portfolio Overview | `/dashboard/` | PortfolioManagerHandler, AlpacaAdapter.get_positions() | Yes (SSE: P&L, position changes) |
+| Pipeline Status | `/dashboard/pipeline` | IPipelineRunRepository | Yes (SSE: stage progress) |
+| Strategy Approval | `/dashboard/approval` | IScheduleConfigRepository | No (form submission) |
+| Trade History | `/dashboard/trades` | ITradePlanRepository | Yes (SSE: new executions) |
+| Risk Dashboard | `/dashboard/risk` | Portfolio aggregate, drawdown calculations | Yes (SSE: drawdown alerts) |
+| Scoring Results | `/dashboard/scores` | IScoreRepository | No (batch display) |
+
+### SSE Event Stream
+
+```python
+# dashboard/routes/sse.py
+from sse_starlette.sse import EventSourceResponse
+
+@router.get("/sse/events")
+async def event_stream(request: Request):
+    """Server-Sent Events endpoint for real-time dashboard updates."""
+    async def generate():
+        queue = asyncio.Queue()
+
+        # Subscribe to relevant events
+        bus = get_event_bus()
+        bus.subscribe(PipelineStageCompletedEvent, lambda e: queue.put_nowait(e))
+        bus.subscribe(OrderExecutedEvent, lambda e: queue.put_nowait(e))
+        bus.subscribe(OrderFailedEvent, lambda e: queue.put_nowait(e))
+        bus.subscribe(DrawdownAlertEvent, lambda e: queue.put_nowait(e))
+
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                event = await queue.get()
+                yield {
+                    "event": event.__class__.__name__,
+                    "data": json.dumps(event_to_dict(event)),
+                }
+        finally:
+            # Unsubscribe cleanup
+            ...
+
+    return EventSourceResponse(generate())
+```
+
+### HTMX Partial Updates
+
+Each dashboard page has a full-page template and partial templates. HTMX swaps partials on user interaction (tab click, form submit) and on SSE events:
+
+```html
+<!-- templates/partials/portfolio_summary.html -->
+<div id="portfolio-summary" hx-swap-oob="true">
+  <div class="stat">
+    <div class="stat-title">Portfolio Value</div>
+    <div class="stat-value">${{ portfolio.total_value | format_currency }}</div>
+    <div class="stat-desc {{ 'text-success' if portfolio.daily_pnl >= 0 else 'text-error' }}">
+      {{ portfolio.daily_pnl | format_currency }} ({{ portfolio.daily_pnl_pct | format_pct }})
+    </div>
+  </div>
+</div>
+```
+
+### Dashboard Mounting
+
+The dashboard is a separate FastAPI app, mounted alongside the commercial API. This keeps personal dashboard features separate from commercial API endpoints:
+
+```python
+# main.py (top-level)
+from commercial.api.main import app as commercial_app
+from dashboard.app import app as dashboard_app
+
+root_app = FastAPI()
+root_app.mount("/api", commercial_app)       # Commercial API at /api/v1/...
+root_app.mount("/dashboard", dashboard_app)  # Personal dashboard at /dashboard/...
+```
+
+**Complexity:** MEDIUM. The FastAPI + Jinja2 + HTMX stack is well-documented. The SSE integration with the event bus is the novel part. The main effort is building 5-6 HTML templates with Tailwind styling and wiring them to existing handler queries.
+
+---
+
+## Data Flow (v1.2 Target -- Automated)
+
+### Daily Pipeline (Automated)
+
+```
+APScheduler (10:00 AM EST, weekdays)
+    |
+    v
+PipelineOrchestratorService
+    |
+    |-- [CHECK] StrategyApproval.is_valid()?
+    |   NO  --> PipelineAbortedEvent --> Dashboard SSE --> "Approval expired" alert
+    |   YES |
+    |       v
+    |-- Stage 1: DataPipeline.ingest_universe(universe="sp500", market="US")
+    |   --> DuckDB (ohlcv, financials)
+    |   --> StageCompletedEvent(DATA_INGEST, tickers=100)
+    |   --> Dashboard SSE update
+    |
+    |-- Stage 2: DetectRegimeHandler.handle(auto_fetch=True)
+    |   --> SQLite (market_regimes)
+    |   --> RegimeChangedEvent (if regime changed) --> scoring weight update
+    |   --> StageCompletedEvent(REGIME_DETECT)
+    |
+    |-- Stage 3: ScoreSymbolHandler.handle() x 100 tickers
+    |   --> SQLite (composite_scores)
+    |   --> StageCompletedEvent(SCORE, scored=100, above_threshold=25)
+    |
+    |-- Stage 4: GenerateSignalHandler.handle() x 25 above-threshold
+    |   --> SQLite (signals)
+    |   --> StageCompletedEvent(SIGNAL, buy=5, hold=15, sell=5)
+    |
+    |-- Stage 5: TradePlanHandler.generate() x 5 BUY signals
+    |   --> SQLite (trade_plans, status=PENDING)
+    |   --> TradePlanCreatedEvent x 5
+    |   --> StageCompletedEvent(PLAN, plans=5)
+    |
+    |-- Stage 6: BudgetEnforcementService.check() x 5 plans
+    |   --> Filter: 3 plans within budget, 2 exceed
+    |   --> StageCompletedEvent(BUDGET_CHECK, approved=3, deferred=2)
+    |
+    |-- Stage 7: SafeExecutionService.execute_safely() x 3 plans
+    |   --> Alpaca API (paper or live)
+    |   --> OrderExecutedEvent x 3 (or OrderFailedEvent)
+    |   --> SQLite (trade_plans, status=EXECUTED)
+    |   --> StageCompletedEvent(AUTO_EXECUTE, executed=3)
+    |
+    v
+PipelineCompletedEvent(run_id, summary)
+    --> Dashboard SSE --> "Pipeline complete: 3 orders executed"
+    --> Pipeline history stored in SQLite
+```
+
+### Real-Time Dashboard Updates
+
+```
+AsyncEventBus (in-process)
+    |
+    |-- PipelineStageCompletedEvent --> SSE --> Dashboard pipeline progress bar
+    |-- OrderExecutedEvent          --> SSE --> Dashboard trade log + portfolio update
+    |-- OrderFailedEvent            --> SSE --> Dashboard error notification
+    |-- DrawdownAlertEvent          --> SSE --> Dashboard risk alert banner
+    |-- RegimeChangedEvent          --> SSE --> Dashboard regime indicator update
+```
+
+---
+
+## EventBus Subscription Map (v1.2 Complete)
+
+```
+PipelineStartedEvent
+  --> Dashboard SSE (show pipeline running indicator)
+
+StageCompletedEvent
+  --> Dashboard SSE (update pipeline progress bar)
+  --> PipelineRunRepository (log stage results)
+
+PipelineCompletedEvent
+  --> Dashboard SSE (show completion summary)
+  --> PipelineRunRepository (close run record)
 
 RegimeChangedEvent
-  -> LiveRegimeAdjuster (update scoring weights for next scoring run)
-  -> Portfolio context (adjust risk parameters in crisis)
+  --> ConcreteRegimeWeightAdjuster (update scoring weights)  [EXISTING, already wired]
+  --> Dashboard SSE (update regime indicator)                 [NEW]
 
 ScoreUpdatedEvent
-  -> SignalFusionService subscriber (auto-generate signals for scored tickers)
-  -> (future: commercial API cache invalidation)
+  --> (future: auto-trigger signal generation)
 
-SignalGeneratedEvent
-  -> TradePlanService (auto-generate plan for BUY signals)
-  -> Portfolio context (update watchlist)
+TradePlanCreatedEvent
+  --> Dashboard SSE (show new pending plans)
+
+OrderExecutedEvent
+  --> PortfolioManagerHandler.on_order_executed() (sync portfolio)  [NEW]
+  --> Dashboard SSE (update trade log + portfolio)                  [NEW]
+  --> CircuitBreakerService.record_execution()                     [NEW]
+
+OrderFailedEvent
+  --> Dashboard SSE (show error notification)  [NEW]
+  --> CircuitBreakerService.record_failure()   [NEW]
 
 DrawdownAlertEvent
-  -> Execution context (auto-pause or reduce orders)
-  -> CLI notification
+  --> Dashboard SSE (show risk alert)                [NEW]
+  --> CircuitBreakerService.check_drawdown_tier()    [NEW]
 ```
 
 ---
 
-## Database Architecture (v1.1)
+## Database Architecture (v1.2)
 
-### DuckDB (Analytics -- Read-Heavy)
+### SQLite (Operational -- Extended)
 
-| Table | Contents | Changes in v1.1 |
-|-------|----------|-----------------|
-| `ohlcv` | Price bars | Add `market` column (US/KR) |
-| `financials` | SEC filings / K-IFRS | Add `market` column, handle different field sets |
-| `indicator_cache` | Pre-computed indicators | NEW: cache RSI/MACD/ADX per ticker to avoid recomputation |
+| Table | Context | Status | Purpose |
+|-------|---------|--------|---------|
+| `composite_scores` | scoring | Existing | Score results |
+| `signals` | signals | Existing | Signal results |
+| `market_regimes` | regime | Existing | Regime history |
+| `positions` | portfolio | Existing | Open positions |
+| `trade_plans` | execution | Existing | Trade plan lifecycle |
+| `watchlist` | portfolio | Existing | Watchlist entries |
+| `pipeline_runs` | scheduler | **NEW** | Pipeline run history |
+| `pipeline_stages` | scheduler | **NEW** | Per-stage results |
+| `schedule_config` | scheduler | **NEW** | Cron config + enabled flag |
+| `strategy_approvals` | scheduler | **NEW** | Approved strategy configs |
+| `daily_budgets` | scheduler | **NEW** | Daily budget config + spending |
+| `budget_transactions` | execution | **NEW** | Per-order capital spent |
+| `circuit_breaker_state` | execution | **NEW** | Daily P&L tracking for circuit breaker |
+| `api_keys` | commercial | Existing | API key management |
 
-### SQLite (Operational -- Write-Heavy)
+### DuckDB (Analytics -- No Changes)
 
-| Table | Context | Changes in v1.1 |
-|-------|---------|-----------------|
-| `composite_scores` | scoring | No change |
-| `signals` | signals | No change |
-| `market_regimes` | regime | No change |
-| `positions` | portfolio | No change |
-| `trade_plans` | execution | No change |
-| `watchlist` | portfolio | No change |
-| `api_keys` | commercial | NEW: API key management |
-| `rate_limits` | commercial | NEW: per-key rate tracking |
-
-### Redis (Commercial API only -- Cache)
-
-| Key Pattern | TTL | Purpose |
-|-------------|-----|---------|
-| `score:{symbol}:{strategy}` | 1 hour | Cache computed scores |
-| `regime:current` | 15 min | Cache current regime |
-| `signal:{symbol}` | 30 min | Cache signal results |
+DuckDB remains unchanged. All new v1.2 data is operational (pipeline runs, budgets, approvals) and belongs in SQLite. DuckDB continues to serve analytical queries (OHLCV, financials, screening).
 
 ---
 
 ## Patterns to Follow
 
-### Pattern 1: Infrastructure Adapter for External Data
+### Pattern 1: Orchestrator Service as Pipeline Stage Runner
 
-**What**: Every external data source gets an adapter in `infrastructure/` that translates between external format and domain VOs.
+**What:** The `PipelineOrchestratorService` runs stages sequentially, each delegating to an existing DDD handler. It does NOT import domain objects from other contexts -- it passes primitive values between stages via command parameters.
 
-**When**: Adding any new data source (KIS API, FRED API, new broker).
+**When:** Building the automated pipeline.
 
-**Example** (from existing codebase):
+**Why this matters:** This avoids the "God Orchestrator" anti-pattern identified in v1.1 research. Each stage is independently testable because it uses the same handler interface as the CLI.
+
 ```python
-# This pattern is already proven in the codebase:
-# src/scoring/infrastructure/core_scoring_adapter.py
-class CoreScoringAdapter:
-    """Infrastructure adapter wrapping core/scoring/ functions for DDD compliance."""
+# scheduler/application/handlers.py
+class PipelineRunHandler:
+    def __init__(self, score_handler, signal_handler, regime_handler, ...):
+        # All handlers injected via bootstrap.py
+        self._score_handler = score_handler
+        ...
 
-    def compute_altman_z(self, financial_data: dict[str, Any]) -> float:
-        # Translates dict -> positional args for core function
-        return altman_z_score(
-            working_capital=financial_data.get("working_capital", 0.0),
-            ...
-        )
+    async def run_stage_score(self, tickers: list[str]) -> StageResult:
+        results = []
+        for ticker in tickers:
+            result = self._score_handler.handle(ScoreSymbolCommand(symbol=ticker))
+            results.append(result)
+        return StageResult(stage=PipelineStage.SCORE, results=results)
 ```
 
-**Apply this pattern for**:
-- `CoreTechnicalAdapter` (ticker -> OHLCV -> indicators -> technical score)
-- `RegimeDataFetcher` (yfinance/FRED -> VIX/S&P500/ADX/YieldCurve)
-- `KRXDataClient` (KIS API -> OHLCV + financials DataFrames)
-- `KISBrokerAdapter` (KIS API -> order submission/tracking)
+### Pattern 2: SSE as EventBus Consumer
 
-### Pattern 2: Protocol for Extension Points
+**What:** The SSE endpoint subscribes to the `AsyncEventBus` via an asyncio.Queue bridge. Events flow: domain handler -> bus.publish() -> queue -> SSE yield -> browser.
 
-**What**: Use `Protocol` (structural typing) for integration points between contexts, not ABCs. This avoids tight coupling.
+**When:** Building real-time dashboard updates.
 
-**When**: One context needs to consume data from another context without direct import.
+**Why this matters:** The event bus already exists and events are already defined. SSE just becomes another subscriber, no architectural changes needed.
 
-**Example** (from existing codebase):
-```python
-# scoring/domain/services.py
-class RegimeWeightAdjuster(Protocol):
-    def adjust_weights(self, strategy: str, regime_type: str | None = None) -> dict[str, float]: ...
+### Pattern 3: Budget as Pre-Execution Gate
 
-# NoOpRegimeAdjuster (default) and LiveRegimeAdjuster (v1.1) both satisfy this
-```
+**What:** Budget enforcement happens BEFORE the order reaches the broker adapter, not after. The `SafeExecutionService` wraps `IBrokerAdapter` and rejects orders that exceed budget.
 
-### Pattern 3: Market-Agnostic Domain, Market-Specific Infrastructure
+**When:** Building live execution with budget limits.
 
-**What**: Domain VOs and services should not contain market-specific logic. Market differences are handled in infrastructure adapters.
+**Why this matters:** Checking budget after execution is too late -- the money is already deployed. The gate must be synchronous and blocking.
 
-**When**: Adding Korean market support.
+### Pattern 4: Approval Config as Value Object, Not Workflow State
 
-**Example**:
-```python
-# WRONG: Market logic in domain
-class CompositeScoringService:
-    def compute(self, ..., market: str = "US"):
-        if market == "KR":
-            # Korean-specific logic
-            ...
+**What:** Strategy approval and daily budget are immutable VOs stored in SQLite. The pipeline reads the latest approved config at the start of each run. There is no complex workflow engine -- the user either approves or does not.
 
-# RIGHT: Domain stays pure, factory selects adapter
-class DataAdapterFactory:
-    @staticmethod
-    def create(market: str) -> DataClient:
-        if market == "KR":
-            return KRXDataClient()
-        return YFinanceClient()
-```
+**When:** Building the approval workflow.
 
-### Pattern 4: Graceful Degradation for Missing Data
-
-**What**: When a data source is unavailable (e.g., no SEC filings for Korean stocks), the scoring pipeline should produce partial results rather than failing.
-
-**When**: Cross-market scoring where not all data sources exist.
-
-**Example**:
-```python
-# In ScoringHandler, if fundamental data is unavailable:
-fundamental = FundamentalScore(value=50.0)  # neutral default
-# TechnicalScore computed from OHLCV (always available)
-# SentimentScore neutral default
-# Composite score will be lower quality but still valid
-```
+**Why this matters:** Trading system approval is simple (approved/not approved) unlike enterprise approval chains (multiple reviewers, escalation). Over-engineering this with a workflow engine adds complexity without value.
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: God Orchestrator
+### Anti-Pattern 1: Scheduler Directly Calling Core/ Functions
 
-**What**: A single orchestrator class that imports from every bounded context and coordinates the entire pipeline imperatively.
+**What:** The pipeline scheduler bypasses DDD handlers and calls `core/scoring/fundamental.py` directly "for efficiency."
 
-**Why bad**: Already exists as `core/orchestrator.py`. Creates tight coupling, makes testing impossible in isolation, single point of failure.
+**Why bad:** Creates a third execution path (CLI -> handlers, API -> handlers, scheduler -> core/) with different behavior. Bugs fixed in handlers don't get fixed in scheduler.
 
-**Instead**: Use EventBus-driven coordination. Each handler subscribes to relevant events and reacts independently. The CLI commands trigger the first event; the rest flows through subscriptions.
+**Instead:** The scheduler MUST call the same DDD handlers as the CLI and API. If performance is an issue, optimize the handlers, not the caller.
 
-### Anti-Pattern 2: Cross-Context Direct Import
+### Anti-Pattern 2: WebSocket for Dashboard When SSE Suffices
 
-**What**: Importing a domain service from another bounded context directly.
+**What:** Using WebSocket for the dashboard real-time connection because "it's more powerful."
 
-**Why bad**: Already exists: `execution/domain/services.py` imports `from src.portfolio.domain.value_objects import TakeProfitLevels`. This violates DDD bounded context isolation.
+**Why bad:** WebSocket requires connection upgrade, has no auto-reconnect in the browser, requires explicit ping/pong for keepalive, and adds bidirectional complexity when the dashboard only needs server-to-client push.
 
-**Instead**: Define shared VOs in `shared/domain/` or communicate via events. For `TakeProfitLevels`, it belongs in `shared/domain/` since both execution and portfolio need it, or execution should receive the take-profit price as a primitive in its command.
+**Instead:** Use SSE. It auto-reconnects, works over standard HTTP, and HTMX has native SSE support via `hx-sse="connect:/dashboard/sse/events"`.
 
-### Anti-Pattern 3: Lazy Core Imports in Application Layer
+### Anti-Pattern 3: Shared Database Writes Between Scheduler and Dashboard
 
-**What**: Handlers doing `from core.scoring.technical import compute_technical_score` inside methods.
+**What:** Both the scheduler (writing pipeline results) and the dashboard (writing approval configs) write to the same SQLite tables concurrently.
 
-**Why bad**: Mixes infrastructure concern (which implementation to use) with application orchestration. Untestable without the core/ package available.
+**Why bad:** SQLite has a single-writer lock. Concurrent writes from scheduler and dashboard will cause "database is locked" errors.
 
-**Instead**: Always inject adapters via constructor. The handler should never know about `core/`.
+**Instead:** Use WAL mode (`PRAGMA journal_mode=WAL`) for all SQLite databases. The scheduler writes to `pipeline_runs`/`budget_transactions`, and the dashboard writes to `strategy_approvals`/`daily_budgets` -- these are different tables, so WAL mode handles it fine. Only contention arises if both write to the same database file simultaneously, which WAL mode resolves.
 
-### Anti-Pattern 4: Market-Specific Logic in Domain
+### Anti-Pattern 4: Live Trading Without Paper Validation
 
-**What**: Adding `if market == "KR"` branches to domain services or value objects.
+**What:** Switching to `paper=False` without first validating the automated pipeline works correctly in paper mode.
 
-**Why bad**: Violates domain purity. Domain logic should be universal -- the same scoring algorithm works regardless of market.
+**Why bad:** Bugs in pipeline orchestration (wrong ticker format, budget calculation error, circuit breaker not triggering) cause real money loss.
 
-**Instead**: Market differences are infrastructure concerns (different data clients, different financial statement formats). The domain receives normalized VOs.
-
----
-
-## Component Boundaries
-
-| Component | Responsibility | Communicates With | v1.1 Changes |
-|-----------|---------------|-------------------|--------------|
-| `data_ingest` | Fetch + validate + store market data | DuckDB, EventBus | Add KRX client, market column |
-| `scoring` | Compute composite quality score | data_ingest (read DuckDB), regime (read latest) | Wire technical adapter, regime adjuster |
-| `valuation` | Compute intrinsic value (DCF/EPV/Relative) | data_ingest (read DuckDB) | No changes |
-| `signals` | Generate consensus buy/sell signals | scoring (read scores) | Clean up adapter wiring |
-| `regime` | Detect market regime (Bull/Bear/Sideways/Crisis) | data_ingest (read DuckDB) | Add data fetcher, publish events |
-| `portfolio` | Manage positions + risk | signals (read signals) | No changes |
-| `execution` | Generate trade plans, submit orders | portfolio (risk check) | Add KIS adapter |
-| `backtest` | Walk-forward backtesting | scoring, signals, data_ingest | No changes |
-| `commercial` | REST API presentation layer | scoring, signals, regime handlers | Add signal router, rate limit, cache |
-| `shared` | Base classes, event bus, market enum | All contexts | Add Market enum |
-
----
-
-## Build Order (Dependency-Driven)
-
-The features have the following dependency chain:
-
-```
-1. Technical Scoring Engine
-   Dependencies: core/scoring/technical.py (exists), core/data/indicators.py (exists)
-   Blocks: Nothing (enhances existing scoring)
-
-2. Regime Detection (Live Data + EventBus)
-   Dependencies: data_ingest (for market data)
-   Blocks: Regime -> Scoring weight adjustment
-
-3. Multi-Strategy Signal Fusion (Cleanup)
-   Dependencies: scoring (composite score input)
-   Blocks: Nothing (enhances existing signals)
-
-4. Korean Market Support
-   Dependencies: data_ingest pattern (to follow), scoring (to extend)
-   Blocks: Nothing (additive feature)
-
-5. Commercial API
-   Dependencies: scoring, signals, regime handlers (all must be stable)
-   Blocks: Nothing (presentation layer)
-```
-
-**Recommended build order**:
-
-1. **Technical Scoring Engine** (LOW complexity, HIGH value) -- unlocks accurate composite scores
-2. **Regime Detection Live Wiring** (MEDIUM complexity, HIGH value) -- unlocks regime-aware scoring
-3. **Signal Fusion Cleanup** (LOW complexity, MEDIUM value) -- stabilizes signal generation
-4. **Korean Market Data** (HIGH complexity, MEDIUM value) -- independent after data_ingest pattern is stable
-5. **Commercial API Enhancement** (LOW-MEDIUM complexity, MEDIUM value) -- depends on all above being stable
-
-**Rationale**: Technical scoring and regime wiring are prerequisites for accurate composite scores. Accurate scores are prerequisites for meaningful signals. Korean market is additive and independent. Commercial API should come last because it exposes the scoring/signals/regime results, which must be correct first.
+**Instead:** The migration path is: manual paper -> automated paper -> automated live. Each transition requires a validation period (minimum 2 weeks of successful automated paper runs before switching to live).
 
 ---
 
 ## Scalability Considerations
 
-| Concern | Current (100 tickers) | At 1,000 tickers | At 10,000 tickers |
-|---------|----------------------|-------------------|---------------------|
-| Data ingestion | Sequential yfinance calls, ~2 min | Semaphore-limited concurrent (5), ~20 min | Need batch API or paid data source |
-| Scoring | Per-ticker sequential, ~30 sec total | DuckDB batch queries, ~5 min | Parallelize scoring, partition by sector |
-| Signal generation | 4 evaluators per ticker, ~1 min total | Batch evaluator, ~10 min | Pre-filter by score threshold |
-| DuckDB storage | In-memory fits easily | Persistent file, ~100MB | Partition by date, ~1GB |
-| SQLite operations | Single writer, fine | WAL mode needed | Consider PostgreSQL migration |
-| API response time | Direct computation, ~2s | Cache required, ~200ms with Redis | Read-replica pattern |
+| Concern | Current State (v1.1) | v1.2 (100 tickers/day) | Future (500 tickers/day) |
+|---------|---------------------|----------------------|------------------------|
+| Pipeline duration | N/A (manual) | ~15 min (100 tickers, sequential scoring) | ~45 min (need parallel scoring) |
+| SQLite writes | Low frequency (CLI) | Burst during pipeline (~500 writes in 15 min) | WAL mode + connection pooling |
+| Event bus throughput | <10 events/day | ~200 events/day (stages + orders) | In-process queue, no bottleneck |
+| SSE connections | N/A | 1-2 browser tabs | 1-2 browser tabs (personal use) |
+| Alpaca API rate | Manual orders | 3-5 orders/day | 10-15 orders/day (well within Alpaca limits) |
+| Dashboard response time | N/A | <200ms (Jinja2 rendering) | Redis cache for expensive queries |
+
+---
+
+## Build Order (Dependency-Driven)
+
+The four v1.2 features have the following dependency chain:
+
+```
+1. scheduler bounded context (domain + infrastructure)
+   Dependencies: existing handlers (all stable from v1.1)
+   Blocks: automated pipeline, approval workflow
+
+2. Strategy/budget approval workflow
+   Dependencies: scheduler domain (approval VOs)
+   Blocks: auto-execution (needs approved budget)
+
+3. Live trading safeguards (budget enforcement, circuit breaker)
+   Dependencies: approval workflow (budget config), existing execution context
+   Blocks: live execution
+
+4. Automated pipeline orchestration
+   Dependencies: scheduler + approval + safeguards all in place
+   Blocks: nothing (this is the integration point)
+
+5. Web dashboard (presentation layer)
+   Dependencies: all of the above (displays their state)
+   Blocks: nothing (purely additive)
+```
+
+**Recommended build order:**
+
+1. **Scheduler bounded context** (LOW-MEDIUM complexity, HIGH value) -- foundation for everything else. Domain entities, VOs, repository interfaces.
+
+2. **Strategy/budget approval** (LOW complexity, HIGH value) -- simple CRUD for approval configs. Enables automated execution.
+
+3. **Pipeline orchestration** (MEDIUM complexity, HIGH value) -- chains existing handlers. Validates the scheduler works with paper trading.
+
+4. **Live trading safeguards** (MEDIUM-HIGH complexity, CRITICAL value) -- budget enforcement, circuit breaker, order monitoring. Must be correct before live money.
+
+5. **Web dashboard** (MEDIUM complexity, HIGH value) -- visualization of all the above. Can be built incrementally (start with portfolio overview, add pages one by one).
+
+**Rationale:** The scheduler and approval workflow are prerequisites for automated execution. Live safeguards must exist before any auto-execution (even paper). The dashboard comes last because it is a read-only view of state managed by the other components -- it does not block any functionality. However, the dashboard approval page is needed for the approval workflow to be usable beyond CLI, so a minimal dashboard with just the approval form could be built alongside phase 2.
+
+---
+
+## Bootstrap.py Changes (Composition Root)
+
+The existing `bootstrap.py` returns a dict of handlers. For v1.2, it needs to also wire the scheduler and dashboard components:
+
+```python
+# bootstrap.py (extended for v1.2)
+def bootstrap(
+    db_factory: DBFactory | None = None,
+    market: str = "us",
+    mode: str = "cli",  # "cli" | "scheduler" | "dashboard"
+) -> dict:
+    """Create a fully wired application context.
+
+    mode="cli":       SyncEventBus, no scheduler
+    mode="scheduler": AsyncEventBus, APScheduler, SafeExecutionService
+    mode="dashboard": AsyncEventBus, SSE subscriptions, read-heavy
+    """
+    # ... existing wiring ...
+
+    if mode in ("scheduler", "dashboard"):
+        bus = AsyncEventBus()  # Use async bus for scheduler/dashboard
+
+        # Scheduler-specific wiring
+        pipeline_repo = SqlitePipelineRunRepository(db_factory.sqlite_path("scheduler"))
+        config_repo = SqliteScheduleConfigRepository(db_factory.sqlite_path("scheduler"))
+        budget_repo = SqliteBudgetRepository(db_factory.sqlite_path("scheduler"))
+
+        budget_service = BudgetEnforcementService()
+        circuit_breaker = CircuitBreakerService(loss_threshold=settings.LIVE_CIRCUIT_BREAKER_LOSS)
+        safe_execution = SafeExecutionService(adapter, budget_service, circuit_breaker)
+
+        pipeline_handler = PipelineRunHandler(
+            score_handler=score_handler,
+            signal_handler=signal_handler,
+            regime_handler=regime_handler,
+            portfolio_handler=portfolio_handler,
+            trade_plan_handler=trade_plan_handler,
+            safe_execution=safe_execution,
+            pipeline_repo=pipeline_repo,
+            config_repo=config_repo,
+            budget_repo=budget_repo,
+            bus=bus,
+        )
+
+        # ... return extended context dict ...
+```
 
 ---
 
 ## Sources
 
-- Direct codebase analysis of `/home/mqz/workspace/trading/src/` (8 bounded contexts, 80+ Python files)
-- Direct codebase analysis of `/home/mqz/workspace/trading/core/` (proven mathematical implementations)
-- Direct codebase analysis of `/home/mqz/workspace/trading/commercial/` (existing API scaffolding)
-- `/home/mqz/workspace/trading/.planning/PROJECT.md` (project context and constraints)
-- `/home/mqz/workspace/trading/docs/api-technical-feasibility.md` (Korean market API evaluation)
-- `/home/mqz/workspace/trading/docs/strategy-recommendation.md` (personal/commercial split strategy)
-- Confidence: HIGH -- all findings based on direct source code reading, not speculation
+- Direct codebase analysis of `/home/mqz/workspace/trading/src/` (8 bounded contexts, 116 Python files) -- HIGH confidence
+- Direct codebase analysis of `/home/mqz/workspace/trading/cli/main.py` (existing CLI commands and handler usage) -- HIGH confidence
+- Direct codebase analysis of `/home/mqz/workspace/trading/commercial/api/` (existing FastAPI infrastructure) -- HIGH confidence
+- Direct codebase analysis of `/home/mqz/workspace/trading/src/execution/` (existing broker adapter, trade plan lifecycle) -- HIGH confidence
+- APScheduler documentation: [APScheduler User Guide](https://apscheduler.readthedocs.io/en/3.x/userguide.html) -- HIGH confidence (stable v3.x)
+- Alpaca Python SDK: [Alpaca-py Getting Started](https://alpaca.markets/sdks/python/getting_started.html) -- HIGH confidence (paper=True/False switch verified)
+- FastAPI SSE: [FastAPI SSE Tutorial](https://fastapi.tiangolo.com/tutorial/server-sent-events/) -- HIGH confidence (official docs)
+- sse-starlette: [PyPI sse-starlette](https://pypi.org/project/sse-starlette/) -- MEDIUM confidence (community package, production-used)
+- HTMX + FastAPI: [TestDriven.io HTMX FastAPI](https://testdriven.io/blog/fastapi-htmx/) -- MEDIUM confidence (tutorial, not official docs)
+- [FastHX GitHub](https://github.com/volfpeter/fasthx) -- MEDIUM confidence (server-side rendering library for FastAPI+HTMX)
+- v1.1 Architecture research: `.planning/research/ARCHITECTURE.md` (previous milestone) -- HIGH confidence
+- v1.1 Pitfalls research: `.planning/research/PITFALLS.md` (previous milestone) -- HIGH confidence
+- Project constraints: `.planning/PROJECT.md` -- HIGH confidence

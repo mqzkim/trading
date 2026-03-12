@@ -1,212 +1,215 @@
 # Project Research Summary
 
-**Project:** Intrinsic Alpha Trader -- v1.1 Stabilization & Expansion
-**Domain:** Quantitative mid-term trading system (US + Korean equities, commercial API)
-**Researched:** 2026-03-12
+**Project:** Intrinsic Alpha Trader v1.2 — Production Trading & Dashboard
+**Domain:** Automated trading pipeline, live execution, strategy/budget approval workflow, web dashboard
+**Researched:** 2026-03-13
 **Confidence:** HIGH
 
 ## Executive Summary
 
-Milestone v1.1 expands the Intrinsic Alpha Trader across three axes: technical depth (technical scoring engine, HMM-based regime detection, multi-strategy signal fusion), geographic breadth (Korean market via KOSPI/KOSDAQ), and commercial viability (FastAPI REST API with tiered access). The existing v1.0 codebase already has functional implementations in `core/` and partial DDD skeletons in `src/` for four bounded contexts (Scoring, Signals, Regime, Portfolio). The critical architectural task for v1.1 is not building from scratch but converging the dual `core/` + `src/` structure through a shared event bus, while simultaneously addressing 16 tech debt items inherited from v1.0. The research confirms that the Python ecosystem has mature, well-verified libraries for every new capability -- hmmlearn for HMM regime detection, pykrx for Korean market data, python-kis for Korean broker integration, and the existing FastAPI stack needs only slowapi + PyJWT + passlib for production hardening. No speculative or unproven technology is required.
+This milestone transitions an already-functional v1.1 system (manual CLI-driven scoring, regime detection, signal fusion, paper trading, and a commercial FastAPI REST API) into a production-grade automated trading platform. The core engineering challenge is not building capabilities from scratch — almost every domain handler and data store already exists — but rather wiring them together safely for automated, real-money operation. The system already knows how to score symbols, detect regimes, generate signals, and submit paper orders; v1.2 is about having those steps run daily without a human typing each CLI command, and having them execute real orders with appropriate safeguards.
 
-The recommended approach is to lead with tech debt resolution and infrastructure unification (event bus, composition root, database factory) before adding new features. This is not a cautious preference -- it is an architectural dependency. The existing `core/orchestrator.py` is a God Orchestrator anti-pattern that directly imports from every module, making it impossible to add new bounded contexts (Valuation, Monitoring, Korean market adapters) without further entangling the dependency graph. Building the synchronous event bus first (under 30 lines of code per ARCHITECTURE.md) and wiring existing contexts to it unlocks clean integration of all v1.1 features. Technical scoring requires no new dependencies -- all RSI, MACD, MA, ADX, and OBV indicators are already implemented in `core/data/indicators.py` using pure pandas/numpy. The work is DDD integration and composite scoring aggregation, not computation.
+The recommended approach across all four research dimensions converges on a single, unified process: a FastAPI application that hosts the commercial REST API, the personal web dashboard, and an embedded APScheduler daemon — all sharing the same DDD handlers, SQLite stores, and async event bus. This in-process architecture eliminates inter-process communication overhead, avoids an entire infrastructure layer (Redis, Celery, message queues), and leverages the `AsyncEventBus` that was built in v1.0 but never had a real consumer. HTMX + Jinja2 (no React, no Node.js) provides the dashboard UI through the same FastAPI process. Only two new pip packages are required: APScheduler and Plotly.
 
-The top risks are: (1) look-ahead bias in fundamental data invalidating backtests if filing dates are not tracked from the data layer, (2) DCF valuation brittleness where terminal value can dominate 85%+ of the calculation producing nonsensical intrinsic values, (3) value trap blindness where high Piotroski F-Score stocks in structural decline generate repeated losing positions, and (4) Korean market data reliability via pykrx which scrapes KRX directly without API guarantees. The first three are addressed by the existing PITFALLS.md prevention strategies. The fourth requires robust data validation matching the same patterns already needed for yfinance.
+The primary risk is transitioning from paper to live trading without adequate safeguards. Research identified seven critical pitfalls specific to this codebase — including a hardcoded `paper=True` flag that can be toggled without any safety gate, a silent mock-fallback pattern that can mask real order failures with phantom fills, missing cooldown persistence for the drawdown defense, and no state reconciliation between the system's SQLite records and the broker's actual positions. These are not theoretical risks; they are concrete code patterns already in `src/execution/infrastructure/alpaca_adapter.py` and `personal/risk/drawdown.py` that must be corrected before any live execution begins.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The v1.1 stack is conservative and well-vetted. Only 5 new PyPI packages are needed as core dependencies, plus 2 existing optional ML dependencies that need installation.
+The v1.2 stack requires only two new pip packages on top of the existing v1.1 installation: `APScheduler>=3.11.2` for cron-based pipeline scheduling, and `plotly>=6.5.0` for interactive financial charts in the web dashboard. Everything else is already installed. FastAPI 0.135.1 includes native SSE support (`from fastapi.sse import EventSourceResponse`) that eliminates the need for `sse-starlette`. Jinja2 3.1.2 is already a FastAPI dependency. HTMX 2.0.x is delivered as a CDN script tag — no npm, no webpack, no Node.js. `alpaca-py 0.43.2` already supports live trading via `TradingClient(paper=False)` and real-time order streaming via `TradingStream`.
 
-**New core dependencies (5 packages):**
-- **pykrx** (>=1.2.4): Korean market OHLCV + fundamentals from KRX directly -- provides PER/PBR/DIV that FinanceDataReader lacks
-- **python-kis** (>=2.1.6): Korean broker API (orders, balance, streaming) -- only PyPI-packaged KIS wrapper with regular releases
-- **slowapi** (>=0.1.9): FastAPI rate limiting -- battle-tested, in-memory storage sufficient for single-instance
-- **PyJWT** (>=2.9.0): JWT authentication for API tier management -- replaces abandoned python-jose per FastAPI team recommendation
-- **passlib[bcrypt]** (>=1.7.4): API key hashing -- industry standard
-
-**Existing dependencies to install (2 packages, already in pyproject.toml):**
-- **hmmlearn** (>=0.3.3, bump from >=0.3): GaussianHMM for probabilistic regime detection -- supplements existing rule-based classifier
-- **scikit-learn** (>=1.5.0): Feature preprocessing for HMM + GaussianMixture baseline
-
-**Critical stack decision -- no new technical analysis library needed.** All RSI, MACD, MA(50/200), ADX, OBV, and ATR indicators are already implemented with correct algorithms (Wilder's smoothing for RSI, proper DM+/DM- for ADX, EMA-based MACD) in `core/data/indicators.py`. Adding pandas-ta or TA-Lib would duplicate working code.
-
-**Explicitly deferred:** Redis (overkill for single-instance), Stripe (premature before demand validation), Celery (no background tasks needed), pomegranate (heavier HMM library than hmmlearn).
+**Core technologies:**
+- **APScheduler 3.11.2:** Daily cron scheduling with SQLite-backed job persistence — use `AsyncIOScheduler` with `SQLAlchemyJobStore`; run in-process alongside FastAPI's event loop. Do NOT use v4.0 alpha (unstable API).
+- **HTMX 2.0.x (CDN):** Hypermedia-driven UI without a JavaScript framework — enables interactive dashboard from Jinja2 templates with zero build toolchain; HTMX SSE extension bridges to FastAPI's native SSE stream.
+- **Plotly 6.5.x:** Generates standalone interactive chart HTML from Python — candlestick, equity curve, sector pie charts; embeds directly in Jinja2 partials; no separate chart server needed.
+- **FastAPI native SSE:** Already available in installed FastAPI 0.135.1 — used for real-time dashboard push of order fills, pipeline stage events, drawdown alerts.
+- **Alpaca TradingStream:** Already in installed `alpaca-py 0.43.2` — subscribes to `wss://api.alpaca.markets/stream` for live order fill events.
 
 ### Expected Features
 
-**v1.1 scope -- must deliver:**
-- Tech debt resolution (16 items from v1.0 milestone audit)
-- Live data pipeline validation with quality checks
-- Technical scoring engine integrated into DDD composite scoring (0-100 scale)
-- HMM-based market regime detection (Bull/Bear/Sideways/Crisis) supplementing rule-based classifier
-- Multi-strategy signal fusion (CAN SLIM, Magic Formula, Dual Momentum, Trend Following) with regime-weighted aggregation
-- Korean market support with pykrx data adapter + python-kis broker adapter
-- Commercial FastAPI REST API: QuantScore ($29-99/mo), RegimeRadar ($19-49/mo), SignalFusion ($49-199/mo)
+**Must have (table stakes for v1.2):**
+- Daily cron pipeline: data ingest -> regime -> score -> signal -> trade plan, running with market-calendar awareness (skip weekends, NYSE holidays)
+- Market calendar guard on pipeline execution — no orders on holidays, outside trading hours, or on early-close days
+- Strategy/budget approval entity: approve trading rules (score threshold, regime allow-list, max per-trade %) with mandatory expiration date
+- Daily budget cap enforced per pipeline run with spent-vs-remaining tracking
+- Live trading mode guard: explicit `EXECUTION_MODE=live` required (cannot be triggered by credentials alone)
+- Separate API key pairs for paper and live Alpaca accounts (never share keys)
+- Post-order status polling until terminal state (filled, rejected, cancelled)
+- Bracket leg verification after fill (stop-loss and take-profit legs confirmed active)
+- Portfolio reconciliation at pipeline start: compare SQLite position records with Alpaca `get_positions()`
+- Persistent cooldown state for drawdown defense (30-day cooling period survives process restarts)
+- Pipeline run log per execution (stages completed, counts, errors, next scheduled run)
+- Web dashboard: portfolio overview, P&L chart, signal results, risk indicators, approval control panel, pipeline status
+- Kill switch: cancel all open orders + halt pipeline immediately
 
-**Differentiators this milestone adds:**
-- Regime-adaptive strategy weighting -- no retail tool does this
-- Deterministic multi-methodology consensus vs. the LLM-dependent approach of ai-hedge-fund (43K+ stars)
-- Korean market as the first non-US expansion (KOSPI/KOSDAQ with KRX fundamentals)
-- Commercial API with tiered rate limiting and JWT authentication
+**Should have (differentiators):**
+- Alpaca TradingStream WebSocket for real-time fill notifications (replaces polling)
+- Regime-conditional auto-execution ("auto in Bull/Sideways, manual in Bear, halt in Crisis")
+- Drawdown-triggered approval suspension (tier 2+ auto-suspends strategy approval)
+- Dashboard approval form (approve strategy from browser instead of CLI only)
+- Pipeline dry-run mode (full run without order submission for validation)
+- Per-stage retry with exponential backoff (yfinance timeouts do not abort entire pipeline)
+- Equity curve chart with regime overlay
+- Score evolution chart per symbol over 90 days
 
-**Defer to v1.2+:**
-- Redis-based distributed caching (only when scaling to multi-instance)
-- Stripe payment integration (validate demand first)
-- Web GUI dashboard (CLI + API sufficient for v1.1)
-- SEC filing NLP analysis
-- Options hedging
+**Defer (v2+):**
+- Mobile-responsive dashboard
+- Multi-user dashboard with login (personal tool, single user)
+- React/Next.js frontend (HTMX is sufficient for single-user personal tool)
+- KIS live trading (Korean market; paper trading exists, live is a separate milestone)
+- Multi-broker simultaneous execution
+- Options/derivatives integration
 
 ### Architecture Approach
 
-The architecture follows DDD with 7-8 bounded contexts communicating via a synchronous in-process event bus (Cosmic Python pattern). The highest-priority infrastructure gap is the missing event bus and composition root -- without these, the God Orchestrator in `core/orchestrator.py` forces direct imports across all contexts. The dual-database strategy (DuckDB for time-series analytics, SQLite for operational state) is confirmed as correct for both US and Korean data pipelines. Korean market adapters integrate at the infrastructure layer only, implementing the same `IMarketDataRepository` and `IBrokerRepository` interfaces as the existing US adapters.
+The v1.2 architecture adds one new bounded context (`scheduler`), one new presentation layer (`dashboard`), and significant modifications to two existing contexts (`execution` for live trading + approval workflow, `portfolio` for real-time monitoring). The existing `AsyncEventBus` — built in v1.0 but never used in production — becomes the backbone: the scheduler publishes `PipelineStartedEvent`/`StageCompletedEvent`/`PipelineCompletedEvent`, the execution context publishes `OrderExecutedEvent`/`OrderFailedEvent`, and the dashboard subscribes to all of them for SSE-based real-time updates.
 
-**Major components and their v1.1 status:**
-
-1. **Shared Infrastructure** (event bus, db factory, bootstrap) -- MISSING, highest priority to build
-2. **Data Ingest Context** -- EXISTS in core/, needs DDD wrapping + Korean adapter
-3. **Regime Context** -- EXISTS in src/regime/ + core/regime/, needs event bus wiring + HMM addition
-4. **Scoring Context** -- EXISTS in src/scoring/ + core/scoring/, needs technical score integration
-5. **Valuation Context** -- PARTIAL from v1.0, needs ensemble completion
-6. **Signals Context** -- EXISTS in src/signals/, needs multi-strategy consensus + valuation gap
-7. **Portfolio/Risk Context** -- EXISTS in src/portfolio/, needs event bus wiring
-8. **Execution Context** -- EXISTS in personal/execution/, needs DDD migration
-9. **Commercial API** -- EXISTS in commercial/api/, needs rate limiting + JWT + tier management
+**Major components:**
+1. **`scheduler` bounded context (NEW)** — `PipelineOrchestratorService` chains existing DDD handlers (ingest -> regime -> score -> signal -> plan -> budget check -> auto-execute); `APSchedulerAdapter` triggers via cron with SQLite job persistence; `StrategyApproval` and `DailyBudget` value objects define approved execution parameters; pipeline run history persisted in SQLite.
+2. **`execution` context (MODIFIED)** — `SafeExecutionService` wraps `IBrokerAdapter` with pre-execution safety checks (circuit breaker, budget enforcement, position limits); `BudgetEnforcementService` tracks daily capital deployment; `CircuitBreakerService` implements daily loss halt; `AlpacaOrderMonitor` polls order status in background; live mode gated by `EXECUTION_MODE` setting.
+3. **`dashboard` presentation layer (NEW)** — FastAPI routes under `/dashboard/` serving Jinja2 templates; HTMX for partial page updates with zero build toolchain; SSE endpoint `/dashboard/stream` pushes all domain events from `AsyncEventBus` to browser; Plotly.py generates chart fragments embedded in templates.
+4. **`AsyncEventBus` (ACTIVATED)** — existing shared infrastructure, now wired as the real-time backbone: scheduler publishes stage events, execution publishes order events, dashboard subscribes all for live push.
 
 ### Critical Pitfalls
 
-The PITFALLS.md identifies 15 distinct pitfalls (6 Critical, 4 High, 3 Medium, 2 Low). The top 5 most relevant to v1.1:
+1. **One-boolean live trading switch with no safety gate** — `AlpacaExecutionAdapter` currently hardcodes `paper=True`; making it configurable via credentials-present logic is catastrophic. Fix: add explicit `EXECUTION_MODE` enum setting (defaults to `paper`); `paper=False` requires BOTH valid live credentials AND `EXECUTION_MODE=live`; startup banner logs mode unambiguously. Phase: Live Trading (first task).
 
-1. **Look-ahead bias in fundamental data** -- Store `filing_date` alongside every financial data point. Assertion layer must reject backtest trades using future data. This affects both US and Korean markets. Recovery cost is HIGH (full data layer rebuild + all backtests invalidated).
+2. **Silent mock fallback masks real order failures** — `_real_bracket_order()` catches ALL exceptions and returns a mock `OrderResult(status="filled")`, creating phantom positions. In live mode, this means the system believes it holds stocks it never bought. Fix: separate `LiveAlpacaAdapter` that raises on any error in live mode; `OrderResult` must carry `is_mock: bool` flag; pipeline halts if mock result received in live mode. Phase: Live Trading (adapter refactor, before first live order).
 
-2. **Value trap blindness in scoring** -- Piotroski F-Score is backward-looking and does not catch structural decline. Prevention: momentum overlay (price above 200-day MA), sector-adjusted scoring, Z''-Score variant for non-manufacturing companies. Directly relevant to the technical scoring engine being built in v1.1.
+3. **Automated pipeline running outside market hours** — no market calendar check exists anywhere in the codebase; orders submitted on holidays either reject or queue as GTC, filling at an unknown price. Fix: use `exchange_calendars` library; schedule by US/Eastern timezone; use `TimeInForce.DAY` for all automated orders; log every skip with reason. Phase: Automated Pipeline (scheduler setup, mandatory first task).
 
-3. **DCF valuation model brittleness** -- 1% WACC change shifts valuation 10-15%; terminal value is 60-85% of total DCF. Prevention: cap terminal value contribution at 85%, use ensemble weighting with confidence bands, present ranges not point estimates. The v1.1 valuation work must implement these guards.
+4. **No reconciliation between SQLite state and broker state** — system's portfolio records diverge from Alpaca reality through partial fills, stop-loss triggers, and manual interventions. Drawdown calculations use fictional data. Fix: `ReconciliationService` at pipeline start comparing `position_repo.find_all_open()` with `adapter.get_positions()`; `peak_value` synced from Alpaca at each pipeline run. Phase: Live Trading (post-order flow).
 
-4. **Kelly criterion blow-up risk** -- Estimation errors in win rate cause Quarter Kelly to still oversize. Prevention: hard-cap 5% per position (stricter than the 8% in CLAUDE.md), correlation adjustment, drawdown tiers override Kelly. Must be enforced in the Portfolio context.
+5. **Drawdown cooldown not persisted across restarts** — `cooldown_days_remaining` defaults to 0; the 30-day cooling period after a 20% drawdown is lost on any process restart. Fix: `CooldownState` table in SQLite with `start_date`/`end_date`/`trigger_drawdown_pct`; pipeline checks this at startup before allowing any execution. Phase: Live Trading (risk engine, hard prerequisite).
 
-5. **Data source fragility (yfinance + pykrx)** -- Both yfinance and pykrx are unofficial scrapers without SLA. Prevention: data validation layer, local caching in DuckDB, fallback sources, pinned versions. pykrx inherits the same fragility class as yfinance -- treat identically.
+6. **Strategy approval with no expiration** — open-ended approvals allow stale strategies to execute in changed market conditions. Fix: `valid_until` field mandatory on all approvals; pipeline halts if no valid approval exists; `RegimeChangedEvent` triggers approval suspension. Phase: Strategy Approval (design first).
+
+7. **SQLite concurrent access from dashboard + pipeline** — default journal mode blocks dashboard reads during pipeline writes, causing "database is locked" errors. Fix: enable WAL mode (`PRAGMA journal_mode=WAL`) on all SQLite connections; use read-only connections for dashboard; set `PRAGMA busy_timeout=5000`. Phase: Automated Pipeline (infrastructure setup).
 
 ## Implications for Roadmap
 
-Based on combined research, the v1.1 milestone should be structured in 7 phases. The ordering follows the critical dependency chain identified in ARCHITECTURE.md and maps pitfall prevention to the earliest possible phase.
+Based on research, the four v1.2 capabilities have clear implementation dependencies that dictate phase order. Safety infrastructure must precede live execution. The pipeline orchestrator must work correctly in paper mode before any live money is at risk. The approval workflow must be designed before the automated pipeline is enabled, because it defines what the pipeline is allowed to do.
 
-### Phase 1: Tech Debt Resolution + Infrastructure Foundation
-**Rationale:** The 16 tech debt items from v1.0 and the missing shared infrastructure (event bus, composition root, db factory) are blocking dependencies for every subsequent phase. Building the event bus eliminates the God Orchestrator anti-pattern and makes clean feature addition possible. This is the lowest-risk, highest-leverage work.
-**Delivers:** SyncEventBus, DB connection factory, bootstrap composition root, existing 4 contexts wired to event bus, tech debt items resolved.
-**Addresses:** Tech debt resolution (16 items), shared infrastructure gap
-**Avoids:** God Orchestrator anti-pattern (ARCHITECTURE.md), DB concurrency issues (Pitfall 11)
-**Stack:** No new dependencies. Pure Python infrastructure.
+### Phase 1: Safety Infrastructure and Live Trading Adapter
 
-### Phase 2: Live Data Pipeline Validation + Korean Data Adapter
-**Rationale:** Data integrity is the foundation. PITFALLS.md identifies 4 of 15 pitfalls in the data layer alone (look-ahead bias, survivorship bias, data source fragility, XBRL incompleteness). Korean market data adapter reuses the same infrastructure and validation patterns. Doing both data pipelines together avoids duplicating validation logic.
-**Delivers:** Validated live data pipeline with quality checks, pykrx Korean market adapter implementing IMarketDataRepository, data validation layer for both US and KR data.
-**Addresses:** Live data pipeline validation, Korean market data support
-**Avoids:** Look-ahead bias (Pitfall 1), survivorship bias (Pitfall 2), data source fragility (Pitfall 7), XBRL incompleteness (Pitfall 12)
-**Stack:** pykrx (>=1.2.4)
+**Rationale:** The most dangerous pitfalls (silent mock fallback, one-boolean live switch, missing cooldown persistence, no reconciliation) all live in the execution and portfolio layers. These must be corrected before any automated pipeline is built on top, because the automated pipeline inherits whatever bugs exist in execution. Real money loss is irreversible — safety first.
 
-### Phase 3: Technical Scoring Engine + Composite Integration
-**Rationale:** Technical indicators already exist in `core/data/indicators.py`. The work is integrating them into the DDD scoring context and adding technical scores to the composite alongside fundamental scores. This must precede signal fusion since signals consume composite scores.
-**Delivers:** Technical scoring (RSI, MACD, MA, ADX, OBV) integrated into DDD scoring context, composite score combining fundamental + technical + sentiment sub-scores, sector-normalized scoring.
-**Addresses:** Technical scoring engine, composite scoring integration
-**Avoids:** Value trap blindness (Pitfall 3) via momentum overlay from technical indicators
-**Stack:** No new dependencies. Existing pandas/numpy implementations.
+**Delivers:** Production-safe execution adapter with explicit `EXECUTION_MODE` setting; separate paper/live adapter classes with no mock fallback in live mode; persistent `CooldownState` for drawdown defense; `ReconciliationService` that runs at pipeline startup; SQLite WAL mode enabled across all repositories; separate API key configuration for paper vs live; kill switch implementation.
 
-### Phase 4: Market Regime Detection (HMM)
-**Rationale:** Regime detection feeds into signal weighting (Phase 5) and is an independent bounded context that only depends on data pipeline (Phase 2). HMM supplements the existing rule-based classifier. This phase installs and integrates the ML optional dependencies.
-**Delivers:** GaussianHMM(n_components=3) for Bull/Bear/Transition detection, dual classifier (rule-based deterministic + HMM probabilistic), regime transition probabilities feeding into weight adjustment.
-**Addresses:** Market regime detection (Bull/Bear/Sideways/Crisis)
-**Avoids:** Regime blindness (Pitfall 9) -- models trained on single market state
-**Stack:** hmmlearn (>=0.3.3), scikit-learn (>=1.5.0)
+**Features from FEATURES.md:** Live trading mode guard, separate API key pairs, kill switch, persistent cooldown, post-order status polling, bracket leg verification.
 
-### Phase 5: Multi-Strategy Signal Fusion
-**Rationale:** Depends on composite scoring (Phase 3) and regime detection (Phase 4) for regime-weighted aggregation. The four strategies (CAN SLIM, Magic Formula, Dual Momentum, Trend Following) already have partial implementations in `core/signals/`. Integration with valuation gap from the Valuation context is the key enhancement.
-**Delivers:** 4-strategy consensus signal engine, regime-weighted strategy aggregation, 3/4 agreement threshold for strong signals, valuation gap integration.
-**Addresses:** Multi-strategy signal fusion, regime-adaptive weighting
-**Avoids:** Backtesting overfitting (Pitfall 6) by limiting free parameters, regime blindness (Pitfall 9)
-**Stack:** No new dependencies.
+**Pitfalls addressed:** Pitfalls 1, 2, 4, 5 (one-boolean switch, silent fallback, no reconciliation, cooldown not persisted).
 
-### Phase 6: Korean Broker Integration
-**Rationale:** Data adapter (Phase 2) must be stable before adding the broker adapter. python-kis requires KIS developer account registration which may have lead time. Separate from data phase to isolate risk.
-**Delivers:** python-kis broker adapter implementing IBrokerRepository, paper trading support for Korean market, environment isolation (KIS vs Alpaca credentials).
-**Addresses:** Korean market support (execution side)
-**Avoids:** Paper-to-live gap (Pitfall 8), operational kill switch absence (Pitfall 10)
-**Stack:** python-kis (>=2.1.6)
+**Research flag:** Standard patterns. Well-documented Alpaca API. Existing code already reviewed at line level. No deeper research needed.
 
-### Phase 7: Commercial FastAPI REST API
-**Rationale:** The API is a presentation layer that wraps the analysis engine. All scoring, regime, and signal contexts must be complete and stable before exposing them commercially. Rate limiting, JWT authentication, and tier management are the new additions to the existing FastAPI skeleton.
-**Delivers:** QuantScore API endpoint, RegimeRadar API endpoint, SignalFusion API endpoint, JWT-based tier access (free/basic/pro), rate limiting per tier, API key management.
-**Addresses:** Commercial FastAPI REST API (3 products)
-**Avoids:** Alert fatigue (Pitfall 14) via rate limiting, precision fallacy (Pitfall 15) via range-based responses
-**Stack:** slowapi (>=0.1.9), PyJWT (>=2.9.0), passlib[bcrypt] (>=1.7.4)
+### Phase 2: Automated Pipeline Scheduler (Paper Mode)
+
+**Rationale:** Build and validate the pipeline orchestrator in paper mode first. Requires Phase 1 (safe execution adapter) and existing handlers (already built). Market calendar guard is a mandatory first task within this phase. Pipeline must be idempotent and handle stage failures before any live money depends on it.
+
+**Delivers:** `scheduler` bounded context with `PipelineOrchestratorService`; APScheduler integration with SQLite job persistence and `misfire_grace_time=3600`; market calendar check (skip weekends, NYSE holidays); pipeline run log in SQLite; stage-level retry with exponential backoff; regime-aware pipeline gating (Crisis + tier 2+ drawdown blocks plan creation); pipeline dry-run mode; concurrent scoring for universe of 400+ symbols.
+
+**Uses from STACK.md:** APScheduler 3.11.2 with `AsyncIOScheduler` + `SQLAlchemyJobStore`; `exchange_calendars` for NYSE trading day awareness; existing DDD handlers wired as pipeline stages.
+
+**Implements from ARCHITECTURE.md:** `PipelineOrchestratorService`, `APSchedulerAdapter`, `PipelineRun` entity, `ScheduleConfig` value object, `StageCompletedEvent` published to `AsyncEventBus`.
+
+**Pitfalls addressed:** Pitfall 3 (market calendar), Pitfall 7 (SQLite WAL for concurrent dashboard access).
+
+**Research flag:** Standard patterns. APScheduler is well-documented with official guides. Market calendar is a standard integration. No deeper research needed.
+
+### Phase 3: Strategy and Budget Approval Workflow
+
+**Rationale:** The approval workflow gates what the automated pipeline can do — it must be designed before automated execution is enabled, because the approval model determines the execution boundaries. Two-tier model: approve rules (strategy parameters) + approve capital (daily budget). Trades auto-execute within those approved constraints. Must exist before Phase 4 switches to live trading.
+
+**Delivers:** `StrategyApproval` and `DailyBudget` value objects in `scheduler/domain/`; `BudgetEnforcementService` in `execution/domain/`; `ApproveStrategyCommand` and `SetBudgetCommand` with CLI entry points; approval expiration enforcement; regime-change approval suspension wired to existing `RegimeChangedEvent`; approval audit log in SQLite; budget spent-vs-remaining tracking per day; `TradePlanStatus.BUDGET_CHECK` and `AUTO_APPROVED` state extensions.
+
+**Implements from ARCHITECTURE.md:** `StrategyApproval` lifecycle (DRAFT -> APPROVED -> EXPIRED/REVOKED/SUSPENDED), `DailyBudget` with daily reset at market open, budget enforcement before order submission.
+
+**Pitfalls addressed:** Pitfall 6 (bad approval model — expiration, regime-gating, per-trade constraints all required).
+
+**Research flag:** Standard patterns. State machine is straightforward. Main design decision is granularity (approve rules, not individual trades — confirmed correct approach).
+
+### Phase 4: Live Trading Activation
+
+**Rationale:** Only after Phase 1 (safe adapter), Phase 2 (validated automated pipeline in paper mode), and Phase 3 (approval workflow) is it safe to switch to `EXECUTION_MODE=live`. Progressive migration: paper automated first, then live with 25% capital allocation, increase as reliability is demonstrated.
+
+**Delivers:** `EXECUTION_MODE=live` configuration in production; `SafeExecutionService` wrapping live adapter with circuit breaker + budget enforcement; live API key configuration and startup banner; `AlpacaOrderMonitor` background task for real-time order status tracking; `TradingStream` WebSocket subscription for fill events; gradual capital deployment ramp-up (start at 25% max deployment); circuit breaker pattern (3 consecutive failures halts live trading).
+
+**Avoids:** All pitfalls that cause real money loss — Pitfalls 1, 2, 4, 5 resolved in Phase 1; Pitfall 6 resolved in Phase 3; live activation validates them all together.
+
+**Research flag:** Needs careful validation. Start with 25% capital, monitor for 2-4 weeks before increasing. Watch for slippage divergence between paper and live fills. PDT rule check (accounts under $25K: max 3 day trades per 5 business days) must be verified before enabling live with smaller accounts.
+
+### Phase 5: Web Dashboard
+
+**Rationale:** The dashboard is the operational control panel for the automated system. It becomes essential once live trading is active — the operator needs visibility into pipeline status, portfolio state, and risk metrics without running CLI commands. Can be built incrementally but must be complete before leaving live trading unattended.
+
+**Delivers:** FastAPI routes under `/dashboard/` with Jinja2 templates; HTMX 2.0.x for partial updates (no Node.js/React); SSE endpoint consuming `AsyncEventBus` for real-time updates; Plotly.py charts (equity curve, sector allocation, drawdown gauge); approval control panel (view/set strategy approval from browser); pipeline status widget (last run, next run, stage results, counts); portfolio overview with per-position P&L; prominent paper/live mode banner (red for live, green for paper); tiered alert notifications (INFO daily summary, CRITICAL for drawdown tier 2+).
+
+**Uses from STACK.md:** HTMX 2.0.4 (CDN), htmx-ext-sse 2.2.2 (CDN), Plotly 6.5.x, FastAPI native SSE, Jinja2 (already installed), Starlette StaticFiles (already installed).
+
+**Security tasks (from PITFALLS.md):** Restrict `allow_origins=["*"]` in `commercial/api/main.py` to dashboard origin; fail startup if JWT secret key matches dev default; dashboard auth if exposed on network (bind to localhost if personal-only).
+
+**Research flag:** Standard patterns. HTMX + FastAPI is well-documented with multiple tutorials and benchmarks. Plotly.py financial chart documentation is comprehensive. Main risk is SSE event bus wiring under concurrent pipeline runs — verify no event loss.
 
 ### Phase Ordering Rationale
 
-- **Phase 1 first** because the event bus and composition root are prerequisites for clean integration of every subsequent feature. Without them, each new bounded context deepens the God Orchestrator coupling.
-- **Phase 2 before 3-5** because scoring, regime detection, and signal fusion all consume data. Garbage data produces garbage signals regardless of algorithm quality.
-- **Phases 3 and 4 can partially overlap** since they depend only on the data pipeline (Phase 2), not on each other. However, Phase 5 requires both to be complete.
-- **Phase 6 after Phase 2** because the Korean broker adapter depends on the Korean data adapter being stable and validated.
-- **Phase 7 last** because the commercial API is a thin wrapper over the analysis engine. Exposing unstable or incomplete analysis capabilities commercially would damage product credibility.
-- **Tech debt upfront** rather than interleaved because the 16 items from v1.0 include structural issues (missing event bus, inconsistent error handling, incomplete DDD migration) that compound in cost if deferred further.
+- Safety infrastructure before automation: real money loss is irreversible; executing on buggy code in production cannot be undone
+- Paper automated before live: validates orchestration correctness, stage error handling, and reconciliation service without financial risk
+- Approval workflow before live activation: the approval model defines execution boundaries; build the gate before opening it
+- Dashboard after live activation: valuable for operational visibility but not a safety prerequisite; can be partially built alongside Phase 4
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 2 (Korean Data):** pykrx data schema mapping to existing pipeline, KRX-specific fundamentals field naming (PER vs P/E, PBR vs P/B), KRX trading calendar holidays
-- **Phase 4 (Regime Detection):** HMM hyperparameters (n_components, covariance_type), feature selection for GaussianHMM input, training window size, regime state labeling methodology
-- **Phase 6 (Korean Broker):** KIS API developer registration process, API documentation is Korean-only, paper trading mode availability and limitations
-- **Phase 7 (Commercial API):** Rate limit tier design, API key lifecycle management, legal disclaimers for financial data products
+Phases needing deeper research during planning:
+- **Phase 4 (Live Trading Activation):** Progressive capital deployment strategy; paper-to-live slippage comparison methodology; PDT rule interaction with automated trading for accounts under $25K; specific Alpaca live account requirements and verification timeline (may have lead time).
 
-Phases with standard patterns (skip deeper research):
-- **Phase 1 (Tech Debt + Infrastructure):** Event bus is <30 lines of standard Python. Composition root is standard DI wiring. Tech debt items are well-scoped from v1.0 audit.
-- **Phase 3 (Technical Scoring):** Indicators already implemented. Integration is standard DDD pattern (wrap existing code as infrastructure adapter).
-- **Phase 5 (Signal Fusion):** 4-strategy consensus pattern is well-documented. Regime weighting is a multiplication of existing weights.
+Phases with standard patterns (skip research-phase):
+- **Phase 1 (Safety Infrastructure):** Direct code fixes in known files; code references are specific (file, line number); patterns are clear from pitfalls research.
+- **Phase 2 (Pipeline Scheduler):** APScheduler well-documented with official 3.x user guide; existing handlers already work; market calendar is a well-known integration.
+- **Phase 3 (Approval Workflow):** State machine is simple; persistence patterns match existing SQLite repositories; approval model is design, not research.
+- **Phase 5 (Dashboard):** HTMX + FastAPI pattern is well-documented; Plotly.py has comprehensive financial charting docs; SSE is native to installed FastAPI.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All 7 new/updated packages verified on PyPI (2026-03-12). hmmlearn, pykrx, slowapi, PyJWT are mature with active maintenance. python-kis is the only MEDIUM-confidence package (Korean-only docs, community-maintained). |
-| Features | HIGH | v1.1 scope is well-defined. Table stakes for each feature area validated against competitors. Korean market is the only expansion with uncertainty around KIS broker API access requirements. |
-| Architecture | HIGH | DDD patterns proven in v1.0. Event bus design follows Cosmic Python (authoritative reference). Dual-database strategy validated. Korean adapters follow identical interface patterns as US adapters. |
-| Pitfalls | HIGH | 15 pitfalls identified from 30+ authoritative sources. 6 critical pitfalls have specific prevention strategies with verification criteria. Pitfall-to-phase mapping ensures prevention is built into the schedule. |
+| Stack | HIGH | All versions verified against PyPI and installed packages on 2026-03-13. Only 2 new packages (APScheduler, Plotly) both mature and production-proven. HTMX is CDN-only. No version conflicts. |
+| Features | HIGH | Based on direct codebase analysis of existing 20K+ LOC system plus official Alpaca documentation. Existing capabilities clearly identified; v1.2 additions precisely scoped against what is already built. |
+| Architecture | HIGH | Direct codebase analysis confirmed component boundaries, existing event bus, SQLite repository patterns, and Alpaca adapter structure. Architecture patterns are idiomatic extensions of the existing DDD structure. |
+| Pitfalls | HIGH | All 7 critical pitfalls identified from direct line-level analysis of existing source files with specific file paths and line numbers. Alpaca behavior confirmed from official docs. Recovery costs assessed. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **python-kis KIS developer registration:** Requires Korean brokerage account. Unclear if international users can register. Must verify access before committing to Phase 6 timeline. Fallback: defer Korean execution to v1.2 if registration is blocked, keep data-only Korean support.
-- **pykrx KOSDAQ small-cap coverage:** pykrx scrapes KRX directly, but KOSDAQ small-caps may have sparse fundamental data. Need empirical validation during Phase 2 with a sample of 50+ KOSDAQ tickers.
-- **HMM regime state labeling:** GaussianHMM outputs numbered states (0, 1, 2), not labeled regimes (Bull, Bear, Transition). Mapping hidden states to meaningful regime labels requires domain expertise. Validate against historical VIX regimes during Phase 4.
-- **Commercial API legal disclaimers:** Financial data API products require "not investment advice" disclaimers. Exact legal language needs review. The system correctly separates "information products" (scores, data, statistics -- commercial) from "investment recommendations" (buy/sell with position sizing -- personal only).
-- **Valuation ensemble weights for Korean stocks:** DCF/EPV/relative weights (40/35/25) calibrated for US equities. Korean market may have different dynamics (chaebol structures, different accounting norms). Needs validation during Phase 2-3.
-- **Rate limiting tier boundaries:** slowapi in-memory storage resets on server restart. Acceptable for v1.1 single-instance, but tier abuse tracking (free tier users creating multiple accounts) needs a persistence strategy for v1.2.
+- **`exchange_calendars` vs `pandas_market_calendars`:** Both were mentioned in pitfalls research for NYSE trading day awareness. Confirm which to use during Phase 2 planning. Both cover NYSE; `exchange_calendars` is more widely cited in recent (2025-2026) literature, but check if either is already installed.
+- **Dashboard authentication scope:** Research noted personal dashboard may not need auth if bound to localhost only. Confirm deployment plan (local-only vs. network-accessible, VPN-protected, etc.) before Phase 5 auth decisions. If any network exposure exists, JWT auth is mandatory.
+- **Plotly.py chart generation performance:** Plotly generates standalone HTML/JS fragments. For large OHLCV datasets (400+ symbols, 2 years of daily data), verify DuckDB query time for chart data is acceptable before settling on chart update frequency. If slow, pre-generate charts at pipeline completion and cache.
+- **`AsyncEventBus` under concurrent load:** The event bus was built in v1.0 but never used in production. Verify it handles concurrent publishers (pipeline scheduler + order monitor) and a subscriber (SSE stream) without event loss during high-activity pipeline runs. Add integration test before Phase 4.
+- **Alpaca live account lead time:** Live Alpaca brokerage account requires identity verification and funding. If the account is not already open, verify the timeline (can be same-day, but varies). This may gate Phase 4 start.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [Cosmic Python -- Events and Message Bus](https://www.cosmicpython.com/book/chapter_08_events_and_message_bus.html) -- Event bus architecture pattern
-- [CFA Level 2 -- Problems in Backtesting](https://analystprep.com/study-notes/cfa-level-2/problems-in-backtesting/) -- Look-ahead bias, data snooping
-- [Alpaca Paper Trading Docs](https://docs.alpaca.markets/docs/paper-trading) -- Paper trading limitations
-- [Statistical Overfitting -- Bailey et al.](https://sdm.lbl.gov/oapapers/ssrn-id2507040-bailey.pdf) -- Deflated Sharpe Ratio
-- [Avoiding Value Traps -- Research Affiliates](https://www.researchaffiliates.com/publications/articles/1013-avoiding-value-traps) -- Momentum overlay strategy
-- [Point-in-Time Data -- FactSet](https://insight.factset.com/hubfs/Resources%20Section/White%20Papers/ID11996_point_in_time.pdf) -- Filing date tracking
-- [Knight Capital Disaster](https://soundofdevelopment.substack.com/p/the-knight-capital-disaster-how-a) -- Kill switch necessity
-- [Kelly Criterion -- arXiv (2025)](https://arxiv.org/html/2508.18868v1) -- Estimation risk in Kelly sizing
+- Direct codebase analysis of `/home/mqz/workspace/trading/` — all 7 pitfalls verified against specific files and line numbers: `src/execution/infrastructure/alpaca_adapter.py` (line 44 hardcoded `paper=True`, line 127 mock fallback), `personal/risk/drawdown.py` (`cooldown_days_remaining=0` default), `src/portfolio/domain/aggregates.py` (`peak_value` only updated on property access), `src/portfolio/infrastructure/sqlite_portfolio_repo.py` (no WAL mode), `commercial/api/main.py` (CORS wildcard line 27), `commercial/api/config.py` (JWT default key), `src/settings.py` (no `TRADING_MODE` setting)
+- [APScheduler PyPI](https://pypi.org/project/APScheduler/) v3.11.2, Dec 2025, verified 2026-03-13
+- [APScheduler 3.x User Guide](https://apscheduler.readthedocs.io/en/3.x/userguide.html) — AsyncIOScheduler, SQLAlchemyJobStore, CronTrigger, misfire_grace_time
+- [FastAPI SSE Docs](https://fastapi.tiangolo.com/tutorial/server-sent-events/) — native SSE in 0.135.0+, EventSourceResponse, ServerSentEvent
+- [Alpaca-py PyPI](https://pypi.org/project/alpaca-py/) v0.43.2, Nov 2025, confirmed
+- [Alpaca Trading SDK Docs](https://alpaca.markets/sdks/python/trading.html) — TradingClient paper param, TradingStream WebSocket
+- [Alpaca WebSocket Streaming](https://alpaca.markets/docs/api-references/trading-api/streaming/) — trade_updates events, live/paper endpoints
+- [Paper Trading - Alpaca Docs](https://docs.alpaca.markets/docs/paper-trading) — paper vs. live differences (fills, slippage, dividends)
+- [Alpaca Common API Errors](https://alpaca.markets/learn/how-to-fix-common-trading-api-errors-at-alpaca) — rejection reasons, PDT rule
+- [Plotly.py PyPI](https://pypi.org/project/plotly/) v6.5.2, Jan 2026, verified 2026-03-13
+- [Systemic Failures in Algorithmic Trading (PMC)](https://pmc.ncbi.nlm.nih.gov/articles/PMC8978471/) — academic source on pitfall patterns
 
 ### Secondary (MEDIUM confidence)
-- [pykrx PyPI](https://pypi.org/project/pykrx/) -- Korean market data library versions
-- [python-kis PyPI](https://pypi.org/project/python-kis/) -- Korean broker API library
-- [slowapi GitHub](https://github.com/laurentS/slowapi) -- Rate limiting for FastAPI
-- [edgartools XBRL mappings](https://www.edgartools.io/i-learnt-xbrl-mappings-from-32-000-sec-filings/) -- XBRL tag coverage data
-- [DCF Common Errors -- Wall Street Prep](https://www.wallstreetprep.com/knowledge/common-errors-in-dcf-models/) -- Terminal value sensitivity
-- [DuckDB vs SQLite (Jan 2026)](https://www.analyticsvidhya.com/blog/2026/01/duckdb-vs-sqlite/) -- Dual database rationale
-
-### Tertiary (needs validation)
-- **python-kis paper trading mode:** Documented but not verified through hands-on testing. Must confirm during Phase 6 planning.
-- **pykrx KOSDAQ fundamental coverage:** Claimed to cover PER/PBR/DIV but small-cap coverage depth unknown. Validate empirically.
+- [HTMX + FastAPI Patterns 2025](https://johal.in/htmx-fastapi-patterns-hypermedia-driven-single-page-applications-2025/) — SSR performance benchmarks (~45ms vs ~650ms for React hydration)
+- [Realtime Dashboard: FastAPI, Streamlit, Next.js comparison](https://jaehyeon.me/blog/2025-03-04-realtime-dashboard-3/) — architecture comparison for dashboard technology choice
+- [Human-in-the-Loop Architecture](https://www.agentpatterns.tech/en/architecture/human-in-the-loop-architecture) — two-tier approval model (approve rules, auto-execute within rules)
+- [5 Common Algorithmic Trading Mistakes (Intrinio)](https://intrinio.com/blog/5-common-mistakes-to-avoid-when-using-automated-trading-systems) — domain pitfall validation
+- [Weaponizing Real Time: WebSocket/SSE with FastAPI](https://blog.greeden.me/en/2025/10/28/weaponizing-real-time-websocket-sse-notifications-with-fastapi-connection-management-rooms-reconnection-scale-out-and-observability/) — SSE pattern for dashboard
 
 ---
-*Research completed: 2026-03-12*
+*Research completed: 2026-03-13*
 *Ready for roadmap: yes*
