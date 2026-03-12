@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
 status: completed
-stopped_at: Completed 11-01-PLAN.md (Auth Infrastructure & Rate Limiting)
-last_updated: "2026-03-12T20:39:36.966Z"
-last_activity: 2026-03-12 -- Completed Plan 11-01 (Auth Infrastructure & Rate Limiting)
+stopped_at: Completed 11-02-PLAN.md (Data Endpoints)
+last_updated: "2026-03-12T20:58:02.010Z"
+last_activity: 2026-03-13 -- Completed Plan 11-02 (Data Endpoints)
 progress:
   total_phases: 7
-  completed_phases: 6
+  completed_phases: 7
   total_plans: 16
-  completed_plans: 17
-  percent: 93
+  completed_plans: 18
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 ## Current Position
 
 Phase: 11 of 11 (Commercial FastAPI REST API)
-Plan: 1 of 2 in current phase
-Status: Plan 11-01 complete, Plan 11-02 remaining
-Last activity: 2026-03-12 -- Completed Plan 11-01 (Auth Infrastructure & Rate Limiting)
+Plan: 2 of 2 in current phase (COMPLETE)
+Status: Phase 11 complete -- all plans done
+Last activity: 2026-03-13 -- Completed Plan 11-02 (Data Endpoints)
 
-Progress: [█████████░] 93%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -66,6 +66,7 @@ Progress: [█████████░] 93%
 | Phase 10 P01 | 4min | 2 tasks | 9 files |
 | Phase 10 P02 | 8min | 2 tasks | 11 files |
 | Phase 11 P01 | 11min | 3 tasks | 18 files |
+| Phase 11 P02 | 5min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -127,6 +128,8 @@ Recent decisions affecting current work:
 - [Phase 11]: In-memory slowapi storage for single-instance (Redis deferred to v1.2)
 - [Phase 11]: Legacy routes removed entirely from main.py (not prefixed with /legacy/)
 - [Phase 11]: PyJWT over python-jose for JWT (lighter, officially recommended by FastAPI)
+- [Phase 11]: Sentinel zeros in DetectRegimeCommand for auto-fetch at API layer (consistent with CLI)
+- [Phase 11]: Direction mapping BUY->Bullish/SELL->Bearish/HOLD->Neutral at API boundary for legal compliance
 
 ### Pending Todos
 
@@ -143,6 +146,6 @@ Carried forward from v1.0:
 
 ## Session Continuity
 
-Last session: 2026-03-12T20:39:29.601Z
-Stopped at: Completed 11-01-PLAN.md (Auth Infrastructure & Rate Limiting)
+Last session: 2026-03-12T20:58:02.007Z
+Stopped at: Completed 11-02-PLAN.md (Data Endpoints)
 Resume file: None
