@@ -12,12 +12,12 @@ Requirements for Stabilization & Expansion milestone. Each maps to roadmap phase
 - [x] **INFRA-01**: SyncEventBus 구현 및 기존 4개 바운디드 컨텍스트 배선
 - [x] **INFRA-02**: Composition Root (bootstrap) 구현으로 God Orchestrator 제거
 - [x] **INFRA-03**: DB Connection Factory (DuckDB/SQLite 통합 관리)
-- [ ] **INFRA-04**: DuckDB/SQLite 스코어링 스토어 불일치 수정
+- [x] **INFRA-04**: DuckDB/SQLite 스코어링 스토어 불일치 수정
 - [ ] **INFRA-05**: 누락 CLI 명령어 추가 (ingest, generate-plan, backtest)
-- [ ] **INFRA-06**: G-Score 블렌딩 및 레짐 조정 DDD 핸들러 배선
-- [ ] **INFRA-07**: 도메인 이벤트 EventBus 발행 배선
-- [ ] **INFRA-08**: Cross-context 직접 import 수정 (execution -> portfolio)
-- [ ] **INFRA-09**: 나머지 tech debt 항목 해결 (v1.0 감사 기준)
+- [x] **INFRA-06**: G-Score 블렌딩 및 레짐 조정 DDD 핸들러 배선
+- [x] **INFRA-07**: 도메인 이벤트 EventBus 발행 배선
+- [x] **INFRA-08**: Cross-context 직접 import 수정 (execution -> portfolio)
+- [x] **INFRA-09**: 나머지 tech debt 항목 해결 (v1.0 감사 기준)
 
 ### Data Pipeline
 
@@ -105,12 +105,12 @@ Deferred to future release. Tracked but not in current roadmap.
 | INFRA-01 | Phase 5 | Complete |
 | INFRA-02 | Phase 5 | Complete |
 | INFRA-03 | Phase 5 | Complete |
-| INFRA-04 | Phase 5 | Pending |
+| INFRA-04 | Phase 5 | Complete |
 | INFRA-05 | Phase 5 | Pending |
-| INFRA-06 | Phase 5 | Pending |
-| INFRA-07 | Phase 5 | Pending |
-| INFRA-08 | Phase 5 | Pending |
-| INFRA-09 | Phase 5 | Pending |
+| INFRA-06 | Phase 5 | Complete |
+| INFRA-07 | Phase 5 | Complete |
+| INFRA-08 | Phase 5 | Complete |
+| INFRA-09 | Phase 5 | Complete |
 | DATA-01 | Phase 6 | Pending |
 | DATA-02 | Phase 6 | Pending |
 | DATA-03 | Phase 6 | Pending |

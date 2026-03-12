@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Stabilization & Expansion
 status: executing
-stopped_at: "Completed 05-01-PLAN.md"
-last_updated: "2026-03-12T03:37:25Z"
-last_activity: 2026-03-12 -- Completed Plan 05-01 (Infrastructure Primitives)
+stopped_at: "Completed 05-02-PLAN.md"
+last_updated: "2026-03-12T03:41:14Z"
+last_activity: 2026-03-12 -- Completed Plan 05-02 (Code-Level Tech Debt)
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 15
-  completed_plans: 1
-  percent: 7
+  completed_plans: 2
+  percent: 13
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-12)
 ## Current Position
 
 Phase: 5 of 11 (Tech Debt & Infrastructure Foundation) -- first phase of v1.1
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: Executing
-Last activity: 2026-03-12 -- Completed Plan 05-01 (Infrastructure Primitives)
+Last activity: 2026-03-12 -- Completed Plan 05-02 (Code-Level Tech Debt)
 
-Progress: [#░░░░░░░░░] 7%
+Progress: [##░░░░░░░░] 13%
 
 ## Performance Metrics
 
@@ -52,7 +52,7 @@ Progress: [#░░░░░░░░░] 7%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 5. Tech Debt & Infrastructure | 1/3 | 4 min | 4 min |
+| 5. Tech Debt & Infrastructure | 2/3 | 12 min | 6 min |
 
 ## Accumulated Context
 
@@ -67,6 +67,9 @@ Recent decisions affecting current work:
 - [05-01]: SyncEventBus mirrors AsyncEventBus API, fully synchronous for CLI
 - [05-01]: bootstrap() eagerly creates all handlers; lazy init deferred to Phase 6+
 - [05-01]: Event subscriptions commented in bootstrap.py for Phase 6+ activation
+- [05-02]: TakeProfitLevels moved to shared kernel with backward-compat re-export
+- [05-02]: AST-based boundary tests for cross-context import enforcement
+- [05-02]: ScoreUpdatedEvent stored in result dict (bus publish deferred to Plan 03)
 
 ### Pending Todos
 
@@ -84,5 +87,5 @@ Carried forward from v1.0:
 ## Session Continuity
 
 Last session: 2026-03-12
-Stopped at: Completed 05-01-PLAN.md
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
