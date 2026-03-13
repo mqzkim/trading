@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
-status: in-progress
-stopped_at: Completed 20-02-PLAN.md (CI test debt cleanup plan 2)
-last_updated: "2026-03-13T20:04:38Z"
+status: executing
+stopped_at: Completed 20-01-PLAN.md (mypy/ruff zero-error cleanup)
+last_updated: "2026-03-13T20:09:31.516Z"
 last_activity: 2026-03-14 -- Completed 20-02 test_api_routes.py rewrite
 progress:
-  total_phases: 10
-  completed_phases: 8
+  total_phases: 9
+  completed_phases: 9
   total_plans: 20
-  completed_plans: 18
+  completed_plans: 20
   percent: 90
 ---
 
@@ -66,6 +66,7 @@ Progress: [█████████ ] 90%
 | Phase 19 P01 | 2min | 2 tasks | 2 files |
 | Phase 19 P02 | 3min | 2 tasks | 2 files |
 | Phase 20 P02 | 2min | 1 task | 1 file |
+| Phase 20 P01 | 5 | 2 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -142,6 +143,9 @@ Recent decisions affecting current work:
 - [19-02]: Drawdown fraction multiplied by 100 for gauge percentage display
 - [19-02]: Equity curve P&L uses take_profit_price as exit proxy (optimistic upper bound, acceptable for v1)
 - [20-02]: Auth route test uses /api/v1/auth/token (actual route) instead of /register (does not exist)
+- [Phase 20]: [20-01]: Used Any instead of Protocol for infrastructure adapter params (lower-risk, preserves runtime behavior)
+- [Phase 20]: [20-01]: Added disable_error_code for import-untyped in mypy config (requests stubs not installed)
+- [Phase 20]: [20-01]: Used .value to convert RegimeType enum to str in bootstrap event handler
 
 ### Pending Todos
 
@@ -160,6 +164,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T20:03:04Z
-Stopped at: Completed 20-02-PLAN.md (test_api_routes.py rewrite for v1.1 API)
+Last session: 2026-03-13T20:09:30.244Z
+Stopped at: Completed 20-01-PLAN.md (mypy/ruff zero-error cleanup)
 Resume file: None
