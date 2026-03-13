@@ -5,8 +5,10 @@ from src.bootstrap import bootstrap
 from src.shared.infrastructure.db_factory import DBFactory
 from src.shared.infrastructure.sync_event_bus import SyncEventBus
 from src.scoring.application.handlers import ScoreSymbolHandler
+from src.execution.domain.value_objects import ExecutionMode
 from src.execution.infrastructure.alpaca_adapter import AlpacaExecutionAdapter
 from src.execution.infrastructure.kis_adapter import KisExecutionAdapter
+from src.execution.infrastructure.safe_adapter import SafeExecutionAdapter
 
 
 class TestBootstrap:
@@ -65,19 +67,22 @@ class TestBootstrap:
         factory.close()
 
     def test_bootstrap_us(self, tmp_path) -> None:
-        """bootstrap(market='us') injects AlpacaExecutionAdapter (no regression)."""
+        """bootstrap(market='us') wraps AlpacaExecutionAdapter with SafeExecutionAdapter."""
         factory = DBFactory(data_dir=str(tmp_path))
         ctx = bootstrap(db_factory=factory, market="us")
         handler = ctx["trade_plan_handler"]
-        assert isinstance(handler._adapter, AlpacaExecutionAdapter)
+        assert isinstance(handler._adapter, SafeExecutionAdapter)
+        assert isinstance(handler._adapter._inner, AlpacaExecutionAdapter)
         assert ctx["market"] == "us"
         assert ctx["capital"] > 0  # US_CAPITAL default is 100_000
+        assert ctx["execution_mode"] == ExecutionMode.PAPER
+        assert ctx["cooldown_repo"] is not None
         factory.close()
 
     def test_bootstrap_default_is_us(self, tmp_path) -> None:
         """Default market parameter is 'us' for backward compatibility."""
         factory = DBFactory(data_dir=str(tmp_path))
         ctx = bootstrap(db_factory=factory)
-        assert isinstance(ctx["trade_plan_handler"]._adapter, AlpacaExecutionAdapter)
+        assert isinstance(ctx["trade_plan_handler"]._adapter, SafeExecutionAdapter)
         assert ctx["market"] == "us"
         factory.close()

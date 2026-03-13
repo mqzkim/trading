@@ -33,7 +33,12 @@ from src.execution.application.handlers import TradePlanHandler
 
 # -- Execution dependencies --
 from src.execution.domain.services import TradePlanService
-from src.execution.infrastructure import AlpacaExecutionAdapter
+from src.execution.domain.value_objects import ExecutionMode
+from src.execution.infrastructure import (
+    AlpacaExecutionAdapter,
+    SafeExecutionAdapter,
+    SqliteCooldownRepository,
+)
 
 
 def bootstrap(
@@ -103,8 +108,15 @@ def bootstrap(
     from src.execution.domain.repositories import IBrokerAdapter as _IBrokerAdapter
     from src.settings import settings
 
+    # Determine execution mode
+    execution_mode = ExecutionMode(settings.EXECUTION_MODE)
+
     adapter: _IBrokerAdapter
     capital: float
+    cooldown_repo = SqliteCooldownRepository(
+        db_path=db_factory.sqlite_path("portfolio"),
+    )
+
     if market == "kr":
         from src.execution.infrastructure.kis_adapter import KisExecutionAdapter
 
@@ -115,9 +127,30 @@ def bootstrap(
         )
         capital = settings.KR_CAPITAL
     else:
-        adapter = AlpacaExecutionAdapter(
-            api_key=settings.ALPACA_API_KEY,
-            secret_key=settings.ALPACA_SECRET_KEY,
+        # Select API keys based on execution mode
+        api_key: str | None
+        secret_key: str | None
+        if execution_mode == ExecutionMode.LIVE:
+            if not settings.ALPACA_LIVE_KEY or not settings.ALPACA_LIVE_SECRET:
+                raise ValueError(
+                    "Live mode requires ALPACA_LIVE_KEY and ALPACA_LIVE_SECRET"
+                )
+            api_key = settings.ALPACA_LIVE_KEY
+            secret_key = settings.ALPACA_LIVE_SECRET
+        else:
+            # Paper mode: prefer ALPACA_PAPER_KEY, fall back to legacy keys
+            api_key = settings.ALPACA_PAPER_KEY or settings.ALPACA_API_KEY
+            secret_key = settings.ALPACA_PAPER_SECRET or settings.ALPACA_SECRET_KEY
+
+        raw_adapter = AlpacaExecutionAdapter(
+            api_key=api_key,
+            secret_key=secret_key,
+            paper=(execution_mode == ExecutionMode.PAPER),
+        )
+        adapter = SafeExecutionAdapter(
+            inner=raw_adapter,
+            mode=execution_mode,
+            cooldown_repo=cooldown_repo,
         )
         capital = settings.US_CAPITAL
 
@@ -164,4 +197,6 @@ def bootstrap(
         "regime_adjuster": regime_adjuster,
         "capital": capital,
         "market": market,
+        "cooldown_repo": cooldown_repo,
+        "execution_mode": execution_mode,
     }
