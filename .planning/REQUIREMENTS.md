@@ -32,9 +32,9 @@ Requirements for Production Trading & Dashboard milestone. Each maps to roadmap 
 
 - [x] **APPR-01**: User can create strategy approval with score threshold, regime allow-list, max per-trade %, and mandatory expiration date
 - [x] **APPR-02**: User can set daily budget cap with real-time spent/remaining tracking per pipeline run
-- [ ] **APPR-03**: Trades exceeding approved budget or strategy parameters queue for manual review instead of auto-executing
-- [ ] **APPR-04**: Regime change event automatically suspends active strategy approval until user re-approves
-- [ ] **APPR-05**: Drawdown tier 2+ automatically suspends strategy approval and halts automated execution
+- [x] **APPR-03**: Trades exceeding approved budget or strategy parameters queue for manual review instead of auto-executing
+- [x] **APPR-04**: Regime change event automatically suspends active strategy approval until user re-approves
+- [x] **APPR-05**: Drawdown tier 2+ automatically suspends strategy approval and halts automated execution
 
 ### Live Trading
 
@@ -111,9 +111,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PIPE-07 | Phase 13 | Complete |
 | APPR-01 | Phase 14 | Complete |
 | APPR-02 | Phase 14 | Complete |
-| APPR-03 | Phase 14 | Pending |
-| APPR-04 | Phase 14 | Pending |
-| APPR-05 | Phase 14 | Pending |
+| APPR-03 | Phase 14 | Complete |
+| APPR-04 | Phase 14 | Complete |
+| APPR-05 | Phase 14 | Complete |
 | LIVE-01 | Phase 15 | Pending |
 | LIVE-02 | Phase 15 | Pending |
 | LIVE-03 | Phase 15 | Pending |
