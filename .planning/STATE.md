@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
-status: completed
-stopped_at: Completed 19-02-PLAN.md (Phase 19 complete, dashboard data accuracy)
-last_updated: "2026-03-13T19:12:03.314Z"
-last_activity: 2026-03-14 -- Completed 19-02 dashboard data accuracy
+status: in-progress
+stopped_at: Completed 20-02-PLAN.md (CI test debt cleanup plan 2)
+last_updated: "2026-03-13T20:04:38Z"
+last_activity: 2026-03-14 -- Completed 20-02 test_api_routes.py rewrite
 progress:
-  total_phases: 9
+  total_phases: 10
   completed_phases: 8
-  total_plans: 18
+  total_plans: 20
   completed_plans: 18
-  percent: 100
+  percent: 90
 ---
 
 # Project State
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 19 -- Dashboard CLI & Data Accuracy (gap closure)
+**Current focus:** Phase 20 -- CI Test Debt Cleanup
 
 ## Current Position
 
-Phase: 19 of 20 (Dashboard CLI & Data Accuracy) -- eighth of 9 v1.2 phases
+Phase: 20 of 20 (CI Test Debt Cleanup) -- ninth of 10 phases
 Plan: 2 of 2 complete
-Status: Complete
-Last activity: 2026-03-14 -- Completed 19-02 dashboard data accuracy
+Status: In Progress
+Last activity: 2026-03-14 -- Completed 20-02 test_api_routes.py rewrite
 
-Progress: [██████████] 100%
+Progress: [█████████ ] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 46 (v1.0: 12, v1.1: 17, v1.2: 17)
+- Total plans completed: 48 (v1.0: 12, v1.1: 17, v1.2: 17, cleanup: 2)
 - Average duration: ~5.9 min/plan
 - Total execution time: ~3.5 hours
 
@@ -65,6 +65,7 @@ Progress: [██████████] 100%
 | Phase 18 P01 | 5min | 2 tasks | 3 files |
 | Phase 19 P01 | 2min | 2 tasks | 2 files |
 | Phase 19 P02 | 3min | 2 tasks | 2 files |
+| Phase 20 P02 | 2min | 1 task | 1 file |
 
 ## Accumulated Context
 
@@ -140,6 +141,7 @@ Recent decisions affecting current work:
 - [19-02]: RiskQueryHandler stores self._ctx for portfolio access (matches OverviewQueryHandler pattern)
 - [19-02]: Drawdown fraction multiplied by 100 for gauge percentage display
 - [19-02]: Equity curve P&L uses take_profit_price as exit proxy (optimistic upper bound, acceptable for v1)
+- [20-02]: Auth route test uses /api/v1/auth/token (actual route) instead of /register (does not exist)
 
 ### Pending Todos
 
@@ -158,6 +160,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T19:06:13Z
-Stopped at: Completed 19-02-PLAN.md (Phase 19 complete, dashboard data accuracy)
+Last session: 2026-03-13T20:03:04Z
+Stopped at: Completed 20-02-PLAN.md (test_api_routes.py rewrite for v1.1 API)
 Resume file: None
