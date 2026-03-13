@@ -20,12 +20,12 @@ Requirements for Production Trading & Dashboard milestone. Each maps to roadmap 
 
 ### Automated Pipeline
 
-- [ ] **PIPE-01**: Daily automated pipeline runs ingest → regime → score → signal → plan → budget check → execute after market close
+- [x] **PIPE-01**: Daily automated pipeline runs ingest → regime → score → signal → plan → budget check → execute after market close
 - [x] **PIPE-02**: Pipeline checks NYSE market calendar and skips weekends, holidays, and early-close days
 - [x] **PIPE-03**: Each pipeline run logs stages completed, symbol counts, errors, and next scheduled run to SQLite
-- [ ] **PIPE-04**: Dry-run mode executes full pipeline without submitting orders (for validation)
-- [ ] **PIPE-05**: Individual pipeline stages retry with exponential backoff on transient failures (e.g., yfinance timeouts)
-- [ ] **PIPE-06**: Pipeline auto-halts execution when regime is Crisis or drawdown tier >= 2
+- [x] **PIPE-04**: Dry-run mode executes full pipeline without submitting orders (for validation)
+- [x] **PIPE-05**: Individual pipeline stages retry with exponential backoff on transient failures (e.g., yfinance timeouts)
+- [x] **PIPE-06**: Pipeline auto-halts execution when regime is Crisis or drawdown tier >= 2
 - [x] **PIPE-07**: APScheduler with SQLite job persistence manages schedule across process restarts
 
 ### Strategy & Budget Approval
@@ -102,12 +102,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SAFE-06 | Phase 12 | Complete |
 | SAFE-07 | Phase 12 | Complete |
 | SAFE-08 | Phase 12 | Complete |
-| PIPE-01 | Phase 13 | Pending |
+| PIPE-01 | Phase 13 | Complete |
 | PIPE-02 | Phase 13 | Complete |
 | PIPE-03 | Phase 13 | Complete |
-| PIPE-04 | Phase 13 | Pending |
-| PIPE-05 | Phase 13 | Pending |
-| PIPE-06 | Phase 13 | Pending |
+| PIPE-04 | Phase 13 | Complete |
+| PIPE-05 | Phase 13 | Complete |
+| PIPE-06 | Phase 13 | Complete |
 | PIPE-07 | Phase 13 | Complete |
 | APPR-01 | Phase 14 | Pending |
 | APPR-02 | Phase 14 | Pending |
