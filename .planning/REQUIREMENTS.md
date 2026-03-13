@@ -51,9 +51,9 @@ Requirements for Production Trading & Dashboard milestone. Each maps to roadmap 
 - [x] **DASH-02**: Dashboard displays scoring and signal results for latest pipeline run
 - [x] **DASH-03**: Dashboard shows trade history with execution details (entry, stop, target, fill price, P&L)
 - [x] **DASH-04**: Dashboard displays risk metrics (drawdown gauge, sector exposure, position limit utilization)
-- [ ] **DASH-05**: Dashboard shows pipeline status (last run time, next scheduled, stage results, symbol counts)
-- [ ] **DASH-06**: User can view and manage strategy approval and daily budget from dashboard
-- [ ] **DASH-07**: Dashboard receives real-time updates via SSE for order fills, pipeline events, and alerts
+- [x] **DASH-05**: Dashboard shows pipeline status (last run time, next scheduled, stage results, symbol counts)
+- [x] **DASH-06**: User can view and manage strategy approval and daily budget from dashboard
+- [x] **DASH-07**: Dashboard receives real-time updates via SSE for order fills, pipeline events, and alerts
 - [x] **DASH-08**: Dashboard displays equity curve chart with regime overlay
 - [x] **DASH-09**: Dashboard shows prominent paper/live mode banner (red for live, green for paper)
 
@@ -124,9 +124,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-02 | Phase 16 | Complete |
 | DASH-03 | Phase 16 | Complete |
 | DASH-04 | Phase 16 | Complete |
-| DASH-05 | Phase 16 | Pending |
-| DASH-06 | Phase 16 | Pending |
-| DASH-07 | Phase 16 | Pending |
+| DASH-05 | Phase 16 | Complete |
+| DASH-06 | Phase 16 | Complete |
+| DASH-07 | Phase 16 | Complete |
 | DASH-08 | Phase 16 | Complete |
 | DASH-09 | Phase 16 | Complete |
 

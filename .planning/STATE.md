@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
 status: in-progress
-stopped_at: Completed 16-01-PLAN.md
-last_updated: "2026-03-13T15:16:42Z"
-last_activity: 2026-03-13 -- Completed 16-01 dashboard foundation
+stopped_at: Completed 16-04-PLAN.md
+last_updated: "2026-03-13T15:33:00Z"
+last_activity: 2026-03-13 -- Completed 16-04 pipeline & approval page
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 14
-  completed_plans: 13
-  percent: 93
+  completed_plans: 14
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 16 of 16 (Web Dashboard) -- fifth of 5 v1.2 phases
-Plan: 3 of 4 complete
-Status: In Progress
-Last activity: 2026-03-13 -- Completed 16-03 signals + risk pages
+Plan: 4 of 4 complete
+Status: Complete
+Last activity: 2026-03-13 -- Completed 16-04 pipeline & approval page
 
-Progress: [█████████░] 93%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -59,7 +59,7 @@ Progress: [█████████░] 93%
 | 13. Pipeline Scheduler | 3/3 | 18 min | 6.0 min |
 | 14. Strategy Approval | 2/2 | 14 min | 7.0 min |
 | 15. Live Trading | 2/2 | 11 min | 5.5 min |
-| 16. Web Dashboard | 3/4 | 24 min | 8.0 min |
+| 16. Web Dashboard | 4/4 | 28 min | 7.0 min |
 
 ## Accumulated Context
 
@@ -116,6 +116,10 @@ Recent decisions affecting current work:
 - [16-03]: RiskQueryHandler sector weights from entry_price * quantity (no live price feed in v1)
 - [16-03]: Drawdown defaults to 0.0 without Portfolio aggregate -- SSE provides real-time updates
 - [16-03]: signal_repo added to bootstrap ctx dict for dashboard query access
+- [16-04]: python-multipart added as dependency for FastAPI Form data support
+- [16-04]: Approval section and review queue as separate partials for independent HTMX swap
+- [16-04]: SSE _render_partial dispatches by event type to render appropriate HTML partial
+- [16-04]: PipelineQueryHandler delegates to approval_handler.get_status() for budget data
 
 ### Pending Todos
 
@@ -134,6 +138,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T15:24:30Z
-Stopped at: Completed 16-03-PLAN.md
-Resume file: .planning/phases/16-web-dashboard/16-04-PLAN.md
+Last session: 2026-03-13T15:33:00Z
+Stopped at: Completed 16-04-PLAN.md (Phase 16 complete, v1.2 milestone complete)
+Resume file: None -- all plans complete

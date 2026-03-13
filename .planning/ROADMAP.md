@@ -43,7 +43,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 - [x] **Phase 13: Automated Pipeline Scheduler** - Daily cron pipeline in paper mode with market calendar, stage retry, run logging (completed 2026-03-13)
 - [x] **Phase 14: Strategy and Budget Approval** - Human-approved trading rules and daily budget caps gating automated execution (completed 2026-03-13)
 - [x] **Phase 15: Live Trading Activation** - Live Alpaca execution with circuit breaker, order monitoring, and WebSocket fills (completed 2026-03-13)
-- [ ] **Phase 16: Web Dashboard** - HTMX dashboard with portfolio, signals, risk metrics, pipeline status, and real-time SSE updates
+- [x] **Phase 16: Web Dashboard** - HTMX dashboard with portfolio, signals, risk metrics, pipeline status, and real-time SSE updates (completed 2026-03-13)
 
 ## Phase Details
 
@@ -152,4 +152,4 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 13. Automated Pipeline Scheduler | v1.2 | 3/3 | Complete | 2026-03-13 |
 | 14. Strategy and Budget Approval | v1.2 | 2/2 | Complete | 2026-03-13 |
 | 15. Live Trading Activation | v1.2 | 2/2 | Complete | 2026-03-13 |
-| 16. Web Dashboard | 3/4 | In Progress|  | - |
+| 16. Web Dashboard | 4/4 | Complete   | 2026-03-13 | - |
