@@ -1403,5 +1403,27 @@ def pipeline_status(
         pass
 
 
+@pipeline_app.command(name="daemon")
+def pipeline_daemon(
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Start the pipeline scheduler daemon (background process)."""
+    ctx = _get_ctx(market)
+    scheduler = ctx["scheduler_service"]
+    scheduler.start()
+    console.print("[green]Pipeline scheduler started[/green]")
+    next_time = scheduler.get_next_run_time()
+    if next_time:
+        console.print(f"Next run: {next_time.strftime('%Y-%m-%d %H:%M %Z')}")
+    console.print("[dim]Press Ctrl+C to stop...[/dim]")
+    try:
+        import signal
+
+        signal.pause()
+    except (KeyboardInterrupt, SystemExit):
+        scheduler.stop()
+        console.print("[yellow]Scheduler stopped[/yellow]")
+
+
 if __name__ == "__main__":
     app()

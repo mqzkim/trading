@@ -254,4 +254,23 @@ def bootstrap(
     ctx["run_pipeline_handler"] = run_pipeline_handler
     ctx["pipeline_status_handler"] = pipeline_status_handler
 
+    # -- Scheduler Service (created but NOT started -- caller decides when to start) --
+    from src.pipeline.infrastructure import SchedulerService
+
+    def _auto_pipeline_fn():
+        """Module-level callable for APScheduler."""
+        from src.pipeline.application.commands import RunPipelineCommand
+        from src.pipeline.domain.value_objects import RunMode
+
+        run_pipeline_handler.handle(RunPipelineCommand(dry_run=False, mode=RunMode.AUTO))
+
+    scheduler_service = SchedulerService(
+        db_path=db_factory.sqlite_path("scheduler"),
+        run_pipeline_fn=_auto_pipeline_fn,
+        calendar_service=market_calendar,
+        schedule_hour=settings.PIPELINE_SCHEDULE_HOUR,
+        schedule_minute=settings.PIPELINE_SCHEDULE_MINUTE,
+    )
+    ctx["scheduler_service"] = scheduler_service
+
     return ctx
