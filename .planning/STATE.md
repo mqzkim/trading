@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
-status: executing
-stopped_at: Completed 12-03-PLAN.md (Phase 12 complete)
-last_updated: "2026-03-13T00:02:19Z"
+status: completed
+stopped_at: Completed 12-02-PLAN.md
+last_updated: "2026-03-13T00:04:38.975Z"
 last_activity: 2026-03-13 -- Completed 12-03 position reconciliation and kill switch
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
   completed_plans: 3
   percent: 100
@@ -56,6 +56,7 @@ Progress: [██████████] 100%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 12. Safety Infrastructure | 3/3 | 12 min | 4.0 min |
+| Phase 12 P02 | 5min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -72,9 +73,13 @@ Recent decisions affecting current work:
 - [12-01]: CooldownState is frozen dataclass (not ValueObject) -- needs optional id for persistence
 - [12-01]: Expiry checked in Python not SQL for timezone safety
 - [12-01]: WAL journal mode for concurrent safety between pipeline and CLI
+- [12-02]: SafeExecutionAdapter accesses inner _client for polling -- acceptable in infrastructure layer
+- [12-02]: Paper mode skips polling/leg verification -- only cooldown check applies
+- [12-02]: AlpacaExecutionAdapter _init_client raises on failure instead of silent mock fallback
 - [12-03]: KillSwitchService extracted as infrastructure service for testability
 - [12-03]: PositionRepoProtocol avoids cross-context import (DDD compliance)
 - [12-03]: Mock mode kill switch still creates cooldown for emotional re-entry prevention
+- [Phase 12]: SafeExecutionAdapter accesses inner _client for polling -- acceptable in infrastructure layer
 
 ### Pending Todos
 
@@ -93,6 +98,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T00:02:19Z
-Stopped at: Completed 12-03-PLAN.md (Phase 12 complete)
+Last session: 2026-03-13T00:04:33.879Z
+Stopped at: Completed 12-02-PLAN.md
 Resume file: None
