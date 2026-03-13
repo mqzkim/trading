@@ -68,6 +68,8 @@ line-length = 100
 python_version = "3.11"
 strict = false
 ignore_missing_imports = true
+explicit_package_bases = true
+disable_error_code = ["import-untyped"]
 
 [tool.ruff]
 line-length = 100

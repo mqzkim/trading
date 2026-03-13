@@ -74,6 +74,7 @@ class GenerateSignalHandler:
         symbol = cmd.symbol.upper()
 
         # 0. Derive market_uptrend from regime for CAN SLIM (SIGNAL-01)
+        cmd_symbol_data: dict | None
         if self._adapter is not None and cmd.symbol_data is not None and cmd.regime_type is not None:
             market_uptrend = cmd.regime_type in ("Bull", "Sideways")
             cmd_symbol_data = {**cmd.symbol_data, "market_uptrend": market_uptrend}

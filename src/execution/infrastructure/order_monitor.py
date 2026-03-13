@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from typing import Any
 
 from src.execution.domain.events import OrderFilledEvent
 
@@ -35,9 +36,9 @@ class AlpacaOrderMonitor:
 
     def __init__(
         self,
-        client: object,
-        notifier: object | None = None,
-        bus: object | None = None,
+        client: Any,
+        notifier: Any | None = None,
+        bus: Any | None = None,
         poll_interval: float = 5.0,
         stuck_timeout: float = DEFAULT_STUCK_TIMEOUT,
     ) -> None:

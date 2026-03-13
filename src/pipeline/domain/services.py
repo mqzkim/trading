@@ -400,6 +400,8 @@ class PipelineOrchestrator:
 
         # Get today's budget tracker
         budget_repo = handlers.get("budget_repo")
+        if budget_repo is None:
+            raise RuntimeError("budget_repo not configured")
         budget = budget_repo.get_or_create_today(approval.daily_budget_cap)
 
         # Get current regime for gate check

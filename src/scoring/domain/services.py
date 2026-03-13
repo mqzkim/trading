@@ -82,7 +82,7 @@ class ConcreteRegimeWeightAdjuster:
         self._regime_type = regime_type
 
     def on_regime_changed(self, event: object) -> None:
-        self.update_regime(event.new_regime.value)  # type: ignore[union-attr]
+        self.update_regime(event.new_regime.value)  # type: ignore[attr-defined]
 
 
 class SafetyFilterService:

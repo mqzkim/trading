@@ -30,7 +30,7 @@ def compute_technical_score(df: pd.DataFrame, indicators: dict) -> dict:
     adx14 = _safe_last(indicators["adx14"])
     macd_hist = _safe_last(indicators["macd_histogram"])
 
-    trend_points = 0
+    trend_points: float = 0
     # Price vs MA200 (40 pts)
     if not math.isnan(ma200) and current_close > ma200:
         trend_points += 40

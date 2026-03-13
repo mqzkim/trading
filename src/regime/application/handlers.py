@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
+
 from src.shared.domain import Ok, Err, Result
 from src.shared.infrastructure.sync_event_bus import SyncEventBus
 from src.regime.domain import (
@@ -39,7 +41,7 @@ class DetectRegimeHandler:
         self,
         regime_repo: IRegimeRepository,
         bus: SyncEventBus | None = None,
-        data_client: object | None = None,
+        data_client: Any | None = None,
     ):
         self._regime_repo = regime_repo
         self._bus = bus
@@ -50,7 +52,7 @@ class DetectRegimeHandler:
     def _fetch_regime_data(self) -> dict:
         """Fetch regime indicator values from data client or fallback import."""
         if self._data_client is not None:
-            return self._data_client.fetch_regime_snapshot()  # type: ignore[union-attr]
+            return self._data_client.fetch_regime_snapshot()
         # Fallback: direct import (same pattern as ScoreSymbolHandler)
         from src.data_ingest.infrastructure.regime_data_client import (
             RegimeDataClient,

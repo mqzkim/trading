@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
 
 from src.execution.domain.repositories import IBrokerAdapter, ICooldownRepository
 from src.execution.domain.value_objects import (
@@ -85,8 +86,8 @@ class SafeExecutionAdapter(IBrokerAdapter):
         poll_interval: float = 2.0,
         poll_timeout: float = 60.0,
         max_failures: int = 3,
-        notifier: object | None = None,
-        kill_switch: object | None = None,
+        notifier: Any | None = None,
+        kill_switch: Any | None = None,
     ) -> None:
         self._inner = inner
         self._mode = mode

@@ -225,7 +225,7 @@ def bootstrap(
 
     # Regime -> Approval suspension (auto-suspend when regime leaves allow-list)
     def _on_regime_changed(event: RegimeChangedEvent) -> None:
-        approval_handler.suspend_if_regime_invalid(event.new_regime)
+        approval_handler.suspend_if_regime_invalid(event.new_regime.value)
 
     bus.subscribe(RegimeChangedEvent, _on_regime_changed)
 

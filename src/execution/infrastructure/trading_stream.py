@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from typing import Any
 
 from alpaca.trading.stream import TradingStream
 
@@ -32,8 +33,8 @@ class TradingStreamAdapter:
         api_key: str,
         secret_key: str,
         paper: bool,
-        bus: object,
-        monitor: object | None = None,
+        bus: Any,
+        monitor: Any | None = None,
     ) -> None:
         self._bus = bus
         self._monitor = monitor
