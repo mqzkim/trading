@@ -173,7 +173,11 @@ Plans:
   2. On initial page load, risk gauge shows actual portfolio drawdown percentage from SQLite, not hardcoded 0.0
   3. Equity curve chart shows accumulated P&L over time, not a flat zero line
   4. E2E flows #8 and #9 change from DEGRADED to COMPLETE
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 19-01-PLAN.md -- trade serve CLI command (uvicorn programmatic launch with browser auto-open)
+- [ ] 19-02-PLAN.md -- Dashboard data accuracy (real drawdown in risk gauge, P&L accumulation in equity curve)
 
 ### Phase 20: CI/Test Debt Cleanup
 **Goal**: Clean CI pipeline — mypy passes with zero errors, all unit tests pass including api_routes
@@ -209,5 +213,5 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 16. Web Dashboard | v1.2 | 4/4 | Complete | 2026-03-13 |
 | 17. SSE Real-Time Event Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
 | 18. Drawdown Defense Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
-| 19. Dashboard CLI & Data Accuracy | v1.2 | 0/0 | Not Started | - |
+| 19. Dashboard CLI & Data Accuracy | v1.2 | 0/2 | Not Started | - |
 | 20. CI/Test Debt Cleanup | v1.2 | 0/0 | Not Started | - |
