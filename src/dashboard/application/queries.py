@@ -29,6 +29,134 @@ class PipelineQuery:
     """Query for pipeline page data (run history, approval status, budget)."""
 
 
+class PipelineQueryHandler:
+    """Aggregates pipeline, approval, budget, and review data for the pipeline page."""
+
+    def __init__(self, ctx: dict) -> None:
+        self._ctx = ctx
+
+    def handle(self) -> dict[str, Any]:
+        """Query all repos and build pipeline page data."""
+        return {
+            "pipeline_runs": self._get_pipeline_runs(),
+            "next_scheduled": self._get_next_scheduled(),
+            "approval_status": self._get_approval_status(),
+            "daily_budget": self._get_daily_budget(),
+            "review_queue": self._get_review_queue(),
+        }
+
+    def _get_pipeline_runs(self) -> list[dict]:
+        """Get recent pipeline runs with stage results."""
+        repo = self._ctx.get("pipeline_run_repo")
+        if repo is None:
+            return []
+        try:
+            runs = repo.get_recent(10)
+        except Exception:
+            return []
+
+        result = []
+        for run in runs:
+            stages = []
+            for s in run.stages:
+                stages.append({
+                    "name": s.stage_name,
+                    "status": s.status,
+                    "symbol_count": s.symbols_processed,
+                })
+            result.append({
+                "run_id": run.run_id,
+                "started_at": run.started_at.strftime("%Y-%m-%d %H:%M") if run.started_at else "",
+                "completed_at": run.finished_at.strftime("%Y-%m-%d %H:%M") if run.finished_at else "--",
+                "status": run.status.value,
+                "stages": stages,
+            })
+        return result
+
+    def _get_next_scheduled(self) -> str:
+        """Get next scheduled run time from scheduler service."""
+        scheduler = self._ctx.get("scheduler_service")
+        if scheduler is None:
+            return "Not scheduled"
+        try:
+            next_time = scheduler.get_next_run_time()
+            if next_time is None:
+                return "Not scheduled"
+            return next_time.strftime("%Y-%m-%d %H:%M %Z")
+        except Exception:
+            return "Not scheduled"
+
+    def _get_approval_status(self) -> dict | None:
+        """Get current active approval status."""
+        handler = self._ctx.get("approval_handler")
+        if handler is None:
+            return None
+        try:
+            status = handler.get_status()
+            approval = status.get("approval")
+            if approval is None:
+                return None
+            return {
+                "id": approval.id,
+                "score_threshold": approval.score_threshold,
+                "allowed_regimes": approval.allowed_regimes,
+                "max_per_trade_pct": approval.max_per_trade_pct,
+                "daily_budget_cap": approval.daily_budget_cap,
+                "expires_at": approval.expires_at.strftime("%Y-%m-%d %H:%M"),
+                "is_active": approval.is_active,
+                "is_suspended": approval.is_suspended,
+                "suspended_reasons": list(approval.suspended_reasons),
+                "status": "suspended" if approval.is_suspended else "active",
+            }
+        except Exception:
+            return None
+
+    def _get_daily_budget(self) -> dict:
+        """Get today's budget from approval handler status."""
+        handler = self._ctx.get("approval_handler")
+        if handler is None:
+            return {"spent": 0.0, "limit": 0.0, "remaining": 0.0}
+        try:
+            status = handler.get_status()
+            budget = status.get("budget")
+            if budget is None:
+                return {"spent": 0.0, "limit": 0.0, "remaining": 0.0}
+            return {
+                "spent": budget.spent,
+                "limit": budget.budget_cap,
+                "remaining": budget.remaining,
+            }
+        except Exception:
+            return {"spent": 0.0, "limit": 0.0, "remaining": 0.0}
+
+    def _get_review_queue(self) -> list[dict]:
+        """Get pending trade reviews from review queue repo."""
+        repo = self._ctx.get("review_queue_repo")
+        if repo is None:
+            return []
+        try:
+            items = repo.list_pending()
+            result = []
+            for item in items:
+                # Parse plan_json for trade details
+                plan_data: dict = {}
+                try:
+                    plan_data = json.loads(item.plan_json) if item.plan_json else {}
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                result.append({
+                    "id": item.id,
+                    "symbol": item.symbol,
+                    "strategy": plan_data.get("strategy", "--"),
+                    "score": plan_data.get("composite_score", 0.0),
+                    "reason": item.rejection_reason,
+                    "created_at": item.created_at.strftime("%Y-%m-%d %H:%M"),
+                })
+            return result
+        except Exception:
+            return []
+
+
 class OverviewQueryHandler:
     """Aggregates data from portfolio, scoring, pipeline, and regime repos.
 
