@@ -93,8 +93,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 14-01-PLAN.md -- Approval bounded context domain layer (StrategyApproval entity, ApprovalGateService, DailyBudgetTracker, SQLite persistence)
-- [ ] 14-02-PLAN.md -- Application handlers, pipeline gate integration, event-driven suspension, CLI commands (approve CRUD, trade review)
+- [x] 14-01-PLAN.md -- Approval bounded context domain layer (StrategyApproval entity, ApprovalGateService, DailyBudgetTracker, SQLite persistence)
+- [x] 14-02-PLAN.md -- Application handlers, pipeline gate integration, event-driven suspension, CLI commands (approve CRUD, trade review)
 
 ### Phase 15: Live Trading Activation
 **Goal**: System executes real orders through Alpaca live account within approved safety boundaries, with real-time monitoring and automatic failure protection
@@ -106,11 +106,11 @@ Plans:
   3. Background order monitor tracks all open orders until they reach terminal state (filled, rejected, cancelled) -- no orders left in unknown status
   4. After 3 consecutive order failures, circuit breaker halts all live trading automatically -- requires manual reset to resume
   5. Initial live deployment uses max 25% capital allocation -- system enforces this ceiling regardless of strategy approval settings
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 15-01: TBD
-- [ ] 15-02: TBD
+- [ ] 15-01-PLAN.md -- Circuit breaker in SafeExecutionAdapter, OrderFilledEvent, LIVE_CAPITAL_RATIO, CLI config/reset commands
+- [ ] 15-02-PLAN.md -- AlpacaOrderMonitor background thread, TradingStreamAdapter WebSocket, pipeline integration with circuit breaker error handling
 
 ### Phase 16: Web Dashboard
 **Goal**: Operator has full visibility into portfolio, pipeline, risk, and approval status through a browser-based dashboard with real-time updates
@@ -149,6 +149,6 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 11. Commercial FastAPI REST API | v1.1 | 3/3 | Complete | 2026-03-13 |
 | 12. Safety Infrastructure | v1.2 | 3/3 | Complete | 2026-03-13 |
 | 13. Automated Pipeline Scheduler | v1.2 | 3/3 | Complete | 2026-03-13 |
-| 14. Strategy and Budget Approval | 2/2 | Complete    | 2026-03-13 | - |
-| 15. Live Trading Activation | v1.2 | 0/? | Not started | - |
+| 14. Strategy and Budget Approval | v1.2 | 2/2 | Complete | 2026-03-13 |
+| 15. Live Trading Activation | v1.2 | 0/2 | Not started | - |
 | 16. Web Dashboard | v1.2 | 0/? | Not started | - |
