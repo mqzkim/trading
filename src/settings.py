@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     # KR capital
     KR_CAPITAL: float = 10_000_000.0  # KRW default
 
+    # Dashboard
+    DASHBOARD_HOST: str = "0.0.0.0"
+    DASHBOARD_PORT: int = 8000
+
     # Pipeline scheduler
     SLACK_WEBHOOK_URL: Optional[str] = None
     PIPELINE_SCHEDULE_HOUR: int = 16
