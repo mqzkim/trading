@@ -257,6 +257,31 @@ def bootstrap(
     # Wire notifier into safe adapter (if it's a SafeExecutionAdapter)
     if isinstance(adapter, SafeExecutionAdapter):
         adapter._notifier = notifier
+
+    # Order monitor and trading stream (US market only)
+    from src.execution.infrastructure import AlpacaOrderMonitor, TradingStreamAdapter
+
+    order_monitor = None
+    trading_stream = None
+
+    if market == "us":
+        monitor_client = raw_adapter._client if hasattr(raw_adapter, "_client") else None
+        order_monitor = AlpacaOrderMonitor(
+            client=monitor_client,
+            notifier=notifier,
+            bus=bus,
+        )
+
+        # TradingStream only for LIVE mode
+        if execution_mode == ExecutionMode.LIVE:
+            trading_stream = TradingStreamAdapter(
+                api_key=api_key,  # type: ignore[arg-type]
+                secret_key=secret_key,  # type: ignore[arg-type]
+                paper=False,
+                bus=bus,
+                monitor=order_monitor,
+            )
+
     reconciliation_service = PositionReconciliationService(
         position_repo=position_repo,
         broker_adapter=adapter,
@@ -284,6 +309,8 @@ def bootstrap(
         "execution_mode": execution_mode,
         "safe_adapter": adapter if isinstance(adapter, SafeExecutionAdapter) else None,
         "kill_switch": kill_switch,
+        "order_monitor": order_monitor,
+        "trading_stream": trading_stream,
         "data_pipeline": data_pipeline,
         "pipeline_run_repo": pipeline_run_repo,
         "market_calendar": market_calendar,

@@ -9,12 +9,11 @@ from __future__ import annotations
 import logging
 import threading
 
+from alpaca.trading.stream import TradingStream
+
 from src.execution.domain.events import OrderFilledEvent
 
 logger = logging.getLogger(__name__)
-
-# Import TradingStream at module level (mocked in tests)
-from alpaca.trading.stream import TradingStream
 
 # Events that represent a fill
 FILL_EVENTS = {"fill", "partial_fill"}

@@ -423,64 +423,101 @@ class PipelineOrchestrator:
         failed = 0
         queued = 0
 
-        for plan in trade_plans:
-            try:
-                plan_score = getattr(plan, "composite_score", 50.0)
-                plan_position_pct = getattr(plan, "position_pct", 5.0)
-                plan_position_value = getattr(plan, "position_value", 0.0)
+        # Start order monitor and trading stream if available
+        order_monitor = handlers.get("order_monitor")
+        trading_stream = handlers.get("trading_stream")
+        halted = False
 
-                gate_result = approval_gate.check(
-                    plan_symbol=plan.symbol,
-                    plan_score=plan_score,
-                    plan_position_pct=plan_position_pct,
-                    current_regime=current_regime,
-                    daily_remaining=budget.remaining,
-                    plan_position_value=plan_position_value,
-                    approval=approval,
-                )
+        try:
+            if order_monitor is not None:
+                order_monitor.start()
+            if trading_stream is not None:
+                trading_stream.start()
 
-                if gate_result.approved:
-                    trade_plan_handler.approve(
-                        ApproveTradePlanCommand(symbol=plan.symbol, approved=True)
+            for plan in trade_plans:
+                try:
+                    plan_score = getattr(plan, "composite_score", 50.0)
+                    plan_position_pct = getattr(plan, "position_pct", 5.0)
+                    plan_position_value = getattr(plan, "position_value", 0.0)
+
+                    gate_result = approval_gate.check(
+                        plan_symbol=plan.symbol,
+                        plan_score=plan_score,
+                        plan_position_pct=plan_position_pct,
+                        current_regime=current_regime,
+                        daily_remaining=budget.remaining,
+                        plan_position_value=plan_position_value,
+                        approval=approval,
                     )
-                    trade_plan_handler.execute(ExecuteOrderCommand(symbol=plan.symbol))
-                    succeeded += 1
 
-                    # Record spend in budget tracker
-                    budget.record_spend(plan_position_value)
-                    budget_repo.save(budget)
-
-                    # Budget 80% warning
-                    if budget.spent >= budget.budget_cap * 0.8 and notifier:
-                        pct = (budget.spent / budget.budget_cap) * 100
-                        notifier.notify(
-                            f"Budget {pct:.0f}% used (${budget.spent:.0f}/${budget.budget_cap:.0f})"
+                    if gate_result.approved:
+                        trade_plan_handler.approve(
+                            ApproveTradePlanCommand(symbol=plan.symbol, approved=True)
                         )
-                else:
-                    # Rejected -- queue for manual review
-                    import json as _json
-                    from src.approval.domain.value_objects import TradeReviewItem
+                        result = trade_plan_handler.execute(ExecuteOrderCommand(symbol=plan.symbol))
+                        succeeded += 1
 
-                    review_item = TradeReviewItem(
-                        symbol=plan.symbol,
-                        plan_json=_json.dumps({"symbol": plan.symbol, "score": plan_score}),
-                        rejection_reason=gate_result.reason,
-                    )
-                    if review_queue_repo:
-                        review_queue_repo.add(review_item)
-                    queued += 1
-                    logger.info("Trade %s queued for review: %s", plan.symbol, gate_result.reason)
+                        # Track order in monitor if available
+                        if order_monitor is not None:
+                            order_id = getattr(result, "order_id", None)
+                            if order_id:
+                                order_monitor.track(order_id)
 
-            except Exception as e:
-                logger.error("Execution failed for %s: %s", plan.symbol, e)
-                failed += 1
+                        # Record spend in budget tracker
+                        budget.record_spend(plan_position_value)
+                        budget_repo.save(budget)
+
+                        # Budget 80% warning
+                        if budget.spent >= budget.budget_cap * 0.8 and notifier:
+                            pct = (budget.spent / budget.budget_cap) * 100
+                            notifier.notify(
+                                f"Budget {pct:.0f}% used (${budget.spent:.0f}/${budget.budget_cap:.0f})"
+                            )
+                    else:
+                        # Rejected -- queue for manual review
+                        import json as _json
+                        from src.approval.domain.value_objects import TradeReviewItem
+
+                        review_item = TradeReviewItem(
+                            symbol=plan.symbol,
+                            plan_json=_json.dumps({"symbol": plan.symbol, "score": plan_score}),
+                            rejection_reason=gate_result.reason,
+                        )
+                        if review_queue_repo:
+                            review_queue_repo.add(review_item)
+                        queued += 1
+                        logger.info("Trade %s queued for review: %s", plan.symbol, gate_result.reason)
+
+                except Exception as e:
+                    # Check if circuit breaker tripped
+                    from src.execution.infrastructure.safe_adapter import CircuitBreakerTrippedError
+                    if isinstance(e, CircuitBreakerTrippedError):
+                        logger.error("Circuit breaker tripped: %s -- halting execution", e)
+                        halted = True
+                        break
+                    logger.error("Execution failed for %s: %s", plan.symbol, e)
+                    failed += 1
+
+        finally:
+            # Stop monitor and stream in finally block
+            if order_monitor is not None:
+                try:
+                    order_monitor.stop(timeout=10.0)
+                except Exception:
+                    logger.exception("Error stopping order monitor")
+            if trading_stream is not None:
+                try:
+                    trading_stream.stop()
+                except Exception:
+                    logger.exception("Error stopping trading stream")
 
         total = succeeded + queued + failed
+        status = "halted" if halted else ("success" if failed == 0 and queued == 0 else "partial")
         return StageResult(
             stage_name="execute",
             started_at=started,
             finished_at=datetime.now(timezone.utc),
-            status="success" if failed == 0 and queued == 0 else "partial",
+            status=status,
             symbols_processed=total,
             symbols_succeeded=succeeded,
             symbols_failed=failed,

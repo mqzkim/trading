@@ -588,6 +588,44 @@ class TestExecuteStage:
         assert stage.status == "success"
 
 
+class TestExecuteCircuitBreaker:
+    """Test _run_execute handles CircuitBreakerTrippedError."""
+
+    @staticmethod
+    def _make_plan(symbol: str) -> MagicMock:
+        plan = MagicMock()
+        plan.symbol = symbol
+        plan.composite_score = 75.0
+        plan.position_pct = 5.0
+        plan.position_value = 5000.0
+        return plan
+
+    def test_execute_halts_on_circuit_breaker(self):
+        """CircuitBreakerTrippedError after N calls -> stage status 'halted', remaining trades not attempted."""
+        from src.execution.infrastructure.safe_adapter import CircuitBreakerTrippedError
+
+        orchestrator = PipelineOrchestrator()
+        handlers = _make_handlers()
+
+        call_count = {"n": 0}
+
+        def mock_execute(cmd):
+            call_count["n"] += 1
+            if call_count["n"] >= 2:
+                raise CircuitBreakerTrippedError(failure_count=3)
+            return MagicMock(status="filled", order_id="order-1")
+
+        handlers["trade_plan_handler"].execute.side_effect = mock_execute
+
+        plans = [self._make_plan("AAPL"), self._make_plan("MSFT"), self._make_plan("GOOGL")]
+        stage = orchestrator._run_execute(handlers, plans)
+
+        assert stage.status == "halted"
+        # Only first succeeded, second tripped circuit breaker, third never attempted
+        assert stage.symbols_succeeded == 1
+        assert call_count["n"] == 2  # GOOGL never attempted
+
+
 class TestPipelineStatusHandler:
     """Test PipelineStatusHandler application handler."""
 
