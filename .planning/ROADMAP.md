@@ -130,7 +130,7 @@ Plans:
 - [x] 16-01-PLAN.md -- Dashboard foundation: FastAPI app, base template with sidebar + mode banner, SSE bridge, Plotly chart utilities, test scaffold
 - [x] 16-02-PLAN.md -- Overview page: KPI cards, holdings table, equity curve chart with regime overlay, trade history table
 - [x] 16-03-PLAN.md -- Signals page (scoring heatmap table, signal recommendations) + Risk page (drawdown gauge, sector donut, position limits, regime badge)
-- [ ] 16-04-PLAN.md -- Pipeline & Approval page (run history, approval CRUD, budget bar, review queue) + SSE real-time wiring
+- [x] 16-04-PLAN.md -- Pipeline & Approval page (run history, approval CRUD, budget bar, review queue) + SSE real-time wiring
 
 ### Phase 17: SSE Real-Time Event Wiring
 **Goal**: All SSE subscriptions fire correctly — event names match, missing bus.publish calls added, order monitor runs persistently — so dashboard updates in real-time
@@ -156,7 +156,10 @@ Plans:
   1. When DrawdownAlertEvent fires, approval handler suspends active strategy approval automatically — no manual intervention needed
   2. When portfolio drawdown_level >= tier 2, pipeline orchestrator halts before plan creation — no trades generated during drawdown
   3. Both paths verified by integration tests that publish events through the real bus
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+- [ ] 18-01-PLAN.md -- Bootstrap DrawdownAlertEvent subscription, RunPipelineHandler drawdown_level parameter bridge, integration tests
 
 ## Progress
 
@@ -181,4 +184,5 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 14. Strategy and Budget Approval | v1.2 | 2/2 | Complete | 2026-03-13 |
 | 15. Live Trading Activation | v1.2 | 2/2 | Complete | 2026-03-13 |
 | 16. Web Dashboard | v1.2 | 4/4 | Complete | 2026-03-13 |
-| 17. SSE Real-Time Event Wiring | v1.2 | Complete    | 2026-03-13 | 2026-03-13 |
+| 17. SSE Real-Time Event Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
+| 18. Drawdown Defense Wiring | v1.2 | 0/1 | In Progress | - |
