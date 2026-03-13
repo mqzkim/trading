@@ -45,6 +45,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 - [x] **Phase 15: Live Trading Activation** - Live Alpaca execution with circuit breaker, order monitoring, and WebSocket fills (completed 2026-03-13)
 - [x] **Phase 16: Web Dashboard** - HTMX dashboard with portfolio, signals, risk metrics, pipeline status, and real-time SSE updates (completed 2026-03-13)
 - [x] **Phase 17: SSE Real-Time Event Wiring** - Fix SSE event name mismatches, publish missing events, extend order monitor lifecycle (gap closure) (completed 2026-03-13)
+- [ ] **Phase 18: Drawdown Defense Wiring** - Wire DrawdownAlertEvent to approval suspension and pass drawdown_level to pipeline halt (gap closure)
 
 ## Phase Details
 
@@ -145,6 +146,17 @@ Plans:
 
 Plans:
 - [x] 17-01-PLAN.md -- SSE event name alignment, missing bus.publish wiring, order monitor lifecycle fix
+
+### Phase 18: Drawdown Defense Wiring
+**Goal**: DrawdownAlertEvent correctly triggers approval suspension and pipeline halt — completing the 3-tier drawdown defense pathway
+**Depends on**: Phase 14 (approval handler), Phase 13 (pipeline orchestrator), Phase 17 (DrawdownAlertEvent publishing)
+**Requirements**: APPR-05, PIPE-06
+**Gap Closure**: Closes drawdown defense gaps from v1.2 milestone audit (2nd audit)
+**Success Criteria** (what must be TRUE):
+  1. When DrawdownAlertEvent fires, approval handler suspends active strategy approval automatically — no manual intervention needed
+  2. When portfolio drawdown_level >= tier 2, pipeline orchestrator halts before plan creation — no trades generated during drawdown
+  3. Both paths verified by integration tests that publish events through the real bus
+**Plans**: TBD
 
 ## Progress
 
