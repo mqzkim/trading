@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
 
 from src.shared.domain import Entity
 from .value_objects import RegimeType, VIXLevel, TrendStrength, YieldCurve, SP500Position

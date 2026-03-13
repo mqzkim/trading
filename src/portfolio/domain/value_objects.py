@@ -96,7 +96,7 @@ class ATRStop(ValueObject):
 
 
 # Backward compatibility re-export: TakeProfitLevels moved to shared kernel
-from src.shared.domain.take_profit import TakeProfitLevels  # noqa: F401
+from src.shared.domain.take_profit import TakeProfitLevels  # noqa: F401, E402
 
 
 @dataclass(frozen=True)

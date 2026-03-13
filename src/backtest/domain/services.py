@@ -5,8 +5,6 @@ and enriches core PerformanceMetrics with it to produce PerformanceReport VO.
 """
 from __future__ import annotations
 
-import math
-
 from .value_objects import PerformanceReport
 
 
