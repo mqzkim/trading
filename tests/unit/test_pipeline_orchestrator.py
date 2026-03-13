@@ -397,7 +397,7 @@ class TestPlanStage:
             "MSFT": {"composite_score": 68.0, "margin_of_safety": 0.10},
         }
 
-        with patch("src.pipeline.domain.services.DataClient") as mock_dc_cls:
+        with patch("core.data.client.DataClient") as mock_dc_cls:
             mock_client = MagicMock()
             mock_client.get_full.return_value = {
                 "price": {"close": 150.0},
@@ -422,7 +422,7 @@ class TestPlanStage:
         }
         score_results = {}
 
-        with patch("src.pipeline.domain.services.DataClient") as mock_dc_cls:
+        with patch("core.data.client.DataClient") as mock_dc_cls:
             stage, plans = orchestrator._run_plan(handlers, signal_results, score_results)
 
         assert stage.symbols_succeeded == 0
@@ -442,7 +442,7 @@ class TestPlanStage:
             "MSFT": {"composite_score": 68.0, "margin_of_safety": 0.10},
         }
 
-        with patch("src.pipeline.domain.services.DataClient") as mock_dc_cls:
+        with patch("core.data.client.DataClient") as mock_dc_cls:
             mock_client = MagicMock()
             call_count = {"n": 0}
 
@@ -474,7 +474,7 @@ class TestPlanStage:
             "AAPL": {"composite_score": 75.0, "margin_of_safety": 0.15},
         }
 
-        with patch("src.pipeline.domain.services.DataClient") as mock_dc_cls:
+        with patch("core.data.client.DataClient") as mock_dc_cls:
             mock_client = MagicMock()
             mock_client.get_full.return_value = {
                 "price": {"close": 150.0},

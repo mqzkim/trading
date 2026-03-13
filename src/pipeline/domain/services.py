@@ -92,7 +92,7 @@ class PipelineOrchestrator:
             stages.append(signal_stage)
 
             # Stage 5: Plan
-            plan_stage = self._run_plan(handlers, signal_results)
+            plan_stage, trade_plans = self._run_plan(handlers, signal_results, score_results)
             stages.append(plan_stage)
 
             # Safety gate: check regime + drawdown before execute
@@ -116,7 +116,7 @@ class PipelineOrchestrator:
                     symbols_failed=0,
                 )
             else:
-                execute_stage = self._run_execute(handlers)
+                execute_stage = self._run_execute(handlers, trade_plans)
             stages.append(execute_stage)
 
             run.stages = stages
@@ -271,41 +271,116 @@ class PipelineOrchestrator:
             succeeded_symbols=succeeded_symbols,
         ), signal_results
 
-    def _run_plan(self, handlers: dict, signal_results: dict[str, dict]) -> StageResult:
-        """Stage 5: Generate trade plans from signals."""
+    def _run_plan(
+        self,
+        handlers: dict,
+        signal_results: dict[str, dict],
+        score_results: dict[str, dict],
+    ) -> tuple[StageResult, list]:
+        """Stage 5: Generate trade plans from actionable signals.
+
+        For each BUY/SELL signal, fetches market data via DataClient and
+        calls trade_plan_handler.generate(). Returns StageResult and the
+        list of generated TradePlan objects for _run_execute to consume.
+        """
+        from core.data.client import DataClient
+        from src.execution.application.commands import GenerateTradePlanCommand
+
         started = datetime.now(timezone.utc)
-        planned = 0
+        trade_plan_handler = handlers["trade_plan_handler"]
+        capital = handlers.get("capital", 100_000.0)
+        client = DataClient()
+
+        plans: list = []
+        succeeded = 0
+        failed = 0
 
         for sym, sig_data in signal_results.items():
             direction = sig_data.get("direction", "HOLD") if isinstance(sig_data, dict) else "HOLD"
-            if direction in ("BUY", "SELL"):
-                planned += 1
-                # Trade plan generation would use trade_plan_handler.generate()
-                # but requires market data (entry price, ATR, etc.)
-                # For now, track count -- full wiring in bootstrap
+            if direction not in ("BUY", "SELL"):
+                continue
+
+            try:
+                full_data = client.get_full(sym)
+                entry_price = full_data.get("price", {}).get("close", 0.0)
+                atr = full_data.get("indicators", {}).get("atr21", 0.0) or 3.0
+
+                score_data = score_results.get(sym, {})
+                composite_score = score_data.get("composite_score", 50.0)
+                margin_of_safety = score_data.get("margin_of_safety", 0.0)
+                reasoning = sig_data.get("reasoning", sig_data.get("reasoning_trace", ""))
+                intrinsic_value = (
+                    entry_price * (1 + margin_of_safety)
+                    if margin_of_safety > 0
+                    else entry_price * 1.2
+                )
+
+                cmd = GenerateTradePlanCommand(
+                    symbol=sym,
+                    entry_price=entry_price,
+                    atr=atr,
+                    capital=capital,
+                    peak_value=capital,
+                    current_value=capital,
+                    intrinsic_value=intrinsic_value,
+                    composite_score=composite_score,
+                    margin_of_safety=margin_of_safety,
+                    signal_direction=direction,
+                    reasoning_trace=reasoning,
+                )
+                plan = trade_plan_handler.generate(cmd)
+                if plan is not None:
+                    plans.append(plan)
+                    succeeded += 1
+                else:
+                    logger.info("Plan rejected by risk gates for %s", sym)
+            except Exception as e:
+                logger.warning("Plan generation failed for %s: %s", sym, e)
+                failed += 1
 
         return StageResult(
             stage_name="plan",
             started_at=started,
             finished_at=datetime.now(timezone.utc),
-            status="success",
+            status="success" if failed == 0 else "partial",
             symbols_processed=len(signal_results),
-            symbols_succeeded=planned,
-            symbols_failed=0,
-            succeeded_symbols=list(signal_results.keys()),
-        )
+            symbols_succeeded=succeeded,
+            symbols_failed=failed,
+            succeeded_symbols=[p.symbol for p in plans] if plans else [],
+        ), plans
 
-    def _run_execute(self, handlers: dict) -> StageResult:
-        """Stage 6: Execute trade plans."""
+    def _run_execute(self, handlers: dict, trade_plans: list) -> StageResult:
+        """Stage 6: Submit generated trade plans via approve + execute.
+
+        For each TradePlan: auto-approve, then execute through the broker adapter.
+        Per-symbol failures are logged and skipped (not abort).
+        """
+        from src.execution.application.commands import ApproveTradePlanCommand, ExecuteOrderCommand
+
         started = datetime.now(timezone.utc)
+        trade_plan_handler = handlers["trade_plan_handler"]
+        succeeded = 0
+        failed = 0
+
+        for plan in trade_plans:
+            try:
+                trade_plan_handler.approve(
+                    ApproveTradePlanCommand(symbol=plan.symbol, approved=True)
+                )
+                trade_plan_handler.execute(ExecuteOrderCommand(symbol=plan.symbol))
+                succeeded += 1
+            except Exception as e:
+                logger.error("Execution failed for %s: %s", plan.symbol, e)
+                failed += 1
+
         return StageResult(
             stage_name="execute",
             started_at=started,
             finished_at=datetime.now(timezone.utc),
-            status="success",
-            symbols_processed=0,
-            symbols_succeeded=0,
-            symbols_failed=0,
+            status="success" if failed == 0 else "partial",
+            symbols_processed=len(trade_plans),
+            symbols_succeeded=succeeded,
+            symbols_failed=failed,
         )
 
     # ── Retry logic ───────────────────────────────────────────────────
