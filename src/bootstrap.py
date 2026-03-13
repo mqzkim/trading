@@ -175,11 +175,42 @@ def bootstrap(
 
     bus.subscribe(ScoreUpdatedEvent, _log_score_event)
 
+    # -- Approval context wiring --
+    from src.approval.infrastructure import (
+        SqliteApprovalRepository,
+        SqliteBudgetRepository,
+        SqliteReviewQueueRepository,
+    )
+    from src.approval.domain.services import ApprovalGateService
+    from src.approval.application.handlers import ApprovalHandler
+
+    approval_repo = SqliteApprovalRepository(
+        db_path=db_factory.sqlite_path("approval"),
+    )
+    budget_repo = SqliteBudgetRepository(
+        db_path=db_factory.sqlite_path("approval"),
+    )
+    review_queue_repo = SqliteReviewQueueRepository(
+        db_path=db_factory.sqlite_path("approval"),
+    )
+    approval_gate = ApprovalGateService()
+    approval_handler = ApprovalHandler(
+        approval_repo=approval_repo,
+        budget_repo=budget_repo,
+        review_queue_repo=review_queue_repo,
+    )
+
     # Regime -> Scoring weight adjustment (cross-context subscription)
     # regime_adjuster already created above and injected into score_handler
     from src.regime.domain.events import RegimeChangedEvent
 
     bus.subscribe(RegimeChangedEvent, regime_adjuster.on_regime_changed)
+
+    # Regime -> Approval suspension (auto-suspend when regime leaves allow-list)
+    def _on_regime_changed(event: RegimeChangedEvent) -> None:
+        approval_handler.suspend_if_regime_invalid(event.new_regime)
+
+    bus.subscribe(RegimeChangedEvent, _on_regime_changed)
 
     # Remaining cross-context subscriptions deactivated:
     # bus.subscribe(ScoreUpdatedEvent, signal_handler.on_score_updated)
@@ -237,6 +268,11 @@ def bootstrap(
         "notifier": notifier,
         "orchestrator": orchestrator,
         "reconciliation_service": reconciliation_service,
+        "approval_gate": approval_gate,
+        "approval_handler": approval_handler,
+        "approval_repo": approval_repo,
+        "budget_repo": budget_repo,
+        "review_queue_repo": review_queue_repo,
     }
 
     # Wire pipeline handlers with ctx as handlers dict

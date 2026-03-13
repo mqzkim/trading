@@ -350,35 +350,138 @@ class PipelineOrchestrator:
         ), plans
 
     def _run_execute(self, handlers: dict, trade_plans: list) -> StageResult:
-        """Stage 6: Submit generated trade plans via approve + execute.
+        """Stage 6: Submit generated trade plans via approval gate + execute.
 
-        For each TradePlan: auto-approve, then execute through the broker adapter.
-        Per-symbol failures are logged and skipped (not abort).
+        For each TradePlan: check approval gate, then approve+execute if passed.
+        Rejected trades are queued for manual review.
+        If no approval gate configured, skip execution (backward compatible).
         """
         from src.execution.application.commands import ApproveTradePlanCommand, ExecuteOrderCommand
 
         started = datetime.now(timezone.utc)
+
+        # Check for approval gate (backward compatible)
+        approval_gate = handlers.get("approval_gate")
+        approval_handler = handlers.get("approval_handler")
+
+        if approval_gate is None or approval_handler is None:
+            logger.info("No approval gate configured -- skipping execution")
+            return StageResult(
+                stage_name="execute",
+                started_at=started,
+                finished_at=datetime.now(timezone.utc),
+                status="skipped",
+                symbols_processed=0,
+                symbols_succeeded=0,
+                symbols_failed=0,
+            )
+
+        # Get active approval
+        status = approval_handler.get_status()
+        approval = status.get("approval")
+
+        if approval is None:
+            logger.info("No active approval -- skipping execution")
+            return StageResult(
+                stage_name="execute",
+                started_at=started,
+                finished_at=datetime.now(timezone.utc),
+                status="skipped",
+                symbols_processed=0,
+                symbols_succeeded=0,
+                symbols_failed=0,
+            )
+
+        # Check expiration warning (24h)
+        notifier = handlers.get("notifier")
+        hours_remaining = (approval.expires_at - datetime.now(timezone.utc)).total_seconds() / 3600
+        if 0 < hours_remaining <= 24 and notifier:
+            notifier.notify(f"Approval expires in {hours_remaining:.0f}h")
+
+        # Get today's budget tracker
+        budget_repo = handlers.get("budget_repo")
+        budget = budget_repo.get_or_create_today(approval.daily_budget_cap)
+
+        # Get current regime for gate check
+        regime_handler = handlers.get("regime_handler")
+        current_regime = "Bull"  # safe default
+        if regime_handler:
+            try:
+                from src.regime.application.commands import DetectRegimeCommand
+                regime_result = regime_handler.handle(
+                    DetectRegimeCommand(vix=0.0, sp500_price=0.0, sp500_ma200=0.0, adx=0.0, yield_spread=0.0)
+                )
+                regime_data = regime_result.value if hasattr(regime_result, "value") else regime_result
+                if isinstance(regime_data, dict):
+                    current_regime = regime_data.get("regime_type", "Bull")
+            except Exception:
+                pass  # Use default regime
+
         trade_plan_handler = handlers["trade_plan_handler"]
+        review_queue_repo = handlers.get("review_queue_repo")
         succeeded = 0
         failed = 0
+        queued = 0
 
         for plan in trade_plans:
             try:
-                trade_plan_handler.approve(
-                    ApproveTradePlanCommand(symbol=plan.symbol, approved=True)
+                plan_score = getattr(plan, "composite_score", 50.0)
+                plan_position_pct = getattr(plan, "position_pct", 5.0)
+                plan_position_value = getattr(plan, "position_value", 0.0)
+
+                gate_result = approval_gate.check(
+                    plan_symbol=plan.symbol,
+                    plan_score=plan_score,
+                    plan_position_pct=plan_position_pct,
+                    current_regime=current_regime,
+                    daily_remaining=budget.remaining,
+                    plan_position_value=plan_position_value,
+                    approval=approval,
                 )
-                trade_plan_handler.execute(ExecuteOrderCommand(symbol=plan.symbol))
-                succeeded += 1
+
+                if gate_result.approved:
+                    trade_plan_handler.approve(
+                        ApproveTradePlanCommand(symbol=plan.symbol, approved=True)
+                    )
+                    trade_plan_handler.execute(ExecuteOrderCommand(symbol=plan.symbol))
+                    succeeded += 1
+
+                    # Record spend in budget tracker
+                    budget.record_spend(plan_position_value)
+                    budget_repo.save(budget)
+
+                    # Budget 80% warning
+                    if budget.spent >= budget.budget_cap * 0.8 and notifier:
+                        pct = (budget.spent / budget.budget_cap) * 100
+                        notifier.notify(
+                            f"Budget {pct:.0f}% used (${budget.spent:.0f}/${budget.budget_cap:.0f})"
+                        )
+                else:
+                    # Rejected -- queue for manual review
+                    import json as _json
+                    from src.approval.domain.value_objects import TradeReviewItem
+
+                    review_item = TradeReviewItem(
+                        symbol=plan.symbol,
+                        plan_json=_json.dumps({"symbol": plan.symbol, "score": plan_score}),
+                        rejection_reason=gate_result.reason,
+                    )
+                    if review_queue_repo:
+                        review_queue_repo.add(review_item)
+                    queued += 1
+                    logger.info("Trade %s queued for review: %s", plan.symbol, gate_result.reason)
+
             except Exception as e:
                 logger.error("Execution failed for %s: %s", plan.symbol, e)
                 failed += 1
 
+        total = succeeded + queued + failed
         return StageResult(
             stage_name="execute",
             started_at=started,
             finished_at=datetime.now(timezone.utc),
-            status="success" if failed == 0 else "partial",
-            symbols_processed=len(trade_plans),
+            status="success" if failed == 0 and queued == 0 else "partial",
+            symbols_processed=total,
             symbols_succeeded=succeeded,
             symbols_failed=failed,
         )
