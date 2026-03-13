@@ -60,9 +60,9 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 **Plans**: 3 plans
 
 Plans:
-- [ ] 12-01-PLAN.md -- Domain types, settings, and cooldown persistence (ExecutionMode, CooldownState, ICooldownRepository, SqliteCooldownRepository)
-- [ ] 12-02-PLAN.md -- SafeExecutionAdapter with order polling and bracket leg verification (fix mock fallback, decorator adapter, bootstrap wiring)
-- [ ] 12-03-PLAN.md -- Position reconciliation and kill switch CLI (PositionReconciliationService, trade kill, trade sync)
+- [x] 12-01-PLAN.md -- Domain types, settings, and cooldown persistence (ExecutionMode, CooldownState, ICooldownRepository, SqliteCooldownRepository)
+- [x] 12-02-PLAN.md -- SafeExecutionAdapter with order polling and bracket leg verification (fix mock fallback, decorator adapter, bootstrap wiring)
+- [x] 12-03-PLAN.md -- Position reconciliation and kill switch CLI (PositionReconciliationService, trade kill, trade sync)
 
 ### Phase 13: Automated Pipeline Scheduler
 **Goal**: Full screening-to-execution pipeline runs daily after market close in paper mode, with market calendar awareness and fault tolerance
@@ -74,12 +74,11 @@ Plans:
   3. If yfinance times out during data ingest, the failed stage retries automatically and the pipeline completes -- transient failures do not abort the full run
   4. When regime is Crisis or drawdown tier >= 2, the pipeline halts before plan creation and logs the reason -- no trades generated in dangerous conditions
   5. User can run the pipeline in dry-run mode that executes everything except order submission -- validating the full chain without risk
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 13-01: TBD
-- [ ] 13-02: TBD
-- [ ] 13-03: TBD
+- [ ] 13-01-PLAN.md -- Pipeline domain model, infrastructure (PipelineRun entity, StageResult, SQLite run repo, MarketCalendarService, SlackNotifier)
+- [ ] 13-02-PLAN.md -- PipelineOrchestrator, APScheduler integration, CLI commands (orchestrator with retry/halt, SchedulerService, trade pipeline run/status)
 
 ### Phase 14: Strategy and Budget Approval
 **Goal**: Human defines trading rules and daily capital limits once; automated pipeline executes within those boundaries until approval expires or conditions change
@@ -147,8 +146,8 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 9. Multi-Strategy Signal Fusion | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 10. Korean Broker Integration | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 11. Commercial FastAPI REST API | v1.1 | 3/3 | Complete | 2026-03-13 |
-| 12. Safety Infrastructure | 3/3 | Complete    | 2026-03-13 | - |
-| 13. Automated Pipeline Scheduler | v1.2 | 0/? | Not started | - |
+| 12. Safety Infrastructure | v1.2 | 3/3 | Complete | 2026-03-13 |
+| 13. Automated Pipeline Scheduler | v1.2 | 0/2 | Not started | - |
 | 14. Strategy and Budget Approval | v1.2 | 0/? | Not started | - |
 | 15. Live Trading Activation | v1.2 | 0/? | Not started | - |
 | 16. Web Dashboard | v1.2 | 0/? | Not started | - |
