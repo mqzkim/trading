@@ -90,11 +90,11 @@ Plans:
   2. User sets a daily budget cap and can see how much has been spent vs remaining for the current day's pipeline run
   3. Trades that exceed the approved budget or violate strategy parameters queue for manual review instead of auto-executing
   4. When market regime changes, active strategy approval is automatically suspended until user re-approves -- stale approvals cannot execute in changed conditions
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 14-01: TBD
-- [ ] 14-02: TBD
+- [ ] 14-01-PLAN.md -- Approval bounded context domain layer (StrategyApproval entity, ApprovalGateService, DailyBudgetTracker, SQLite persistence)
+- [ ] 14-02-PLAN.md -- Application handlers, pipeline gate integration, event-driven suspension, CLI commands (approve CRUD, trade review)
 
 ### Phase 15: Live Trading Activation
 **Goal**: System executes real orders through Alpaca live account within approved safety boundaries, with real-time monitoring and automatic failure protection
@@ -148,7 +148,7 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 10. Korean Broker Integration | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 11. Commercial FastAPI REST API | v1.1 | 3/3 | Complete | 2026-03-13 |
 | 12. Safety Infrastructure | v1.2 | 3/3 | Complete | 2026-03-13 |
-| 13. Automated Pipeline Scheduler | v1.2 | Complete    | 2026-03-13 | 2026-03-13 |
-| 14. Strategy and Budget Approval | v1.2 | 0/? | Not started | - |
+| 13. Automated Pipeline Scheduler | v1.2 | 3/3 | Complete | 2026-03-13 |
+| 14. Strategy and Budget Approval | v1.2 | 0/2 | Not started | - |
 | 15. Live Trading Activation | v1.2 | 0/? | Not started | - |
 | 16. Web Dashboard | v1.2 | 0/? | Not started | - |
