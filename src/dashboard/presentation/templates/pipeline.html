@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="text-2xl font-bold mb-6">Pipeline & Approval</h2>
+
+<div id="pipeline-runs" class="bg-white rounded-lg shadow p-4 mb-6" sse-swap="PipelineCompletedEvent">
+    {% include "partials/pipeline_status.html" %}
+</div>
+
+<div id="approval-status" class="bg-white rounded-lg shadow p-4 mb-6">
+    <!-- Approval CRUD populated by Plan 04 -->
+    <p class="text-gray-500">Approval status will appear here.</p>
+</div>
+
+<div id="budget-bar" class="bg-white rounded-lg shadow p-4 mb-6">
+    <!-- Daily budget progress bar populated by Plan 04 -->
+    <p class="text-gray-500">Budget tracking will appear here.</p>
+</div>
+
+<div id="review-queue" class="bg-white rounded-lg shadow p-4">
+    <!-- Manual review queue populated by Plan 04 -->
+    <p class="text-gray-500">Review queue will appear here.</p>
+</div>
+{% endblock %}

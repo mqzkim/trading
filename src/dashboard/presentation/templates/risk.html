@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="text-2xl font-bold mb-6">Risk</h2>
+
+<div class="grid grid-cols-2 gap-6 mb-6">
+    <div id="drawdown-gauge" class="bg-white rounded-lg shadow p-4" sse-swap="DrawdownAlertEvent">
+        {% include "partials/drawdown_gauge.html" %}
+    </div>
+    <div id="sector-chart" class="bg-white rounded-lg shadow p-4">
+        <!-- Sector donut chart populated by Plan 03 -->
+    </div>
+</div>
+
+<div class="grid grid-cols-2 gap-6">
+    <div id="position-limits" class="bg-white rounded-lg shadow p-4">
+        <!-- Position limit utilization populated by Plan 03 -->
+        <p class="text-gray-500">Position limits will appear here.</p>
+    </div>
+    <div id="regime-badge" sse-swap="RegimeChangedEvent">
+        {% include "partials/regime_badge.html" %}
+    </div>
+</div>
+{% endblock %}

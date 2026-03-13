@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="text-2xl font-bold mb-6">Overview</h2>
+
+<div id="kpi-cards" class="grid grid-cols-4 gap-4 mb-6" sse-swap="KpiUpdated">
+    {% include "partials/kpi_cards.html" %}
+</div>
+
+<div id="holdings-table" class="bg-white rounded-lg shadow p-4 mb-6" sse-swap="OrderFilledEvent">
+    {% include "partials/holdings_table.html" %}
+</div>
+
+<div id="equity-chart" class="bg-white rounded-lg shadow p-4" sse-swap="EquityUpdated">
+    <!-- Plotly equity curve rendered here by JS -->
+</div>
+{% endblock %}
