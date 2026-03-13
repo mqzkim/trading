@@ -39,7 +39,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 
 **Milestone Goal:** Automate the full pipeline, add live trading with safety infrastructure, and provide a web dashboard for operational visibility -- transforming the CLI tool into a production trading system.
 
-- [ ] **Phase 12: Safety Infrastructure** - Production-safe execution adapters, persistent drawdown defense, position reconciliation, kill switch
+- [x] **Phase 12: Safety Infrastructure** - Production-safe execution adapters, persistent drawdown defense, position reconciliation, kill switch (completed 2026-03-13)
 - [ ] **Phase 13: Automated Pipeline Scheduler** - Daily cron pipeline in paper mode with market calendar, stage retry, run logging
 - [ ] **Phase 14: Strategy and Budget Approval** - Human-approved trading rules and daily budget caps gating automated execution
 - [ ] **Phase 15: Live Trading Activation** - Live Alpaca execution with circuit breaker, order monitoring, and WebSocket fills
@@ -147,7 +147,7 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 9. Multi-Strategy Signal Fusion | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 10. Korean Broker Integration | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 11. Commercial FastAPI REST API | v1.1 | 3/3 | Complete | 2026-03-13 |
-| 12. Safety Infrastructure | 1/3 | In Progress|  | - |
+| 12. Safety Infrastructure | 3/3 | Complete   | 2026-03-13 | - |
 | 13. Automated Pipeline Scheduler | v1.2 | 0/? | Not started | - |
 | 14. Strategy and Budget Approval | v1.2 | 0/? | Not started | - |
 | 15. Live Trading Activation | v1.2 | 0/? | Not started | - |

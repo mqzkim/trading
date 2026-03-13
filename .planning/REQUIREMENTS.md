@@ -12,9 +12,9 @@ Requirements for Production Trading & Dashboard milestone. Each maps to roadmap 
 - [x] **SAFE-01**: System requires explicit EXECUTION_MODE setting (paper/live enum, defaults to paper) — live mode cannot be triggered by credentials alone
 - [ ] **SAFE-02**: Live mode uses separate adapter class with no mock fallback — order failures raise errors, never return phantom fills
 - [x] **SAFE-03**: Paper and live Alpaca accounts use separate API key pairs configured independently
-- [ ] **SAFE-04**: Pipeline startup reconciles SQLite position records with Alpaca broker positions and flags divergences
+- [x] **SAFE-04**: Pipeline startup reconciles SQLite position records with Alpaca broker positions and flags divergences
 - [x] **SAFE-05**: Drawdown cooldown state persists in SQLite and survives process restarts (30-day cooling period)
-- [ ] **SAFE-06**: Kill switch cancels all open orders and halts pipeline immediately via CLI and dashboard
+- [x] **SAFE-06**: Kill switch cancels all open orders and halts pipeline immediately via CLI and dashboard
 - [ ] **SAFE-07**: System polls order status until terminal state (filled, rejected, cancelled) before proceeding
 - [ ] **SAFE-08**: After bracket order fill, system verifies stop-loss and take-profit legs are confirmed active
 
@@ -97,9 +97,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SAFE-01 | Phase 12 | Complete |
 | SAFE-02 | Phase 12 | Pending |
 | SAFE-03 | Phase 12 | Complete |
-| SAFE-04 | Phase 12 | Pending |
+| SAFE-04 | Phase 12 | Complete |
 | SAFE-05 | Phase 12 | Complete |
-| SAFE-06 | Phase 12 | Pending |
+| SAFE-06 | Phase 12 | Complete |
 | SAFE-07 | Phase 12 | Pending |
 | SAFE-08 | Phase 12 | Pending |
 | PIPE-01 | Phase 13 | Pending |
