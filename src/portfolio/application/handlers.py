@@ -35,11 +35,13 @@ class PortfolioManagerHandler:
         portfolio_repo: IPortfolioRepository,
         position_repo: IPositionRepository,
         initial_portfolio_value: float = 100_000.0,
+        bus=None,
     ):
         self._portfolio_repo = portfolio_repo
         self._position_repo = position_repo
         self._risk_svc = PortfolioRiskService()
         self._initial_value = initial_portfolio_value
+        self._bus = bus
 
     def open_position(self, cmd: OpenPositionCommand) -> Result:
         """포지션 진입 유스케이스.
@@ -97,6 +99,11 @@ class PortfolioManagerHandler:
         self._position_repo.save(position)
         self._portfolio_repo.save(portfolio)
 
+        # Publish domain events (DrawdownAlertEvent, PositionOpenedEvent) to bus
+        if self._bus is not None:
+            for event in portfolio.pull_domain_events():
+                self._bus.publish(event)
+
         result_data: dict = {
             "symbol": cmd.symbol.upper(),
             "shares": sizing["shares"],
@@ -135,5 +142,10 @@ class PortfolioManagerHandler:
         if portfolio and cmd.symbol.upper() in portfolio.positions:
             del portfolio.positions[cmd.symbol.upper()]
             self._portfolio_repo.save(portfolio)
+
+            # Publish domain events to bus
+            if self._bus is not None:
+                for event in portfolio.pull_domain_events():
+                    self._bus.publish(event)
 
         return Ok(pnl_info)

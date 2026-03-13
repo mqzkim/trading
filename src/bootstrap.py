@@ -102,6 +102,7 @@ def bootstrap(
     portfolio_handler = PortfolioManagerHandler(
         portfolio_repo=portfolio_repo,
         position_repo=position_repo,
+        bus=bus,
     )
 
     # -- Broker adapter + capital (market-conditional) --

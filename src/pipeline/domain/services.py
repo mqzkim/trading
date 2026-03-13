@@ -423,17 +423,11 @@ class PipelineOrchestrator:
         failed = 0
         queued = 0
 
-        # Start order monitor and trading stream if available
+        # Order monitor and trading stream managed by dashboard app lifecycle
         order_monitor = handlers.get("order_monitor")
-        trading_stream = handlers.get("trading_stream")
         halted = False
 
         try:
-            if order_monitor is not None:
-                order_monitor.start()
-            if trading_stream is not None:
-                trading_stream.start()
-
             for plan in trade_plans:
                 try:
                     plan_score = getattr(plan, "composite_score", 50.0)
@@ -499,17 +493,7 @@ class PipelineOrchestrator:
                     failed += 1
 
         finally:
-            # Stop monitor and stream in finally block
-            if order_monitor is not None:
-                try:
-                    order_monitor.stop(timeout=10.0)
-                except Exception:
-                    logger.exception("Error stopping order monitor")
-            if trading_stream is not None:
-                try:
-                    trading_stream.stop()
-                except Exception:
-                    logger.exception("Error stopping trading stream")
+            pass  # Monitor/stream lifecycle managed by dashboard app
 
         total = succeeded + queued + failed
         status = "halted" if halted else ("success" if failed == 0 and queued == 0 else "partial")

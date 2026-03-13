@@ -92,6 +92,9 @@ class RunPipelineHandler:
         # 5. Notify based on result
         self._send_notification(run)
 
+        # 6. Publish domain event to bus for SSE bridge
+        self._publish_pipeline_event(run)
+
         return run
 
     def _get_default_symbols(self) -> list[str]:
@@ -104,6 +107,29 @@ class RunPipelineHandler:
         except Exception:
             logger.warning("Failed to get default universe, using empty list")
             return []
+
+    def _publish_pipeline_event(self, run: PipelineRun) -> None:
+        """Publish pipeline completion/halt event to bus for SSE updates."""
+        bus = self._handlers.get("bus")
+        if bus is None:
+            return
+
+        from src.pipeline.domain.events import PipelineCompletedEvent, PipelineHaltedEvent
+
+        if run.status == PipelineStatus.COMPLETED:
+            bus.publish(PipelineCompletedEvent(
+                run_id=run.run_id,
+                duration_seconds=run.duration.total_seconds() if run.duration else 0.0,
+                symbols_succeeded=run.symbols_succeeded,
+                mode=run.mode.value,
+            ))
+        elif run.status == PipelineStatus.HALTED:
+            bus.publish(PipelineHaltedEvent(
+                run_id=run.run_id,
+                halt_reason=run.halt_reason or "",
+                regime_type="",
+                drawdown_level="",
+            ))
 
     def _send_notification(self, run: PipelineRun) -> None:
         """Send notification based on pipeline result."""

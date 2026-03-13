@@ -85,7 +85,8 @@ class AlpacaOrderMonitor:
                 order_ids = list(self._tracked_orders.keys())
 
             if not order_ids:
-                break  # All orders resolved, exit loop
+                self._stop_event.wait(self._poll_interval)
+                continue  # Wait for new orders instead of exiting
 
             for order_id in order_ids:
                 if self._stop_event.is_set():

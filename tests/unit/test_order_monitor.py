@@ -96,8 +96,8 @@ class TestOrderMonitorPolling:
         client.cancel_order_by_id.assert_called_with("order-stuck")
         notifier.notify.assert_called()
 
-    def test_monitor_stops_when_empty(self):
-        """All orders reach terminal -> monitor loop exits."""
+    def test_monitor_persists_when_empty(self):
+        """All orders reach terminal -> monitor loop stays alive waiting for new orders."""
         client = MagicMock()
 
         order_obj = MagicMock()
@@ -113,11 +113,15 @@ class TestOrderMonitorPolling:
         monitor.track("order-1")
         monitor.start()
 
-        # Wait for loop to process and exit
+        # Wait for loop to process the order and reach empty state
         time.sleep(0.15)
 
-        # Thread should have exited naturally (no orders left)
+        # Thread should still be alive (persistent loop)
         assert monitor._thread is not None
+        assert monitor._thread.is_alive()
+
+        # Clean shutdown
+        monitor.stop(timeout=2.0)
         assert not monitor._thread.is_alive()
 
     def test_monitor_stop_event(self):
