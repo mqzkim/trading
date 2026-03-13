@@ -186,7 +186,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. `mypy src/` passes with zero errors — bootstrap.py RegimeType vs str arg-type resolved
   2. `pytest tests/unit/test_api_routes.py` passes all tests — version 1.1.0 vs 1.0.0 mismatch fixed
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 20-01-PLAN.md -- Fix mypy config (explicit_package_bases), missing __init__.py files, all 17 type errors, and 4 ruff lint errors
+- [ ] 20-02-PLAN.md -- Rewrite stale test_api_routes.py for current v1.1 API surface (health endpoint, route registration smoke tests)
 
 ## Progress
 
@@ -214,4 +218,4 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 17. SSE Real-Time Event Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
 | 18. Drawdown Defense Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
 | 19. Dashboard CLI & Data Accuracy | 2/2 | Complete    | 2026-03-13 | - |
-| 20. CI/Test Debt Cleanup | v1.2 | 0/0 | Not Started | - |
+| 20. CI/Test Debt Cleanup | v1.2 | 0/2 | Not Started | - |
