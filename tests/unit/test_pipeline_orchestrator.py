@@ -111,6 +111,35 @@ def _make_handlers(
     trade_plan_handler.generate.return_value = MagicMock()  # returns a plan
     trade_plan_handler.execute.return_value = MagicMock(status="filled")
 
+    # Approval gate (auto-approve all trades by default for backward compat)
+    from src.approval.domain.entities import StrategyApproval
+    from src.approval.domain.value_objects import GateResult, DailyBudgetTracker
+    from datetime import datetime, timedelta, timezone
+
+    approval = StrategyApproval(
+        _id="test-approval",
+        score_threshold=50.0,
+        allowed_regimes=["Bull", "Sideways"],
+        max_per_trade_pct=10.0,
+        daily_budget_cap=100_000.0,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=30),
+    )
+
+    approval_handler = MagicMock()
+    approval_handler.get_status.return_value = {
+        "approval": approval,
+        "budget": DailyBudgetTracker(budget_cap=100_000.0, date="2026-01-01"),
+        "pending_review_count": 0,
+    }
+
+    approval_gate = MagicMock()
+    approval_gate.check.return_value = GateResult(approved=True)
+
+    budget_repo = MagicMock()
+    budget_repo.get_or_create_today.return_value = DailyBudgetTracker(
+        budget_cap=100_000.0, date="2026-01-01"
+    )
+
     return {
         "data_pipeline": data_pipeline,
         "regime_handler": regime_handler,
@@ -119,6 +148,11 @@ def _make_handlers(
         "trade_plan_handler": trade_plan_handler,
         "capital": 100_000.0,
         "portfolio_handler": MagicMock(),
+        "approval_gate": approval_gate,
+        "approval_handler": approval_handler,
+        "budget_repo": budget_repo,
+        "review_queue_repo": MagicMock(),
+        "notifier": MagicMock(),
     }
 
 
@@ -492,15 +526,23 @@ class TestPlanStage:
 class TestExecuteStage:
     """Test _run_execute submits orders via trade_plan_handler."""
 
+    @staticmethod
+    def _make_plan(symbol: str) -> MagicMock:
+        """Create a mock trade plan with required attributes for approval gate."""
+        plan = MagicMock()
+        plan.symbol = symbol
+        plan.composite_score = 75.0
+        plan.position_pct = 5.0
+        plan.position_value = 5000.0
+        return plan
+
     def test_execute_stage_submits_orders(self):
         """_run_execute calls approve + execute for each plan."""
         orchestrator = PipelineOrchestrator()
         handlers = _make_handlers()
 
-        plan1 = MagicMock()
-        plan1.symbol = "AAPL"
-        plan2 = MagicMock()
-        plan2.symbol = "MSFT"
+        plan1 = self._make_plan("AAPL")
+        plan2 = self._make_plan("MSFT")
 
         stage = orchestrator._run_execute(handlers, [plan1, plan2])
 
@@ -525,10 +567,8 @@ class TestExecuteStage:
 
         handlers["trade_plan_handler"].execute.side_effect = mock_execute
 
-        plan1 = MagicMock()
-        plan1.symbol = "AAPL"
-        plan2 = MagicMock()
-        plan2.symbol = "MSFT"
+        plan1 = self._make_plan("AAPL")
+        plan2 = self._make_plan("MSFT")
 
         stage = orchestrator._run_execute(handlers, [plan1, plan2])
 

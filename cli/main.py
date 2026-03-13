@@ -1425,5 +1425,241 @@ def pipeline_daemon(
         console.print("[yellow]Scheduler stopped[/yellow]")
 
 
+# ---------------------------------------------------------------------------
+# Approval subcommands
+# ---------------------------------------------------------------------------
+approval_app = typer.Typer(help="Strategy approval commands")
+app.add_typer(approval_app, name="approval")
+
+
+@approval_app.command(name="create")
+def approve_create(
+    score: float = typer.Option(..., "--score", help="Minimum composite score"),
+    regimes: str = typer.Option(..., "--regimes", help="Comma-separated regime allow-list"),
+    max_pct: float = typer.Option(8.0, "--max-pct", help="Max per-trade % of capital"),
+    budget: float = typer.Option(..., "--budget", help="Daily budget cap in USD"),
+    expires: int = typer.Option(..., "--expires", help="Days until expiration"),
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Create a new strategy approval for automated trading."""
+    from src.approval.application.commands import CreateApprovalCommand
+
+    ctx = _get_ctx(market)
+    handler = ctx["approval_handler"]
+
+    regime_list = [r.strip() for r in regimes.split(",") if r.strip()]
+    cmd = CreateApprovalCommand(
+        score_threshold=score,
+        allowed_regimes=regime_list,
+        max_per_trade_pct=max_pct,
+        daily_budget_cap=budget,
+        expires_in_days=expires,
+    )
+    approval = handler.create(cmd)
+
+    console.print(Panel(
+        f"[bold]ID:[/bold] {approval.id}\n"
+        f"[bold]Score Threshold:[/bold] {approval.score_threshold}\n"
+        f"[bold]Allowed Regimes:[/bold] {', '.join(approval.allowed_regimes)}\n"
+        f"[bold]Max Per-Trade:[/bold] {approval.max_per_trade_pct}%\n"
+        f"[bold]Daily Budget:[/bold] ${approval.daily_budget_cap:,.2f}\n"
+        f"[bold]Expires:[/bold] {approval.expires_at.strftime('%Y-%m-%d %H:%M UTC')}",
+        title="[bold green]Approval Created[/bold green]",
+        border_style="green",
+    ))
+
+
+@approval_app.command(name="status")
+def approve_status(
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Show current strategy approval status."""
+    ctx = _get_ctx(market)
+    handler = ctx["approval_handler"]
+    status = handler.get_status()
+
+    approval = status["approval"]
+    if approval is None:
+        console.print("[dim]No active approval.[/dim]")
+        return
+
+    # Determine status text
+    if not approval.is_active:
+        status_text = "[red]REVOKED[/red]"
+    elif approval.is_expired:
+        status_text = "[yellow]EXPIRED[/yellow]"
+    elif approval.is_suspended:
+        reasons = ", ".join(sorted(approval.suspended_reasons))
+        status_text = f"[yellow]SUSPENDED ({reasons})[/yellow]"
+    else:
+        status_text = "[green]ACTIVE[/green]"
+
+    from datetime import datetime, timezone
+    hours_left = (approval.expires_at - datetime.now(timezone.utc)).total_seconds() / 3600
+    days_left = hours_left / 24
+
+    lines = [
+        f"[bold]ID:[/bold] {approval.id}",
+        f"[bold]Status:[/bold] {status_text}",
+        f"[bold]Score Threshold:[/bold] {approval.score_threshold}",
+        f"[bold]Allowed Regimes:[/bold] {', '.join(approval.allowed_regimes)}",
+        f"[bold]Max Per-Trade:[/bold] {approval.max_per_trade_pct}%",
+        f"[bold]Daily Budget:[/bold] ${approval.daily_budget_cap:,.2f}",
+        f"[bold]Expires:[/bold] {approval.expires_at.strftime('%Y-%m-%d %H:%M UTC')} ({days_left:.1f} days)",
+    ]
+
+    # Budget info
+    budget = status.get("budget")
+    if budget:
+        pct_used = (budget.spent / budget.budget_cap * 100) if budget.budget_cap > 0 else 0
+        bar_len = 20
+        filled = int(pct_used / 100 * bar_len)
+        bar_color = "green" if pct_used < 80 else "yellow" if pct_used < 100 else "red"
+        bar = f"[{bar_color}]{'█' * filled}{'░' * (bar_len - filled)}[/{bar_color}]"
+        lines.append(
+            f"[bold]Budget Today:[/bold] ${budget.spent:,.2f} / ${budget.budget_cap:,.2f} "
+            f"(${budget.remaining:,.2f} remaining) {bar}"
+        )
+
+    # Pending reviews
+    pending = status.get("pending_review_count", 0)
+    if pending > 0:
+        lines.append(f"[bold]Pending Reviews:[/bold] [yellow]{pending}[/yellow]")
+    else:
+        lines.append("[bold]Pending Reviews:[/bold] 0")
+
+    console.print(Panel("\n".join(lines), title="Strategy Approval", border_style="blue"))
+
+
+@approval_app.command(name="revoke")
+def approve_revoke(
+    approval_id: str = typer.Option(None, "--id", help="Approval ID (defaults to active)"),
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Revoke the active strategy approval."""
+    from src.approval.application.commands import RevokeApprovalCommand
+
+    ctx = _get_ctx(market)
+    handler = ctx["approval_handler"]
+    handler.revoke(RevokeApprovalCommand(approval_id=approval_id))
+    console.print("[yellow]Approval revoked.[/yellow]")
+
+
+@approval_app.command(name="resume")
+def approve_resume(
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Resume a suspended approval (remove drawdown_tier2 suspension)."""
+    from src.approval.application.commands import ResumeApprovalCommand
+
+    ctx = _get_ctx(market)
+    handler = ctx["approval_handler"]
+    handler.resume(ResumeApprovalCommand())
+    console.print("[green]Approval resumed (drawdown_tier2 suspension removed).[/green]")
+
+
+# ---------------------------------------------------------------------------
+# Review subcommands
+# ---------------------------------------------------------------------------
+review_app = typer.Typer(help="Trade review queue commands")
+app.add_typer(review_app, name="review")
+
+
+@review_app.command(name="list")
+def review_list(
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """List pending trades awaiting manual review."""
+    ctx = _get_ctx(market)
+    review_repo = ctx["review_queue_repo"]
+
+    # Expire old items first
+    expired_count = review_repo.expire_old(24)
+    if expired_count > 0:
+        console.print(f"[dim]Expired {expired_count} stale review item(s).[/dim]")
+
+    items = review_repo.list_pending()
+    if not items:
+        console.print("[dim]No pending reviews.[/dim]")
+        return
+
+    from datetime import datetime, timezone
+    table = Table(title="Pending Trade Reviews", show_header=True, header_style="bold cyan")
+    table.add_column("ID", justify="right")
+    table.add_column("Symbol", style="bold")
+    table.add_column("Rejection Reason")
+    table.add_column("Created", justify="right")
+    table.add_column("Age", justify="right")
+
+    now = datetime.now(timezone.utc)
+    for item in items:
+        age = now - item.created_at
+        age_str = f"{age.total_seconds() / 3600:.1f}h"
+        table.add_row(
+            str(item.id or "-"),
+            item.symbol,
+            item.rejection_reason,
+            item.created_at.strftime("%Y-%m-%d %H:%M"),
+            age_str,
+        )
+
+    console.print(table)
+
+
+@review_app.command(name="approve")
+def review_approve(
+    symbol: str = typer.Argument(..., help="Symbol to approve"),
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Approve a queued trade for execution."""
+    from src.execution.application.commands import ApproveTradePlanCommand, ExecuteOrderCommand
+
+    ctx = _get_ctx(market)
+    review_repo = ctx["review_queue_repo"]
+    trade_handler = ctx["trade_plan_handler"]
+
+    symbol = symbol.upper()
+    items = review_repo.list_pending()
+    match = next((i for i in items if i.symbol == symbol), None)
+
+    if match is None:
+        console.print(f"[bold red]No pending review for {symbol}.[/bold red]")
+        raise typer.Exit(code=1)
+
+    review_repo.mark_reviewed(match.id, approved=True)
+
+    # Try to execute the trade
+    try:
+        trade_handler.approve(ApproveTradePlanCommand(symbol=symbol, approved=True))
+        result = trade_handler.execute(ExecuteOrderCommand(symbol=symbol))
+        if result.status in ("filled", "accepted", "partially_filled", "new"):
+            console.print(f"[bold green]Trade {symbol} approved and executed: {result.order_id}[/bold green]")
+        else:
+            console.print(f"[yellow]Trade {symbol} approved but execution failed: {result.error_message or result.status}[/yellow]")
+    except Exception as e:
+        console.print(f"[yellow]Trade {symbol} approved but execution failed: {e}[/yellow]")
+
+
+@review_app.command(name="reject")
+def review_reject(
+    symbol: str = typer.Argument(..., help="Symbol to reject"),
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Reject a queued trade (no execution)."""
+    ctx = _get_ctx(market)
+    review_repo = ctx["review_queue_repo"]
+
+    symbol = symbol.upper()
+    items = review_repo.list_pending()
+    match = next((i for i in items if i.symbol == symbol), None)
+
+    if match is None:
+        console.print(f"[bold red]No pending review for {symbol}.[/bold red]")
+        raise typer.Exit(code=1)
+
+    review_repo.mark_reviewed(match.id, approved=False)
+    console.print(f"[yellow]Trade {symbol} rejected.[/yellow]")
+
+
 if __name__ == "__main__":
     app()

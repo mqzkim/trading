@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
 from src.approval.domain.entities import StrategyApproval
 from src.approval.domain.repositories import (
