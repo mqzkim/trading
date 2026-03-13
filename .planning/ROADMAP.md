@@ -46,7 +46,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 - [x] **Phase 16: Web Dashboard** - HTMX dashboard with portfolio, signals, risk metrics, pipeline status, and real-time SSE updates (completed 2026-03-13)
 - [x] **Phase 17: SSE Real-Time Event Wiring** - Fix SSE event name mismatches, publish missing events, extend order monitor lifecycle (gap closure) (completed 2026-03-13)
 - [x] **Phase 18: Drawdown Defense Wiring** - Wire DrawdownAlertEvent to approval suspension and pass drawdown_level to pipeline halt (gap closure) (completed 2026-03-13)
-- [ ] **Phase 19: Dashboard CLI & Data Accuracy** - Add `trade serve` CLI command, fix initial drawdown display, fix equity curve P&L accumulation (gap closure)
+- [x] **Phase 19: Dashboard CLI & Data Accuracy** - Add `trade serve` CLI command, fix initial drawdown display, fix equity curve P&L accumulation (gap closure) (completed 2026-03-13)
 - [ ] **Phase 20: CI/Test Debt Cleanup** - Fix pre-existing mypy arg-type error and test_api_routes version mismatch failures (tech debt)
 
 ## Phase Details
@@ -213,5 +213,5 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 16. Web Dashboard | v1.2 | 4/4 | Complete | 2026-03-13 |
 | 17. SSE Real-Time Event Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
 | 18. Drawdown Defense Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
-| 19. Dashboard CLI & Data Accuracy | v1.2 | 0/2 | Not Started | - |
+| 19. Dashboard CLI & Data Accuracy | 2/2 | Complete   | 2026-03-13 | - |
 | 20. CI/Test Debt Cleanup | v1.2 | 0/0 | Not Started | - |

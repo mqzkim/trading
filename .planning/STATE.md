@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
-status: completed
+status: executing
 stopped_at: Completed 18-01-PLAN.md (Phase 18 complete, drawdown defense wiring)
-last_updated: "2026-03-13T18:09:25.669Z"
-last_activity: 2026-03-14 -- Completed 18-01 drawdown defense wiring
+last_updated: "2026-03-13T19:07:07.246Z"
+last_activity: 2026-03-14 -- Completed 19-01 trade serve CLI command
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 16
-  completed_plans: 16
-  percent: 100
+  total_phases: 9
+  completed_phases: 8
+  total_plans: 18
+  completed_plans: 18
+  percent: 94
 ---
 
 # Project State
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 18 -- Drawdown Defense Wiring (gap closure)
+**Current focus:** Phase 19 -- Dashboard CLI & Data Accuracy (gap closure)
 
 ## Current Position
 
-Phase: 18 of 18 (Drawdown Defense Wiring) -- seventh of 7 v1.2 phases
-Plan: 1 of 1 complete
+Phase: 19 of 20 (Dashboard CLI & Data Accuracy) -- eighth of 9 v1.2 phases
+Plan: 2 of 2 complete
 Status: Complete
-Last activity: 2026-03-14 -- Completed 18-01 drawdown defense wiring
+Last activity: 2026-03-14 -- Completed 19-02 dashboard data accuracy
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 44 (v1.0: 12, v1.1: 17, v1.2: 15)
+- Total plans completed: 46 (v1.0: 12, v1.1: 17, v1.2: 17)
 - Average duration: ~5.9 min/plan
 - Total execution time: ~3.5 hours
 
@@ -63,6 +63,8 @@ Progress: [██████████] 100%
 | 17. SSE Event Wiring | 1/1 | 7 min | 7.0 min |
 | 18. Drawdown Defense Wiring | 1/1 | 5 min | 5.0 min |
 | Phase 18 P01 | 5min | 2 tasks | 3 files |
+| Phase 19 P01 | 2min | 2 tasks | 2 files |
+| Phase 19 P02 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -132,6 +134,12 @@ Recent decisions affecting current work:
 - [Phase 18]: Only tier 2+ (warning/critical) triggers approval suspension; caution is tier 1 only
 - [Phase 18]: portfolio_repo added to bootstrap ctx dict for pipeline handler access
 - [Phase 18]: Default drawdown_level is normal when no portfolio exists (safe default)
+- [19-01]: Module-level import for uvicorn/threading/webbrowser to enable unittest.mock.patch
+- [19-01]: threading.Timer(1.5s) for delayed browser open before blocking uvicorn.run
+- [19-01]: webbrowser.open wrapped in try/except for WSL2/headless compatibility
+- [19-02]: RiskQueryHandler stores self._ctx for portfolio access (matches OverviewQueryHandler pattern)
+- [19-02]: Drawdown fraction multiplied by 100 for gauge percentage display
+- [19-02]: Equity curve P&L uses take_profit_price as exit proxy (optimistic upper bound, acceptable for v1)
 
 ### Pending Todos
 
@@ -150,6 +158,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T18:05:03.383Z
-Stopped at: Completed 18-01-PLAN.md (Phase 18 complete, drawdown defense wiring)
+Last session: 2026-03-13T19:06:13Z
+Stopped at: Completed 19-02-PLAN.md (Phase 19 complete, dashboard data accuracy)
 Resume file: None
