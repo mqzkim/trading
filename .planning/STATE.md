@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
-status: completed
-stopped_at: Phase 13 context gathered
-last_updated: "2026-03-13T00:48:16.129Z"
-last_activity: 2026-03-13 -- Completed 12-03 position reconciliation and kill switch
+status: in-progress
+stopped_at: Completed 13-01-PLAN.md
+last_updated: "2026-03-13T06:59:16Z"
+last_activity: 2026-03-13 -- Completed 13-01 pipeline domain model and infrastructure
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_plans: 5
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 12 -- Safety Infrastructure
+**Current focus:** Phase 13 -- Automated Pipeline Scheduler
 
 ## Current Position
 
-Phase: 12 of 16 (Safety Infrastructure) -- first of 5 v1.2 phases
-Plan: 3 of 3 complete
-Status: Phase Complete
-Last activity: 2026-03-13 -- Completed 12-03 position reconciliation and kill switch
+Phase: 13 of 16 (Automated Pipeline Scheduler) -- second of 5 v1.2 phases
+Plan: 1 of 2 complete
+Status: In Progress
+Last activity: 2026-03-13 -- Completed 13-01 pipeline domain model and infrastructure
 
-Progress: [██████████] 100%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 32 (v1.0: 12, v1.1: 17, v1.2: 3)
-- Average duration: ~6.1 min/plan
-- Total execution time: ~3.1 hours
+- Total plans completed: 33 (v1.0: 12, v1.1: 17, v1.2: 4)
+- Average duration: ~5.9 min/plan
+- Total execution time: ~3.2 hours
 
 **By Phase (v1.1):**
 
@@ -56,7 +56,7 @@ Progress: [██████████] 100%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 12. Safety Infrastructure | 3/3 | 12 min | 4.0 min |
-| Phase 12 P02 | 5min | 2 tasks | 7 files |
+| 13. Pipeline Scheduler | 1/2 | 5 min | 5.0 min |
 
 ## Accumulated Context
 
@@ -80,6 +80,10 @@ Recent decisions affecting current work:
 - [12-03]: PositionRepoProtocol avoids cross-context import (DDD compliance)
 - [12-03]: Mock mode kill switch still creates cooldown for emotional re-entry prevention
 - [Phase 12]: SafeExecutionAdapter accesses inner _client for polling -- acceptable in infrastructure layer
+- [13-01]: exchange_calendars chosen over pandas_market_calendars (resolves blocker)
+- [13-01]: SqlitePipelineRunRepository uses upsert for idempotent save
+- [13-01]: Notifier uses Protocol (structural typing) not ABC
+- [13-01]: StageResult stores succeeded_symbols list for downstream filtering
 
 ### Pending Todos
 
@@ -94,10 +98,10 @@ Carried forward:
 New for v1.2:
 - Alpaca live account lead time -- identity verification and funding may gate Phase 15
 - AsyncEventBus untested under concurrent load -- verify before Phase 15
-- exchange_calendars vs pandas_market_calendars -- confirm which to use in Phase 13
+- exchange_calendars vs pandas_market_calendars -- RESOLVED: exchange_calendars chosen in 13-01
 
 ## Session Continuity
 
-Last session: 2026-03-13T00:48:16.125Z
-Stopped at: Phase 13 context gathered
-Resume file: .planning/phases/13-automated-pipeline-scheduler/13-CONTEXT.md
+Last session: 2026-03-13T06:59:16Z
+Stopped at: Completed 13-01-PLAN.md
+Resume file: .planning/phases/13-automated-pipeline-scheduler/13-02-PLAN.md
