@@ -1174,5 +1174,102 @@ def backtest(
     console.print(table)
 
 
+@app.command()
+def kill(
+    liquidate: bool = typer.Option(False, "--liquidate", help="Also liquidate all positions"),
+    market: str = typer.Option("us", "--market", "-m", help="Market (us|kr)"),
+):
+    """Emergency kill switch -- cancel all orders, optionally liquidate."""
+    from src.execution.infrastructure.kill_switch import KillSwitchService
+    from src.execution.infrastructure.sqlite_cooldown_repo import SqliteCooldownRepository
+
+    if liquidate:
+        if not typer.confirm("LIQUIDATE all positions? This cannot be undone."):
+            raise typer.Exit()
+
+    ctx = _get_ctx(market=market)
+    db_factory = ctx["db_factory"]
+    cooldown_repo = SqliteCooldownRepository(
+        db_path=db_factory.sqlite_path("portfolio")
+    )
+
+    # Get the raw adapter (not SafeExecutionAdapter -- kill needs direct access)
+    adapter = ctx["trade_plan_handler"]._adapter
+
+    service = KillSwitchService(adapter, cooldown_repo)
+    result = service.execute(liquidate=liquidate)
+
+    # Output summary
+    lines = []
+    lines.append(f"[bold]Orders canceled:[/bold] {result['orders_canceled']}")
+    if liquidate:
+        lines.append(f"[bold]Positions closed:[/bold] {result['positions_closed']}")
+    lines.append(f"[bold]Cooldown until:[/bold] {result['cooldown_until']}")
+
+    console.print(Panel(
+        "\n".join(lines),
+        title="[bold red]KILL SWITCH ACTIVATED[/bold red]",
+        border_style="red",
+    ))
+
+
+@app.command()
+def sync(
+    market: str = typer.Option("us", "--market", "-m", help="Market (us|kr)"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
+):
+    """Sync local positions to match broker state."""
+    from src.execution.infrastructure.reconciliation import PositionReconciliationService
+
+    ctx = _get_ctx(market=market)
+
+    # Get position repo and adapter
+    position_repo = ctx["portfolio_handler"]._position_repo
+    adapter = ctx["trade_plan_handler"]._adapter
+
+    service = PositionReconciliationService(position_repo, adapter)
+    discrepancies = service.reconcile()
+
+    if not discrepancies:
+        console.print("[bold green]Positions in sync.[/bold green]")
+        return
+
+    # Show discrepancy table
+    table = Table(
+        title="Position Discrepancies",
+        show_header=True,
+        header_style="bold cyan",
+    )
+    table.add_column("Symbol", style="bold")
+    table.add_column("Type")
+    table.add_column("Local Qty", justify="right")
+    table.add_column("Broker Qty", justify="right")
+
+    for d in discrepancies:
+        local_str = str(d.local_qty) if d.local_qty is not None else "-"
+        broker_str = str(d.broker_qty) if d.broker_qty is not None else "-"
+        type_color = {
+            "local_only": "yellow",
+            "broker_only": "cyan",
+            "qty_mismatch": "red",
+        }.get(d.discrepancy_type, "white")
+        table.add_row(
+            d.symbol,
+            f"[{type_color}]{d.discrepancy_type}[/{type_color}]",
+            local_str,
+            broker_str,
+        )
+
+    console.print(table)
+
+    if not yes:
+        if not typer.confirm("Sync local positions to broker state?"):
+            console.print("[yellow]Sync cancelled.[/yellow]")
+            return
+
+    changes = service.sync_to_broker()
+    console.print(f"[bold green]Synced {changes} position(s) to broker state.[/bold green]")
+
+
 if __name__ == "__main__":
     app()
