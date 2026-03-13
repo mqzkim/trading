@@ -10,8 +10,8 @@ progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 14
-  completed_plans: 11
-  percent: 79
+  completed_plans: 13
+  percent: 93
 ---
 
 # Project State
@@ -26,16 +26,16 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 16 of 16 (Web Dashboard) -- fifth of 5 v1.2 phases
-Plan: 1 of 4 complete
+Plan: 3 of 4 complete
 Status: In Progress
-Last activity: 2026-03-13 -- Completed 16-01 dashboard foundation
+Last activity: 2026-03-13 -- Completed 16-03 signals + risk pages
 
-Progress: [████████░░] 79%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 40 (v1.0: 12, v1.1: 17, v1.2: 11)
+- Total plans completed: 42 (v1.0: 12, v1.1: 17, v1.2: 13)
 - Average duration: ~5.9 min/plan
 - Total execution time: ~3.5 hours
 
@@ -59,7 +59,7 @@ Progress: [████████░░] 79%
 | 13. Pipeline Scheduler | 3/3 | 18 min | 6.0 min |
 | 14. Strategy Approval | 2/2 | 14 min | 7.0 min |
 | 15. Live Trading | 2/2 | 11 min | 5.5 min |
-| 16. Web Dashboard | 1/4 | 10 min | 10.0 min |
+| 16. Web Dashboard | 3/4 | 24 min | 8.0 min |
 
 ## Accumulated Context
 
@@ -108,6 +108,10 @@ Recent decisions affecting current work:
 - [16-01]: SSE test uses route registration check instead of streaming test to avoid infinite stream hang
 - [16-01]: TemplateResponse uses new Starlette API (request as first param) to avoid deprecation warnings
 - [16-01]: sse-starlette added as explicit dependency for EventSourceResponse support
+- [16-02]: Repos (score_repo, position_repo, regime_repo, trade_plan_repo) added to bootstrap ctx for dashboard access
+- [16-02]: Equity curve v1 derives from trade history P&L accumulation (no daily snapshot table)
+- [16-02]: Position current_price uses entry_price as proxy (no live price feed in v1)
+- [16-02]: Trade history queries SQLite directly for EXECUTED trades (repo only has find_pending/find_by_symbol)
 
 ### Pending Todos
 
@@ -126,6 +130,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T15:16:42Z
-Stopped at: Completed 16-01-PLAN.md
-Resume file: .planning/phases/16-web-dashboard/16-02-PLAN.md
+Last session: 2026-03-13T15:23:34Z
+Stopped at: Completed 16-02-PLAN.md
+Resume file: .planning/phases/16-web-dashboard/16-03-PLAN.md
