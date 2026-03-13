@@ -112,6 +112,10 @@ Recent decisions affecting current work:
 - [16-02]: Equity curve v1 derives from trade history P&L accumulation (no daily snapshot table)
 - [16-02]: Position current_price uses entry_price as proxy (no live price feed in v1)
 - [16-02]: Trade history queries SQLite directly for EXECUTED trades (repo only has find_pending/find_by_symbol)
+- [16-03]: SignalsQueryHandler maps CompositeScore VOs to flat dicts for template rendering
+- [16-03]: RiskQueryHandler sector weights from entry_price * quantity (no live price feed in v1)
+- [16-03]: Drawdown defaults to 0.0 without Portfolio aggregate -- SSE provides real-time updates
+- [16-03]: signal_repo added to bootstrap ctx dict for dashboard query access
 
 ### Pending Todos
 
@@ -130,6 +134,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T15:23:34Z
-Stopped at: Completed 16-02-PLAN.md
-Resume file: .planning/phases/16-web-dashboard/16-03-PLAN.md
+Last session: 2026-03-13T15:24:30Z
+Stopped at: Completed 16-03-PLAN.md
+Resume file: .planning/phases/16-web-dashboard/16-04-PLAN.md

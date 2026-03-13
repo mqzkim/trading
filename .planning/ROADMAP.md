@@ -126,8 +126,8 @@ Plans:
 
 Plans:
 - [x] 16-01-PLAN.md -- Dashboard foundation: FastAPI app, base template with sidebar + mode banner, SSE bridge, Plotly chart utilities, test scaffold
-- [ ] 16-02-PLAN.md -- Overview page: KPI cards, holdings table, equity curve chart with regime overlay, trade history table
-- [ ] 16-03-PLAN.md -- Signals page (scoring heatmap table, signal recommendations) + Risk page (drawdown gauge, sector donut, position limits, regime badge)
+- [x] 16-02-PLAN.md -- Overview page: KPI cards, holdings table, equity curve chart with regime overlay, trade history table
+- [x] 16-03-PLAN.md -- Signals page (scoring heatmap table, signal recommendations) + Risk page (drawdown gauge, sector donut, position limits, regime badge)
 - [ ] 16-04-PLAN.md -- Pipeline & Approval page (run history, approval CRUD, budget bar, review queue) + SSE real-time wiring
 
 ## Progress
