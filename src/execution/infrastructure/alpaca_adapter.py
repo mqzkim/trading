@@ -1,6 +1,7 @@
 """Execution Infrastructure — Alpaca Execution Adapter.
 
-Mock fallback: credentials 없으면 mock 모드로 작동.
+Mock fallback: credentials 없으면 mock 모드로 작동 (paper mode only).
+Live mode: order failures return error OrderResult, never phantom fills.
 alpaca-py imports는 메서드 내부에서만 (module-level import 금지).
 """
 from __future__ import annotations
@@ -19,16 +20,19 @@ class AlpacaExecutionAdapter(IBrokerAdapter):
     """Alpaca bracket order adapter with mock fallback.
 
     Credentials 없으면 mock 모드로 동작 (unit test 및 개발 환경).
-    Real 모드에서는 alpaca-py SDK를 사용하여 paper trading 주문 제출.
+    Real 모드에서는 alpaca-py SDK를 사용하여 주문 제출.
+    paper=True (default) for paper trading, paper=False for live trading.
     """
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         secret_key: Optional[str] = None,
+        paper: bool = True,
     ) -> None:
         self._api_key = api_key
         self._secret_key = secret_key
+        self._paper = paper
         self._use_mock = not (api_key and secret_key)
         self._client: Any = None
 
@@ -37,15 +41,11 @@ class AlpacaExecutionAdapter(IBrokerAdapter):
 
     def _init_client(self) -> None:
         """Lazily initialize Alpaca TradingClient."""
-        try:
-            from alpaca.trading.client import TradingClient
+        from alpaca.trading.client import TradingClient
 
-            self._client = TradingClient(
-                self._api_key, self._secret_key, paper=True
-            )
-        except Exception as e:
-            logger.warning("Alpaca client init failed, falling back to mock: %s", e)
-            self._use_mock = True
+        self._client = TradingClient(
+            self._api_key, self._secret_key, paper=self._paper
+        )
 
     def submit_order(self, spec: OrderSpec) -> OrderResult:
         """IBrokerAdapter interface — delegates to submit_bracket_order."""
@@ -124,7 +124,14 @@ class AlpacaExecutionAdapter(IBrokerAdapter):
             )
         except Exception as e:
             logger.error("Alpaca bracket order failed for %s: %s", spec.symbol, e)
-            return self._mock_bracket_order(spec)
+            return OrderResult(
+                order_id="",
+                status="error",
+                symbol=spec.symbol,
+                quantity=spec.quantity,
+                filled_price=None,
+                error_message=str(e),
+            )
 
     def _real_get_positions(self) -> list[dict]:
         try:
