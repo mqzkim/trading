@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
-status: completed
-stopped_at: Phase 15 context gathered
-last_updated: "2026-03-13T13:31:38.807Z"
-last_activity: 2026-03-13 -- Completed 14-02 pipeline gate integration + CLI commands
+status: in-progress
+stopped_at: Completed 15-01 circuit breaker and capital ratio
+last_updated: "2026-03-13T13:56:00Z"
+last_activity: 2026-03-13 -- Completed 15-01 circuit breaker, capital ratio, CLI commands
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 9
   percent: 100
 ---
 
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 14 -- Strategy and Budget Approval
+**Current focus:** Phase 15 -- Live Trading Activation
 
 ## Current Position
 
-Phase: 14 of 16 (Strategy and Budget Approval) -- third of 5 v1.2 phases
-Plan: 2 of 2 complete
-Status: Phase Complete
-Last activity: 2026-03-13 -- Completed 14-02 pipeline gate integration + CLI commands
+Phase: 15 of 16 (Live Trading Activation) -- fourth of 5 v1.2 phases
+Plan: 1 of 2 complete
+Status: In Progress
+Last activity: 2026-03-13 -- Completed 15-01 circuit breaker, capital ratio, CLI commands
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 37 (v1.0: 12, v1.1: 17, v1.2: 8)
+- Total plans completed: 38 (v1.0: 12, v1.1: 17, v1.2: 9)
 - Average duration: ~5.9 min/plan
 - Total execution time: ~3.5 hours
 
@@ -58,6 +58,7 @@ Progress: [██████████] 100%
 | 12. Safety Infrastructure | 3/3 | 12 min | 4.0 min |
 | 13. Pipeline Scheduler | 3/3 | 18 min | 6.0 min |
 | 14. Strategy Approval | 2/2 | 14 min | 7.0 min |
+| 15. Live Trading | 1/2 | 7 min | 7.0 min |
 
 ## Accumulated Context
 
@@ -97,6 +98,9 @@ Recent decisions affecting current work:
 - [14-02]: CLI subgroup named 'approval' (not 'approve') to avoid conflict with existing trade plan approve command
 - [14-02]: Pipeline _run_execute backward compatible: missing approval_gate = skip execution
 - [14-02]: RegimeChangedEvent handler normalizes RegimeType enum via .value for string comparison
+- [15-01]: Circuit breaker trips on 3rd failure, calls kill switch with liquidate=False
+- [15-01]: Notifier wired into SafeExecutionAdapter after pipeline notifier creation in bootstrap
+- [15-01]: safe_adapter and kill_switch added to bootstrap context dict for CLI access
 
 ### Pending Todos
 
@@ -115,6 +119,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T13:31:38.804Z
-Stopped at: Phase 15 context gathered
-Resume file: .planning/phases/15-live-trading-activation/15-CONTEXT.md
+Last session: 2026-03-13T13:56:00Z
+Stopped at: Completed 15-01 circuit breaker and capital ratio
+Resume file: .planning/phases/15-live-trading-activation/15-01-SUMMARY.md

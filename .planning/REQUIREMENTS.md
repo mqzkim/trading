@@ -38,12 +38,12 @@ Requirements for Production Trading & Dashboard milestone. Each maps to roadmap 
 
 ### Live Trading
 
-- [ ] **LIVE-01**: System connects to Alpaca live account when EXECUTION_MODE=live with valid live API credentials
-- [ ] **LIVE-02**: SafeExecutionService wraps broker adapter with circuit breaker and budget enforcement pre-checks
+- [x] **LIVE-01**: System connects to Alpaca live account when EXECUTION_MODE=live with valid live API credentials
+- [x] **LIVE-02**: SafeExecutionService wraps broker adapter with circuit breaker and budget enforcement pre-checks
 - [ ] **LIVE-03**: AlpacaOrderMonitor runs as background task tracking all open orders until terminal state
 - [ ] **LIVE-04**: TradingStream WebSocket receives real-time fill events and publishes to event bus
-- [ ] **LIVE-05**: Initial live deployment uses max 25% capital allocation, increasing as reliability is demonstrated
-- [ ] **LIVE-06**: Circuit breaker halts live trading after 3 consecutive order failures
+- [x] **LIVE-05**: Initial live deployment uses max 25% capital allocation, increasing as reliability is demonstrated
+- [x] **LIVE-06**: Circuit breaker halts live trading after 3 consecutive order failures
 
 ### Web Dashboard
 
@@ -114,12 +114,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | APPR-03 | Phase 14 | Complete |
 | APPR-04 | Phase 14 | Complete |
 | APPR-05 | Phase 14 | Complete |
-| LIVE-01 | Phase 15 | Pending |
-| LIVE-02 | Phase 15 | Pending |
+| LIVE-01 | Phase 15 | Complete |
+| LIVE-02 | Phase 15 | Complete |
 | LIVE-03 | Phase 15 | Pending |
 | LIVE-04 | Phase 15 | Pending |
-| LIVE-05 | Phase 15 | Pending |
-| LIVE-06 | Phase 15 | Pending |
+| LIVE-05 | Phase 15 | Complete |
+| LIVE-06 | Phase 15 | Complete |
 | DASH-01 | Phase 16 | Pending |
 | DASH-02 | Phase 16 | Pending |
 | DASH-03 | Phase 16 | Pending |

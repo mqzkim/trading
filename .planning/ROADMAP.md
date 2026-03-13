@@ -109,7 +109,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 15-01-PLAN.md -- Circuit breaker in SafeExecutionAdapter, OrderFilledEvent, LIVE_CAPITAL_RATIO, CLI config/reset commands
+- [x] 15-01-PLAN.md -- Circuit breaker in SafeExecutionAdapter, OrderFilledEvent, LIVE_CAPITAL_RATIO, CLI config/reset commands
 - [ ] 15-02-PLAN.md -- AlpacaOrderMonitor background thread, TradingStreamAdapter WebSocket, pipeline integration with circuit breaker error handling
 
 ### Phase 16: Web Dashboard
@@ -150,5 +150,5 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 12. Safety Infrastructure | v1.2 | 3/3 | Complete | 2026-03-13 |
 | 13. Automated Pipeline Scheduler | v1.2 | 3/3 | Complete | 2026-03-13 |
 | 14. Strategy and Budget Approval | v1.2 | 2/2 | Complete | 2026-03-13 |
-| 15. Live Trading Activation | v1.2 | 0/2 | Not started | - |
+| 15. Live Trading Activation | v1.2 | 1/2 | In Progress | - |
 | 16. Web Dashboard | v1.2 | 0/? | Not started | - |
