@@ -1,7 +1,10 @@
 """Trading System CLI entry point."""
 import asyncio
 import json
+import threading
+import webbrowser
 import typer
+import uvicorn
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -1774,6 +1777,38 @@ def cb_reset(
 
     safe_adapter.reset_circuit_breaker()
     console.print("[bold green]Circuit breaker reset successfully.[/bold green]")
+
+
+@app.command()
+def serve(
+    host: str = typer.Option(None, "--host", help="Bind host (default: from settings)"),
+    port: int = typer.Option(None, "--port", help="Bind port (default: from settings)"),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Don't auto-open browser"),
+):
+    """Launch the dashboard web server."""
+    from src.settings import settings
+    from src.dashboard.presentation.app import create_dashboard_app
+
+    _host = host if host is not None else settings.DASHBOARD_HOST
+    _port = port if port is not None else settings.DASHBOARD_PORT
+
+    ctx = _get_ctx()
+    dashboard_app = create_dashboard_app(ctx)
+
+    url = f"http://{_host}:{_port}/dashboard/"
+    console.print(f"[bold green]Starting dashboard at {url}[/bold green]")
+
+    if not no_browser:
+        def _open_browser():
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass  # WSL2 or headless environment
+
+        timer = threading.Timer(1.5, _open_browser)
+        timer.start()
+
+    uvicorn.run(dashboard_app, host=_host, port=_port, log_level="info")
 
 
 if __name__ == "__main__":
