@@ -3,15 +3,70 @@
 {% block content %}
 <h2 class="text-2xl font-bold mb-6">Overview</h2>
 
-<div id="kpi-cards" class="grid grid-cols-4 gap-4 mb-6" sse-swap="KpiUpdated">
+<div id="kpi-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" sse-swap="KpiUpdated">
     {% include "partials/kpi_cards.html" %}
 </div>
 
-<div id="holdings-table" class="bg-white rounded-lg shadow p-4 mb-6" sse-swap="OrderFilledEvent">
+<div id="holdings-table" class="bg-white rounded-lg shadow p-4 mb-6" sse-swap="OrderFilled">
+    <h3 class="text-lg font-semibold mb-3">Holdings</h3>
     {% include "partials/holdings_table.html" %}
 </div>
 
-<div id="equity-chart" class="bg-white rounded-lg shadow p-4" sse-swap="EquityUpdated">
-    <!-- Plotly equity curve rendered here by JS -->
+<div id="equity-chart" class="bg-white rounded-lg shadow p-4 mb-6">
+    <h3 class="text-lg font-semibold mb-3">Equity Curve</h3>
+    <div id="equity-plot" style="width:100%; height:350px;"></div>
 </div>
+
+<div class="bg-white rounded-lg shadow p-4">
+    <h3 class="text-lg font-semibold mb-3">Trade History</h3>
+    <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-600 uppercase text-xs">
+            <tr>
+                <th class="px-4 py-3 text-left">Date</th>
+                <th class="px-4 py-3 text-left">Ticker</th>
+                <th class="px-4 py-3 text-left">Side</th>
+                <th class="px-4 py-3 text-right">Qty</th>
+                <th class="px-4 py-3 text-right">Entry</th>
+                <th class="px-4 py-3 text-right">Stop</th>
+                <th class="px-4 py-3 text-right">Target</th>
+                <th class="px-4 py-3 text-right">Fill</th>
+                <th class="px-4 py-3 text-right">P&L</th>
+                <th class="px-4 py-3 text-left">Strategy</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if trade_history %}
+            {% for trade in trade_history %}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="px-4 py-3">{{ trade.created_at[:10] if trade.created_at else '--' }}</td>
+                <td class="px-4 py-3 font-medium">{{ trade.symbol }}</td>
+                <td class="px-4 py-3 {{ 'text-green-600' if trade.direction == 'BUY' else 'text-red-600' }}">
+                    {{ trade.direction }}
+                </td>
+                <td class="px-4 py-3 text-right">{{ trade.quantity }}</td>
+                <td class="px-4 py-3 text-right">${{ "{:,.2f}".format(trade.entry_price) }}</td>
+                <td class="px-4 py-3 text-right">${{ "{:,.2f}".format(trade.stop_loss_price) }}</td>
+                <td class="px-4 py-3 text-right">${{ "{:,.2f}".format(trade.take_profit_price) }}</td>
+                <td class="px-4 py-3 text-right">--</td>
+                <td class="px-4 py-3 text-right">--</td>
+                <td class="px-4 py-3">{{ trade.signal_direction or '--' }}</td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+                <td colspan="10" class="px-4 py-8 text-center text-gray-400">No trades yet</td>
+            </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    var chartData = {{ chart_json | tojson }};
+    if (chartData && chartData.data) {
+        Plotly.newPlot('equity-plot', chartData.data, chartData.layout, {responsive: true});
+    }
+</script>
 {% endblock %}
