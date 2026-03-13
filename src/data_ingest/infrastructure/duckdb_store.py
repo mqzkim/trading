@@ -26,10 +26,31 @@ class DuckDBStore:
     def __init__(self) -> None:
         self._conn: duckdb.DuckDBPyConnection | None = None
 
-    def connect(self, db_path: str = "data/analytics.duckdb") -> None:
-        """Open connection and create tables if they don't exist."""
-        self._conn = duckdb.connect(db_path)
-        self._create_tables()
+    def connect(
+        self, db_path: str = "data/analytics.duckdb", *, read_only: bool = False
+    ) -> None:
+        """Open connection and create tables if they don't exist.
+
+        When read_only=True and the DB is locked by another process,
+        falls back to an in-memory copy for lock-free concurrent reads.
+        """
+        if read_only:
+            try:
+                self._conn = duckdb.connect(db_path, read_only=True)
+            except duckdb.IOException:
+                # DB locked by daemon — snapshot into memory for reads
+                import shutil
+                import tempfile
+
+                tmp = tempfile.NamedTemporaryFile(
+                    suffix=".duckdb", delete=False
+                )
+                tmp.close()
+                shutil.copy2(db_path, tmp.name)
+                self._conn = duckdb.connect(tmp.name, read_only=True)
+        else:
+            self._conn = duckdb.connect(db_path)
+            self._create_tables()
 
     def close(self) -> None:
         """Close the DuckDB connection."""

@@ -107,15 +107,34 @@ class RunPipelineHandler:
         return run
 
     def _get_default_symbols(self) -> list[str]:
-        """Get default symbol universe from data pipeline."""
+        """Get default symbol universe from data pipeline, fallback to DuckDB."""
         try:
             from src.data_ingest.infrastructure.universe_provider import UniverseProvider
             provider = UniverseProvider()
             df = provider.get_universe()
-            return df["ticker"].tolist()
+            symbols = df["ticker"].tolist()
+            if symbols:
+                return symbols
         except Exception:
-            logger.warning("Failed to get default universe, using empty list")
-            return []
+            logger.warning("Failed to get default universe from provider")
+
+        # Fallback: use symbols already ingested in DuckDB
+        try:
+            from src.data_ingest.infrastructure.duckdb_store import DuckDBStore
+            store = DuckDBStore()
+            store.connect()
+            result = store._conn.execute(
+                "SELECT DISTINCT ticker FROM ohlcv ORDER BY ticker"
+            ).fetchall()
+            store.close()
+            symbols = [row[0] for row in result]
+            if symbols:
+                logger.info(f"Using {len(symbols)} symbols from DuckDB fallback")
+                return symbols
+        except Exception:
+            logger.warning("DuckDB fallback also failed")
+
+        return []
 
     def _publish_pipeline_event(self, run: PipelineRun) -> None:
         """Publish pipeline completion/halt event to bus for SSE updates."""

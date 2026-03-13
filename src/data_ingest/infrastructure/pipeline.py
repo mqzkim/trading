@@ -41,6 +41,7 @@ class DataPipeline:
         max_concurrent: int = 5,
         db_path: str = "data/analytics.duckdb",
         *,
+        read_only: bool = False,
         yfinance_client: YFinanceClient | None = None,
         edgartools_client: EdgartoolsClient | None = None,
         pykrx_client: PyKRXClient | None = None,
@@ -60,7 +61,7 @@ class DataPipeline:
         self._universe = universe_provider or UniverseProvider()
 
         if duckdb_store is None:
-            self._store.connect(db_path)
+            self._store.connect(db_path, read_only=read_only)
 
     @property
     def event_bus(self) -> AsyncEventBus:
@@ -270,6 +271,12 @@ class DataPipeline:
 
         # Normalize column names to lowercase
         result.columns = [c.lower() for c in result.columns]
+
+        # Ensure date column is proper date type (yfinance may return int64/epoch)
+        if result["date"].dtype in ("int64", "float64"):
+            result["date"] = pd.to_datetime(result["date"], unit="ms").dt.date
+        elif hasattr(result["date"].dtype, "tz") or pd.api.types.is_datetime64_any_dtype(result["date"]):
+            result["date"] = result["date"].dt.date
 
         # Select only the columns DuckDB expects, in order
         expected = ["ticker", "date", "open", "high", "low", "close", "volume"]

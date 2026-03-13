@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash C:/workspace/trading/.claude/scripts/kanban-sprint-sync.sh",
+            "command": "bash /home/mqz/workspace/trading/.claude/scripts/kanban-sprint-sync.sh",
             "timeout": 15
           }
         ]

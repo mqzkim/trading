@@ -44,6 +44,7 @@ from src.execution.infrastructure import (
 def bootstrap(
     db_factory: DBFactory | None = None,
     market: str = "us",
+    read_only: bool = False,
 ) -> dict:
     """Create a fully wired application context.
 
@@ -300,7 +301,7 @@ def bootstrap(
     # Data pipeline for ingest stage (lazy import to avoid circular deps)
     from src.data_ingest.infrastructure.pipeline import DataPipeline
 
-    data_pipeline = DataPipeline()
+    data_pipeline = DataPipeline(read_only=read_only)
 
     # Build context dict first (handlers need it)
     ctx = {

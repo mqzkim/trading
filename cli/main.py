@@ -16,12 +16,13 @@ console = Console()
 _ctx_cache: dict[str, dict] = {}
 
 
-def _get_ctx(market: str = "us") -> dict:
+def _get_ctx(market: str = "us", *, read_only: bool = True) -> dict:
     """Lazily bootstrap the application context and cache it per market."""
-    if market not in _ctx_cache:
+    key = f"{market}:ro" if read_only else market
+    if key not in _ctx_cache:
         from src.bootstrap import bootstrap
-        _ctx_cache[market] = bootstrap(market=market)
-    return _ctx_cache[market]
+        _ctx_cache[key] = bootstrap(market=market, read_only=read_only)
+    return _ctx_cache[key]
 
 
 @app.command()
@@ -1283,6 +1284,7 @@ app.add_typer(pipeline_app, name="pipeline")
 
 @pipeline_app.command(name="run")
 def pipeline_run(
+    symbols: list[str] = typer.Argument(None, help="Ticker symbols (optional, uses default universe if omitted)"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Execute without submitting orders"),
     market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
 ):
@@ -1290,8 +1292,10 @@ def pipeline_run(
     from src.pipeline.application.commands import RunPipelineCommand
     from src.pipeline.domain.value_objects import RunMode
 
-    ctx = _get_ctx(market)
+    ctx = _get_ctx(market, read_only=False)
     handler = ctx["run_pipeline_handler"]
+    if symbols:
+        handler._symbols = symbols
     cmd = RunPipelineCommand(dry_run=dry_run, mode=RunMode.MANUAL)
 
     console.print("[bold]Starting pipeline run...[/bold]")
@@ -1411,7 +1415,7 @@ def pipeline_daemon(
     market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
 ):
     """Start the pipeline scheduler daemon (background process)."""
-    ctx = _get_ctx(market)
+    ctx = _get_ctx(market, read_only=False)
     scheduler = ctx["scheduler_service"]
     scheduler.start()
     console.print("[green]Pipeline scheduler started[/green]")

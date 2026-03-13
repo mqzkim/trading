@@ -68,7 +68,13 @@ class QualityChecker:
         # 2. Stale data check using business days (>max_stale_days = fail)
         stale_days = 0
         if len(df) > 0:
-            last_date = pd.Timestamp(df.index.max())
+            # Handle both DatetimeIndex and 'date' column
+            if isinstance(df.index, pd.DatetimeIndex):
+                last_date = pd.Timestamp(df.index.max())
+            elif "date" in df.columns:
+                last_date = pd.Timestamp(df["date"].max())
+            else:
+                last_date = pd.Timestamp.now().normalize()  # skip stale check
             current = now if now is not None else pd.Timestamp.now().normalize()
             stale_days = int(
                 np.busday_count(last_date.date(), current.date())
