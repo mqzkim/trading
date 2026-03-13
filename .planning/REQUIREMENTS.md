@@ -55,7 +55,7 @@ Requirements for Production Trading & Dashboard milestone. Each maps to roadmap 
 - [ ] **DASH-06**: User can view and manage strategy approval and daily budget from dashboard
 - [ ] **DASH-07**: Dashboard receives real-time updates via SSE for order fills, pipeline events, and alerts
 - [ ] **DASH-08**: Dashboard displays equity curve chart with regime overlay
-- [ ] **DASH-09**: Dashboard shows prominent paper/live mode banner (red for live, green for paper)
+- [x] **DASH-09**: Dashboard shows prominent paper/live mode banner (red for live, green for paper)
 
 ## v2 Requirements
 
@@ -128,7 +128,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DASH-06 | Phase 16 | Pending |
 | DASH-07 | Phase 16 | Pending |
 | DASH-08 | Phase 16 | Pending |
-| DASH-09 | Phase 16 | Pending |
+| DASH-09 | Phase 16 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 35 total
