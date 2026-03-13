@@ -77,22 +77,31 @@ class RunPipelineHandler:
         # 2. Get symbols from handlers context or provided list
         symbols = self._symbols or self._get_default_symbols()
 
-        # 3. Run pipeline
+        # 3. Query portfolio drawdown level for safety gate
+        drawdown_level = "normal"
+        portfolio_repo = self._handlers.get("portfolio_repo")
+        if portfolio_repo is not None:
+            portfolio = portfolio_repo.find_by_id("default")
+            if portfolio is not None:
+                drawdown_level = portfolio.drawdown_level.value
+
+        # 4. Run pipeline with drawdown state
         mode = RunMode.DRY_RUN if cmd.dry_run else cmd.mode
         run = self._orchestrator.run(
             handlers=self._handlers,
             symbols=symbols,
             dry_run=cmd.dry_run,
             mode=mode,
+            drawdown_level=drawdown_level,
         )
 
-        # 4. Save to repo
+        # 5. Save to repo
         self._repo.save(run)
 
-        # 5. Notify based on result
+        # 6. Notify based on result
         self._send_notification(run)
 
-        # 6. Publish domain event to bus for SSE bridge
+        # 7. Publish domain event to bus for SSE bridge
         self._publish_pipeline_event(run)
 
         return run

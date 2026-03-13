@@ -229,6 +229,15 @@ def bootstrap(
 
     bus.subscribe(RegimeChangedEvent, _on_regime_changed)
 
+    # Drawdown -> Approval suspension (tier 2+: warning/critical only)
+    from src.portfolio.domain.events import DrawdownAlertEvent
+
+    def _on_drawdown_alert(event: DrawdownAlertEvent) -> None:
+        if event.level in ("warning", "critical"):
+            approval_handler.suspend_for_drawdown()
+
+    bus.subscribe(DrawdownAlertEvent, _on_drawdown_alert)
+
     # Remaining cross-context subscriptions deactivated:
     # bus.subscribe(ScoreUpdatedEvent, signal_handler.on_score_updated)
     # bus.subscribe(SignalGeneratedEvent, portfolio_handler.on_signal_generated)
@@ -314,6 +323,7 @@ def bootstrap(
         "position_repo": position_repo,
         "regime_repo": regime_repo,
         "trade_plan_repo": trade_plan_repo,
+        "portfolio_repo": portfolio_repo,
         "safe_adapter": adapter if isinstance(adapter, SafeExecutionAdapter) else None,
         "kill_switch": kill_switch,
         "order_monitor": order_monitor,
