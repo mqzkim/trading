@@ -44,6 +44,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 - [x] **Phase 14: Strategy and Budget Approval** - Human-approved trading rules and daily budget caps gating automated execution (completed 2026-03-13)
 - [x] **Phase 15: Live Trading Activation** - Live Alpaca execution with circuit breaker, order monitoring, and WebSocket fills (completed 2026-03-13)
 - [x] **Phase 16: Web Dashboard** - HTMX dashboard with portfolio, signals, risk metrics, pipeline status, and real-time SSE updates (completed 2026-03-13)
+- [ ] **Phase 17: SSE Real-Time Event Wiring** - Fix SSE event name mismatches, publish missing events, extend order monitor lifecycle (gap closure)
 
 ## Phase Details
 
@@ -130,6 +131,21 @@ Plans:
 - [x] 16-03-PLAN.md -- Signals page (scoring heatmap table, signal recommendations) + Risk page (drawdown gauge, sector donut, position limits, regime badge)
 - [ ] 16-04-PLAN.md -- Pipeline & Approval page (run history, approval CRUD, budget bar, review queue) + SSE real-time wiring
 
+### Phase 17: SSE Real-Time Event Wiring
+**Goal**: All SSE subscriptions fire correctly — event names match, missing bus.publish calls added, order monitor runs persistently — so dashboard updates in real-time
+**Depends on**: Phase 16 (SSE infrastructure), Phase 15 (order monitor)
+**Requirements**: DASH-07
+**Gap Closure**: Closes gaps from v1.2 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. Dashboard SSE receives OrderFilledEvent, RegimeChangedEvent, DrawdownAlertEvent, PipelineCompletedEvent with matching event names — no sse-swap mismatches
+  2. RunPipelineHandler publishes PipelineCompletedEvent to event bus after pipeline finishes — dashboard pipeline page updates in real-time
+  3. PortfolioManagerHandler calls pull_domain_events() so DrawdownAlertEvent reaches event bus — dashboard risk gauge updates
+  4. AlpacaOrderMonitor lifecycle extends beyond single pipeline run — fill events captured persistently
+**Plans**: 1 plan
+
+Plans:
+- [ ] 17-01-PLAN.md -- SSE event name alignment, missing bus.publish wiring, order monitor lifecycle fix
+
 ## Progress
 
 **Execution Order:**
@@ -152,4 +168,5 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 13. Automated Pipeline Scheduler | v1.2 | 3/3 | Complete | 2026-03-13 |
 | 14. Strategy and Budget Approval | v1.2 | 2/2 | Complete | 2026-03-13 |
 | 15. Live Trading Activation | v1.2 | 2/2 | Complete | 2026-03-13 |
-| 16. Web Dashboard | 4/4 | Complete    | 2026-03-13 | - |
+| 16. Web Dashboard | v1.2 | 4/4 | Complete | 2026-03-13 |
+| 17. SSE Real-Time Event Wiring | v1.2 | 0/1 | Planned | - |
