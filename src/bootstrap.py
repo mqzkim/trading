@@ -185,7 +185,39 @@ def bootstrap(
     # bus.subscribe(ScoreUpdatedEvent, signal_handler.on_score_updated)
     # bus.subscribe(SignalGeneratedEvent, portfolio_handler.on_signal_generated)
 
-    return {
+    # -- Pipeline components --
+    from src.pipeline.infrastructure import (
+        SqlitePipelineRunRepository,
+        MarketCalendarService,
+        SlackNotifier,
+        LogNotifier,
+    )
+    from src.pipeline.domain import PipelineOrchestrator
+    from src.pipeline.application import RunPipelineHandler, PipelineStatusHandler
+    from src.execution.infrastructure.reconciliation import PositionReconciliationService
+
+    pipeline_run_repo = SqlitePipelineRunRepository(
+        db_path=db_factory.sqlite_path("pipeline"),
+    )
+    market_calendar = MarketCalendarService()
+    notifier = (
+        SlackNotifier(settings.SLACK_WEBHOOK_URL)
+        if settings.SLACK_WEBHOOK_URL
+        else LogNotifier()
+    )
+    orchestrator = PipelineOrchestrator()
+    reconciliation_service = PositionReconciliationService(
+        position_repo=position_repo,
+        broker_adapter=adapter,
+    )
+
+    # Data pipeline for ingest stage (lazy import to avoid circular deps)
+    from src.data_ingest.infrastructure.pipeline import DataPipeline
+
+    data_pipeline = DataPipeline()
+
+    # Build context dict first (handlers need it)
+    ctx = {
         "bus": bus,
         "db_factory": db_factory,
         "score_handler": score_handler,
@@ -199,4 +231,27 @@ def bootstrap(
         "market": market,
         "cooldown_repo": cooldown_repo,
         "execution_mode": execution_mode,
+        "data_pipeline": data_pipeline,
+        "pipeline_run_repo": pipeline_run_repo,
+        "market_calendar": market_calendar,
+        "notifier": notifier,
+        "orchestrator": orchestrator,
+        "reconciliation_service": reconciliation_service,
     }
+
+    # Wire pipeline handlers with ctx as handlers dict
+    run_pipeline_handler = RunPipelineHandler(
+        orchestrator=orchestrator,
+        pipeline_run_repo=pipeline_run_repo,
+        notifier=notifier,
+        reconciliation_service=reconciliation_service,
+        handlers=ctx,
+    )
+    pipeline_status_handler = PipelineStatusHandler(
+        pipeline_run_repo=pipeline_run_repo,
+    )
+
+    ctx["run_pipeline_handler"] = run_pipeline_handler
+    ctx["pipeline_status_handler"] = pipeline_status_handler
+
+    return ctx

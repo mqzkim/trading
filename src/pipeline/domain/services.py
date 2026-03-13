@@ -347,7 +347,7 @@ class PipelineOrchestrator:
         """Build human-readable halt reason."""
         reasons = []
         if regime_type == "Crisis":
-            reasons.append(f"Regime: Crisis")
+            reasons.append("Regime: Crisis")
         if drawdown_level.lower() in _HALT_DRAWDOWN_LEVELS:
             reasons.append(f"Drawdown: {drawdown_level}")
         return "; ".join(reasons)

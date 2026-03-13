@@ -1271,5 +1271,137 @@ def sync(
     console.print(f"[bold green]Synced {changes} position(s) to broker state.[/bold green]")
 
 
+# ---------------------------------------------------------------------------
+# Pipeline subcommands
+# ---------------------------------------------------------------------------
+pipeline_app = typer.Typer(help="Automated pipeline commands")
+app.add_typer(pipeline_app, name="pipeline")
+
+
+@pipeline_app.command(name="run")
+def pipeline_run(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Execute without submitting orders"),
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Run the full trading pipeline manually."""
+    from src.pipeline.application.commands import RunPipelineCommand
+    from src.pipeline.domain.value_objects import RunMode
+
+    ctx = _get_ctx(market)
+    handler = ctx["run_pipeline_handler"]
+    cmd = RunPipelineCommand(dry_run=dry_run, mode=RunMode.MANUAL)
+
+    console.print("[bold]Starting pipeline run...[/bold]")
+    if dry_run:
+        console.print("[yellow]DRY-RUN mode: orders will NOT be submitted[/yellow]")
+
+    result = handler.handle(cmd)
+
+    # Display results
+    status_color = {
+        "running": "blue",
+        "completed": "green",
+        "halted": "yellow",
+        "failed": "red",
+    }.get(result.status.value, "white")
+
+    duration = result.duration
+    duration_str = f"{duration.total_seconds():.1f}s" if duration else "N/A"
+
+    panel_lines = [
+        f"[bold]Run ID:[/bold] {result.run_id[:8]}",
+        f"[bold]Status:[/bold] [{status_color}]{result.status.value.upper()}[/{status_color}]",
+        f"[bold]Mode:[/bold] {result.mode.value}",
+        f"[bold]Duration:[/bold] {duration_str}",
+        f"[bold]Symbols:[/bold] {result.symbols_succeeded}/{result.symbols_total}",
+    ]
+    if result.halt_reason:
+        panel_lines.append(f"[bold]Halt Reason:[/bold] [yellow]{result.halt_reason}[/yellow]")
+    if result.error_message:
+        panel_lines.append(f"[bold]Error:[/bold] [red]{result.error_message}[/red]")
+
+    console.print(Panel("\n".join(panel_lines), title="Pipeline Run Result"))
+
+    # Stage details table
+    if result.stages:
+        table = Table(title="Stage Results")
+        table.add_column("Stage", style="bold")
+        table.add_column("Status")
+        table.add_column("Symbols", justify="right")
+        table.add_column("Duration")
+
+        for stage in result.stages:
+            s_color = {"success": "green", "partial": "yellow", "failed": "red", "skipped": "dim"}.get(stage.status, "white")
+            s_dur = (stage.finished_at - stage.started_at).total_seconds()
+            table.add_row(
+                stage.stage_name,
+                f"[{s_color}]{stage.status}[/{s_color}]",
+                f"{stage.symbols_succeeded}/{stage.symbols_processed}",
+                f"{s_dur:.1f}s",
+            )
+
+        console.print(table)
+
+
+@pipeline_app.command(name="status")
+def pipeline_status(
+    limit: int = typer.Option(5, "--limit", "-n", help="Number of recent runs to show"),
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Show recent pipeline run history."""
+    from src.pipeline.application.commands import GetPipelineStatusQuery
+
+    ctx = _get_ctx(market)
+    handler = ctx["pipeline_status_handler"]
+    runs = handler.handle(GetPipelineStatusQuery(limit=limit))
+
+    if not runs:
+        console.print("[dim]No pipeline runs found.[/dim]")
+        return
+
+    table = Table(title="Recent Pipeline Runs")
+    table.add_column("Run ID", style="bold")
+    table.add_column("Started")
+    table.add_column("Duration")
+    table.add_column("Status")
+    table.add_column("Mode")
+    table.add_column("Symbols", justify="right")
+    table.add_column("Halt Reason")
+
+    for run in runs:
+        status_color = {
+            "running": "blue",
+            "completed": "green",
+            "halted": "yellow",
+            "failed": "red",
+        }.get(run.status.value, "white")
+
+        duration = run.duration
+        dur_str = f"{duration.total_seconds():.0f}s" if duration else "-"
+        started_str = run.started_at.strftime("%Y-%m-%d %H:%M") if run.started_at else "-"
+
+        table.add_row(
+            run.run_id[:8],
+            started_str,
+            dur_str,
+            f"[{status_color}]{run.status.value}[/{status_color}]",
+            run.mode.value,
+            f"{run.symbols_succeeded}/{run.symbols_total}",
+            run.halt_reason or "-",
+        )
+
+    console.print(table)
+
+    # Show next scheduled run time if available
+    try:
+        scheduler_service = ctx.get("scheduler_service")
+        if scheduler_service:
+            next_time = scheduler_service.get_next_run_time()
+            if next_time:
+                console.print(f"\n[bold]Next scheduled run:[/bold] {next_time.strftime('%Y-%m-%d %H:%M %Z')}")
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
     app()
