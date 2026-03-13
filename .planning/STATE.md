@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
 status: in-progress
-stopped_at: Completed 13-02-PLAN.md
-last_updated: "2026-03-13T07:11:30Z"
-last_activity: 2026-03-13 -- Completed 13-02 pipeline orchestrator and scheduler
+stopped_at: Completed 13-03-PLAN.md
+last_updated: "2026-03-13T07:37:18Z"
+last_activity: 2026-03-13 -- Completed 13-03 gap closure (pipeline stubs and scheduler wiring)
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 6
+  completed_plans: 6
   percent: 100
 ---
 
@@ -26,16 +26,16 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 13 of 16 (Automated Pipeline Scheduler) -- second of 5 v1.2 phases
-Plan: 2 of 2 complete
+Plan: 3 of 3 complete
 Status: Phase Complete
-Last activity: 2026-03-13 -- Completed 13-02 pipeline orchestrator and scheduler
+Last activity: 2026-03-13 -- Completed 13-03 gap closure (pipeline stubs and scheduler wiring)
 
 Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 34 (v1.0: 12, v1.1: 17, v1.2: 5)
+- Total plans completed: 35 (v1.0: 12, v1.1: 17, v1.2: 6)
 - Average duration: ~5.9 min/plan
 - Total execution time: ~3.3 hours
 
@@ -56,7 +56,7 @@ Progress: [█████████░] 90%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 12. Safety Infrastructure | 3/3 | 12 min | 4.0 min |
-| 13. Pipeline Scheduler | 2/2 | 13 min | 6.5 min |
+| 13. Pipeline Scheduler | 3/3 | 18 min | 6.0 min |
 
 ## Accumulated Context
 
@@ -87,6 +87,9 @@ Recent decisions affecting current work:
 - [13-02]: Module-level function registration for APScheduler job targets (serialization constraint)
 - [13-02]: Reconciliation check is application layer responsibility (DDD compliance)
 - [13-02]: DataPipeline added to bootstrap context for orchestrator ingest stage
+- [13-03]: DataClient import inline in _run_plan (matches existing cross-context import pattern)
+- [13-03]: Auto-approve trade plans in _run_execute (manual approval deferred to Phase 14)
+- [13-03]: Bootstrap creates SchedulerService but does NOT auto-start (caller responsibility)
 
 ### Pending Todos
 
@@ -105,6 +108,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T07:11:30Z
-Stopped at: Completed 13-02-PLAN.md
+Last session: 2026-03-13T07:37:18Z
+Stopped at: Completed 13-03-PLAN.md
 Resume file: .planning/phases/14-strategy-approval/14-01-PLAN.md
