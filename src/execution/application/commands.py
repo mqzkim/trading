@@ -43,3 +43,18 @@ class ExecuteOrderCommand:
     """Execute an approved trade plan as a bracket order."""
 
     symbol: str
+
+
+@dataclass
+class KillSwitchCommand:
+    """Emergency kill switch -- cancel all orders, optionally liquidate."""
+
+    liquidate: bool = False
+    confirm: bool = False
+
+
+@dataclass
+class SyncPositionsCommand:
+    """Sync local positions to match broker state."""
+
+    market: str = "us"
