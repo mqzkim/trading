@@ -307,6 +307,12 @@ def bootstrap(
         "market": market,
         "cooldown_repo": cooldown_repo,
         "execution_mode": execution_mode,
+        # Repos exposed for dashboard queries
+        "score_repo": score_repo,
+        "signal_repo": signal_repo,
+        "position_repo": position_repo,
+        "regime_repo": regime_repo,
+        "trade_plan_repo": trade_plan_repo,
         "safe_adapter": adapter if isinstance(adapter, SafeExecutionAdapter) else None,
         "kill_switch": kill_switch,
         "order_monitor": order_monitor,
