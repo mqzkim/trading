@@ -134,7 +134,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v1.2 requirements: 35 total
 - Mapped to phases: 35
 - Unmapped: 0
-- Pending (gap closure): 2 (APPR-05, PIPE-06 → Phase 18)
+- Completed: 35/35
+- Integration gap closure: Phase 19 (INT-01 → DASH-01~09, INT-02 → DASH-04, INT-03 → DASH-08)
+- Tech debt cleanup: Phase 20 (mypy arg-type, test_api_routes version mismatch)
 
 ---
 *Requirements defined: 2026-03-13*

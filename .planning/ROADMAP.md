@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 MVP** -- Phases 1-4 (shipped 2026-03-12)
 - ✅ **v1.1 Stabilization & Expansion** -- Phases 5-11 (shipped 2026-03-13)
-- 🚧 **v1.2 Production Trading & Dashboard** -- Phases 12-16 (in progress)
+- 🚧 **v1.2 Production Trading & Dashboard** -- Phases 12-20 (in progress)
 
 ## Phases
 
@@ -46,6 +46,8 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 - [x] **Phase 16: Web Dashboard** - HTMX dashboard with portfolio, signals, risk metrics, pipeline status, and real-time SSE updates (completed 2026-03-13)
 - [x] **Phase 17: SSE Real-Time Event Wiring** - Fix SSE event name mismatches, publish missing events, extend order monitor lifecycle (gap closure) (completed 2026-03-13)
 - [x] **Phase 18: Drawdown Defense Wiring** - Wire DrawdownAlertEvent to approval suspension and pass drawdown_level to pipeline halt (gap closure) (completed 2026-03-13)
+- [ ] **Phase 19: Dashboard CLI & Data Accuracy** - Add `trade serve` CLI command, fix initial drawdown display, fix equity curve P&L accumulation (gap closure)
+- [ ] **Phase 20: CI/Test Debt Cleanup** - Fix pre-existing mypy arg-type error and test_api_routes version mismatch failures (tech debt)
 
 ## Phase Details
 
@@ -161,6 +163,27 @@ Plans:
 Plans:
 - [ ] 18-01-PLAN.md -- Bootstrap DrawdownAlertEvent subscription, RunPipelineHandler drawdown_level parameter bridge, integration tests
 
+### Phase 19: Dashboard CLI & Data Accuracy
+**Goal**: Dashboard is fully operational from CLI with accurate initial data — `trade serve` launches uvicorn, risk gauge shows real drawdown on load, equity curve accumulates P&L
+**Depends on**: Phase 16 (dashboard), Phase 12 (drawdown state)
+**Requirements**: DASH-01, DASH-04, DASH-08
+**Gap Closure**: Closes INT-01, INT-02, INT-03 from v1.2 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. User runs `trade serve` and browser opens dashboard at localhost — no manual uvicorn command needed
+  2. On initial page load, risk gauge shows actual portfolio drawdown percentage from SQLite, not hardcoded 0.0
+  3. Equity curve chart shows accumulated P&L over time, not a flat zero line
+  4. E2E flows #8 and #9 change from DEGRADED to COMPLETE
+**Plans**: TBD
+
+### Phase 20: CI/Test Debt Cleanup
+**Goal**: Clean CI pipeline — mypy passes with zero errors, all unit tests pass including api_routes
+**Depends on**: Phase 17 (source of mypy error), Phase 11 (source of test failures)
+**Gap Closure**: Closes pre-existing tech debt from v1.2 milestone audit
+**Success Criteria** (what must be TRUE):
+  1. `mypy src/` passes with zero errors — bootstrap.py RegimeType vs str arg-type resolved
+  2. `pytest tests/unit/test_api_routes.py` passes all tests — version 1.1.0 vs 1.0.0 mismatch fixed
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
@@ -185,4 +208,6 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 15. Live Trading Activation | v1.2 | 2/2 | Complete | 2026-03-13 |
 | 16. Web Dashboard | v1.2 | 4/4 | Complete | 2026-03-13 |
 | 17. SSE Real-Time Event Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
-| 18. Drawdown Defense Wiring | 1/1 | Complete    | 2026-03-13 | - |
+| 18. Drawdown Defense Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
+| 19. Dashboard CLI & Data Accuracy | v1.2 | 0/0 | Not Started | - |
+| 20. CI/Test Debt Cleanup | v1.2 | 0/0 | Not Started | - |
