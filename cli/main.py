@@ -1661,5 +1661,120 @@ def review_reject(
     console.print(f"[yellow]Trade {symbol} rejected.[/yellow]")
 
 
+# -- Config commands --
+config_app = typer.Typer(help="Trading configuration commands")
+app.add_typer(config_app, name="config")
+
+
+@config_app.command(name="show")
+def config_show(
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Show current trading configuration."""
+    from src.settings import Settings
+
+    s = Settings()
+    effective_capital = s.US_CAPITAL * s.LIVE_CAPITAL_RATIO if s.EXECUTION_MODE == "live" else s.US_CAPITAL
+
+    table = Table(title="Trading Configuration", show_header=True, header_style="bold cyan")
+    table.add_column("Setting", style="bold")
+    table.add_column("Value")
+
+    table.add_row("EXECUTION_MODE", s.EXECUTION_MODE)
+    table.add_row("US_CAPITAL", f"${s.US_CAPITAL:,.2f}")
+    table.add_row("LIVE_CAPITAL_RATIO", f"{s.LIVE_CAPITAL_RATIO:.2f}")
+    table.add_row("Effective Capital", f"${effective_capital:,.2f}")
+    table.add_row("Alpaca Paper Key", "Set" if s.ALPACA_PAPER_KEY else "Not set")
+    table.add_row("Alpaca Live Key", "Set" if s.ALPACA_LIVE_KEY else "Not set")
+
+    console.print(table)
+
+
+@config_app.command(name="set-capital-ratio")
+def config_set_capital_ratio(
+    ratio: float = typer.Argument(..., help="Capital ratio (0.0-1.0)"),
+):
+    """Set LIVE_CAPITAL_RATIO for live trading."""
+    if ratio < 0.0 or ratio > 1.0:
+        console.print("[bold red]Error: ratio must be between 0.0 and 1.0[/bold red]")
+        raise typer.Exit(code=1)
+
+    from src.settings import Settings
+
+    s = Settings()
+    old_ratio = s.LIVE_CAPITAL_RATIO
+    new_effective = s.US_CAPITAL * ratio
+
+    console.print(f"Current ratio: {old_ratio:.2f} -> New ratio: {ratio:.2f}")
+    console.print(f"Effective capital: ${new_effective:,.2f}")
+
+    typer.confirm(f"Set LIVE_CAPITAL_RATIO to {ratio}?", abort=True)
+
+    # Update .env file
+    import pathlib
+
+    env_path = pathlib.Path(".env")
+    if env_path.exists():
+        lines = env_path.read_text().splitlines()
+        found = False
+        for i, line in enumerate(lines):
+            if line.startswith("LIVE_CAPITAL_RATIO="):
+                lines[i] = f"LIVE_CAPITAL_RATIO={ratio}"
+                found = True
+                break
+        if not found:
+            lines.append(f"LIVE_CAPITAL_RATIO={ratio}")
+        env_path.write_text("\n".join(lines) + "\n")
+    else:
+        env_path.write_text(f"LIVE_CAPITAL_RATIO={ratio}\n")
+
+    console.print(f"[bold green]LIVE_CAPITAL_RATIO set to {ratio}[/bold green]")
+
+
+# -- Circuit breaker commands --
+cb_app = typer.Typer(help="Circuit breaker commands")
+app.add_typer(cb_app, name="circuit-breaker")
+
+
+@cb_app.command(name="status")
+def cb_status(
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Show circuit breaker status."""
+    ctx = _get_ctx(market)
+    safe_adapter = ctx.get("safe_adapter")
+
+    if safe_adapter is None:
+        console.print("[dim]No SafeExecutionAdapter available (non-US market?).[/dim]")
+        raise typer.Exit(code=1)
+
+    tripped = safe_adapter._circuit_tripped
+    failures = safe_adapter._consecutive_failures
+
+    status_text = "[bold red]TRIPPED[/bold red]" if tripped else "[bold green]OK[/bold green]"
+    console.print(Panel(
+        f"Status: {status_text}\n"
+        f"Consecutive failures: {failures}\n"
+        f"Max failures: {safe_adapter._max_failures}",
+        title="Circuit Breaker",
+    ))
+
+
+@cb_app.command(name="reset")
+def cb_reset(
+    market: str = typer.Option("us", "--market", "-m", help="Market: us|kr"),
+):
+    """Reset circuit breaker to allow orders again."""
+    ctx = _get_ctx(market)
+    safe_adapter = ctx.get("safe_adapter")
+
+    if safe_adapter is None:
+        console.print("[bold red]No SafeExecutionAdapter available.[/bold red]")
+        raise typer.Exit(code=1)
+
+    safe_adapter.reset_circuit_breaker()
+    console.print("[bold green]Circuit breaker reset successfully.[/bold green]")
+
+
 if __name__ == "__main__":
     app()
