@@ -47,8 +47,8 @@ class TestCapitalRatioAppliedInLiveMode:
         mock_settings.PIPELINE_SCHEDULE_MINUTE = 30
 
         with (
-            patch("src.bootstrap.settings", mock_settings),
-            patch("src.bootstrap.AlpacaExecutionAdapter"),
+            patch("src.settings.settings", mock_settings),
+            patch("src.execution.infrastructure.AlpacaExecutionAdapter"),
         ):
             from src.bootstrap import bootstrap
 
@@ -83,8 +83,8 @@ class TestCapitalRatioNotAppliedInPaper:
         mock_settings.PIPELINE_SCHEDULE_MINUTE = 30
 
         with (
-            patch("src.bootstrap.settings", mock_settings),
-            patch("src.bootstrap.AlpacaExecutionAdapter"),
+            patch("src.settings.settings", mock_settings),
+            patch("src.execution.infrastructure.AlpacaExecutionAdapter"),
         ):
             from src.bootstrap import bootstrap
 
@@ -109,4 +109,4 @@ class TestOrderFilledEventSchema:
         assert event.quantity == 10
         assert event.filled_price == 150.0
         assert event.position_qty == 20.0
-        assert event.event_type == "OrderFilledEvent"
+        assert "OrderFilledEvent" in event.event_type

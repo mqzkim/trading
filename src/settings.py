@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # US capital
     US_CAPITAL: float = 100_000.0  # USD default
 
+    # Live capital ratio (0.0-1.0) -- limits live trading to this fraction of US_CAPITAL
+    LIVE_CAPITAL_RATIO: float = 0.25
+
     # KIS broker (한국투자증권)
     KIS_APP_KEY: Optional[str] = None
     KIS_APP_SECRET: Optional[str] = None

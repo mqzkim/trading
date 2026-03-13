@@ -53,8 +53,8 @@ def _spec() -> OrderSpec:
     return OrderSpec(
         symbol="AAPL",
         quantity=10,
-        side="buy",
-        order_type="market",
+        entry_price=150.0,
+        direction="BUY",
     )
 
 

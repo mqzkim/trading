@@ -113,6 +113,7 @@ def bootstrap(
 
     adapter: _IBrokerAdapter
     capital: float
+    kill_switch = None  # Only created for US market with SafeExecutionAdapter
     cooldown_repo = SqliteCooldownRepository(
         db_path=db_factory.sqlite_path("portfolio"),
     )
@@ -147,12 +148,27 @@ def bootstrap(
             secret_key=secret_key,
             paper=(execution_mode == ExecutionMode.PAPER),
         )
+
+        # KillSwitchService for circuit breaker
+        from src.execution.infrastructure.kill_switch import KillSwitchService
+
+        kill_switch = KillSwitchService(
+            broker_adapter=raw_adapter,
+            cooldown_repo=cooldown_repo,
+        )
+
         adapter = SafeExecutionAdapter(
             inner=raw_adapter,
             mode=execution_mode,
             cooldown_repo=cooldown_repo,
+            kill_switch=kill_switch,
+            notifier=None,  # Wired after notifier creation below
         )
         capital = settings.US_CAPITAL
+
+        # Apply capital ratio in live mode
+        if execution_mode == ExecutionMode.LIVE:
+            capital = capital * settings.LIVE_CAPITAL_RATIO
 
     trade_plan_service = TradePlanService()
     trade_plan_handler = TradePlanHandler(
@@ -237,6 +253,10 @@ def bootstrap(
         else LogNotifier()
     )
     orchestrator = PipelineOrchestrator()
+
+    # Wire notifier into safe adapter (if it's a SafeExecutionAdapter)
+    if isinstance(adapter, SafeExecutionAdapter):
+        adapter._notifier = notifier
     reconciliation_service = PositionReconciliationService(
         position_repo=position_repo,
         broker_adapter=adapter,
@@ -262,6 +282,8 @@ def bootstrap(
         "market": market,
         "cooldown_repo": cooldown_repo,
         "execution_mode": execution_mode,
+        "safe_adapter": adapter if isinstance(adapter, SafeExecutionAdapter) else None,
+        "kill_switch": kill_switch,
         "data_pipeline": data_pipeline,
         "pipeline_run_repo": pipeline_run_repo,
         "market_calendar": market_calendar,

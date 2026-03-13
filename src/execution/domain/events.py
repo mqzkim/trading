@@ -71,3 +71,14 @@ class KillSwitchActivatedEvent(DomainEvent):
 
     liquidate: bool = False
     reason: str = ""
+
+
+@dataclass(frozen=True)
+class OrderFilledEvent(DomainEvent):
+    """Order filled -- used by order monitor for position tracking."""
+
+    order_id: str = ""
+    symbol: str = ""
+    quantity: int = 0
+    filled_price: float = 0.0
+    position_qty: float = 0.0
