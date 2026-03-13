@@ -3,22 +3,47 @@
 {% block content %}
 <h2 class="text-2xl font-bold mb-6">Risk</h2>
 
-<div class="grid grid-cols-2 gap-6 mb-6">
-    <div id="drawdown-gauge" class="bg-white rounded-lg shadow p-4" sse-swap="DrawdownAlertEvent">
-        {% include "partials/drawdown_gauge.html" %}
-    </div>
-    <div id="sector-chart" class="bg-white rounded-lg shadow p-4">
-        <!-- Sector donut chart populated by Plan 03 -->
-    </div>
-</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- Left column: Drawdown Gauge + Position Limits -->
+    <div class="space-y-6">
+        <div id="drawdown-gauge" class="bg-white rounded-lg shadow p-4">
+            {% include "partials/drawdown_gauge.html" %}
+        </div>
 
-<div class="grid grid-cols-2 gap-6">
-    <div id="position-limits" class="bg-white rounded-lg shadow p-4">
-        <!-- Position limit utilization populated by Plan 03 -->
-        <p class="text-gray-500">Position limits will appear here.</p>
+        <div id="position-limits" class="bg-white rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold mb-3">Position Limits</h3>
+            <div class="flex items-center justify-between text-sm mb-1">
+                <span class="text-gray-500">Open Positions</span>
+                <span class="font-semibold">{{ position_count | default(0) }} / {{ max_positions | default(20) }}</span>
+            </div>
+            {% set pct = ((position_count | default(0)) / (max_positions | default(20)) * 100) | round %}
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div class="bg-blue-600 h-3 rounded-full transition-all"
+                     style="width: {{ pct }}%"></div>
+            </div>
+        </div>
     </div>
-    <div id="regime-badge" sse-swap="RegimeChangedEvent">
-        {% include "partials/regime_badge.html" %}
+
+    <!-- Right column: Sector Donut + Regime Badge -->
+    <div class="space-y-6">
+        <div id="sector-chart" class="bg-white rounded-lg shadow p-4">
+            <h3 class="text-lg font-semibold mb-3">Sector Exposure</h3>
+            <div id="sector-donut"></div>
+            {% if donut_json %}
+            <script>
+                (function() {
+                    var fig = {{ donut_json | tojson }};
+                    Plotly.newPlot('sector-donut', fig.data, fig.layout, {responsive: true});
+                })();
+            </script>
+            {% else %}
+            <p class="text-gray-500">No sector data available.</p>
+            {% endif %}
+        </div>
+
+        <div id="regime-badge">
+            {% include "partials/regime_badge.html" %}
+        </div>
     </div>
 </div>
 {% endblock %}

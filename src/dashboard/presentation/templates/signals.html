@@ -3,8 +3,79 @@
 {% block content %}
 <h2 class="text-2xl font-bold mb-6">Signals</h2>
 
-<div id="scoring-table" class="bg-white rounded-lg shadow p-4">
-    <!-- Scoring heatmap table and signal recommendations populated by Plan 03 -->
-    <p class="text-gray-500">Scoring data will appear here.</p>
+<!-- Scoring Results -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <h3 class="text-lg font-semibold mb-3">Scoring Results</h3>
+    {% if scores %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left" id="scoring-table">
+            <thead class="text-xs text-gray-500 uppercase border-b">
+                <tr>
+                    <th class="px-4 py-2">
+                        <a href="/dashboard/signals?sort=symbol&desc={{ '0' if sort_by == 'symbol' and sort_desc else '1' }}"
+                           class="hover:text-gray-900">Symbol</a>
+                    </th>
+                    <th class="px-4 py-2">
+                        <a href="/dashboard/signals?sort=composite&desc={{ '0' if sort_by == 'composite' and sort_desc else '1' }}"
+                           hx-get="/dashboard/signals?sort=composite&desc={{ '0' if sort_by == 'composite' and sort_desc else '1' }}"
+                           hx-target="#scoring-table" hx-swap="innerHTML"
+                           class="hover:text-gray-900">Composite</a>
+                    </th>
+                    <th class="px-4 py-2">Risk Adj.</th>
+                    <th class="px-4 py-2">Strategy</th>
+                    <th class="px-4 py-2">Signal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for score in scores %}
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-4 py-2 font-medium">{{ score.symbol }}</td>
+                    <td class="px-4 py-2 {% if score.composite > 80 %}bg-green-500/30{% elif score.composite > 60 %}bg-green-500/20{% elif score.composite > 40 %}bg-yellow-500/20{% else %}bg-red-500/20{% endif %}">
+                        {{ score.composite }}
+                    </td>
+                    <td class="px-4 py-2">{{ score.risk_adjusted }}</td>
+                    <td class="px-4 py-2 text-gray-500">{{ score.strategy }}</td>
+                    <td class="px-4 py-2">
+                        {% if score.signal == 'BUY' %}
+                        <span class="text-green-600 font-semibold">BUY</span>
+                        {% elif score.signal == 'SELL' %}
+                        <span class="text-red-600 font-semibold">SELL</span>
+                        {% else %}
+                        <span class="text-gray-400">--</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500">No scoring data available.</p>
+    {% endif %}
+</div>
+
+<!-- Signal Recommendations -->
+<div class="bg-white rounded-lg shadow p-4">
+    <h3 class="text-lg font-semibold mb-3">Signal Recommendations</h3>
+    {% if signals %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for sig in signals %}
+        <div class="border rounded-lg p-3 {% if sig.direction == 'BUY' %}border-green-300 bg-green-50{% elif sig.direction == 'SELL' %}border-red-300 bg-red-50{% else %}border-gray-200{% endif %}">
+            <div class="flex items-center justify-between mb-1">
+                <span class="font-semibold text-gray-900">{{ sig.symbol }}</span>
+                <span class="text-xs font-semibold px-2 py-0.5 rounded-full
+                    {% if sig.direction == 'BUY' %}bg-green-100 text-green-700{% elif sig.direction == 'SELL' %}bg-red-100 text-red-700{% else %}bg-gray-100 text-gray-600{% endif %}">
+                    {{ sig.direction }}
+                </span>
+            </div>
+            <div class="text-sm text-gray-500">
+                Strength: {{ sig.strength }}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-gray-500">No signals generated.</p>
+    {% endif %}
 </div>
 {% endblock %}

@@ -143,3 +143,70 @@ def test_trade_history_renders(paper_client):
     assert resp.status_code == 200
     assert "Trade History" in resp.text
     assert "No trades yet" in resp.text
+
+
+# -- Signals page tests (16-03) --
+
+
+def test_signals_page_renders_table():
+    """GET /dashboard/signals with score data contains table headers."""
+    from src.scoring.domain.value_objects import CompositeScore
+
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    mock_score = CompositeScore(value=75.0, risk_adjusted=70.0, strategy="swing")
+    ctx["score_repo"].find_all_latest.return_value = {"AAPL": mock_score}
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.get("/dashboard/signals")
+    assert resp.status_code == 200
+    assert "Scoring Results" in resp.text
+    assert "AAPL" in resp.text
+    assert "Composite" in resp.text
+
+
+def test_signals_empty_state(paper_client):
+    """With empty scores, contains 'No scoring data' message."""
+    resp = paper_client.get("/dashboard/signals")
+    assert resp.status_code == 200
+    assert "No scoring data" in resp.text
+
+
+def test_signals_page_shows_recommendations_section(paper_client):
+    """Signals page shows 'Signal Recommendations' section."""
+    resp = paper_client.get("/dashboard/signals")
+    assert resp.status_code == 200
+    assert "Signal Recommendations" in resp.text
+    assert "No signals generated" in resp.text
+
+
+# -- Risk page tests (16-03) --
+
+
+def test_risk_page_renders_gauge(paper_client):
+    """GET /dashboard/risk contains drawdown-chart-container div."""
+    resp = paper_client.get("/dashboard/risk")
+    assert resp.status_code == 200
+    assert "drawdown-chart-container" in resp.text
+
+
+def test_risk_page_shows_regime(paper_client):
+    """GET /dashboard/risk contains regime badge text."""
+    resp = paper_client.get("/dashboard/risk")
+    assert resp.status_code == 200
+    assert "Market Regime" in resp.text
+    assert "Unknown" in resp.text
+
+
+def test_risk_page_sector_chart(paper_client):
+    """GET /dashboard/risk contains sector-donut div."""
+    resp = paper_client.get("/dashboard/risk")
+    assert resp.status_code == 200
+    assert "sector-donut" in resp.text
+
+
+def test_risk_page_position_limits(paper_client):
+    """GET /dashboard/risk shows position limits bar."""
+    resp = paper_client.get("/dashboard/risk")
+    assert resp.status_code == 200
+    assert "Position Limits" in resp.text
+    assert "0 / 20" in resp.text
