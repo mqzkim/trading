@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from typing import Any
 
-from edgar import Company
+from edgar import Company, set_identity
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,24 @@ class EdgartoolsClient:
 
     def __init__(self, semaphore: asyncio.Semaphore | None = None) -> None:
         self._semaphore = semaphore
+        self._ensure_identity()
+
+    @staticmethod
+    def _ensure_identity() -> None:
+        """Set SEC EDGAR User-Agent identity from EDGAR_IDENTITY env var.
+
+        SEC requires a User-Agent header with company/app name and email.
+        Format: "AppName admin@example.com"
+        See: https://www.sec.gov/os/accessing-edgar-data
+        """
+        identity = os.environ.get("EDGAR_IDENTITY")
+        if not identity:
+            raise RuntimeError(
+                "EDGAR_IDENTITY environment variable is not set. "
+                "SEC requires a User-Agent with name and email. "
+                'Set EDGAR_IDENTITY="YourName your@email.com" in .env'
+            )
+        set_identity(identity)
 
     async def fetch_financials(
         self, ticker: str, quarters: int = 12

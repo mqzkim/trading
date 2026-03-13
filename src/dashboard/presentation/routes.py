@@ -116,7 +116,61 @@ def pipeline_page(request: Request):
         {
             "execution_mode": _get_mode(request),
             "active_page": "pipeline",
+            # Run Pipeline section initial state
+            "run_status": None,
+            "symbols": "",
+            "dry_run": False,
             **data,
+        },
+    )
+
+
+@router.post("/pipeline/run", response_class=HTMLResponse)
+def pipeline_run(
+    request: Request,
+    symbols: str = Form(""),
+    dry_run: str = Form(""),
+):
+    """Trigger a pipeline run via HTMX POST.
+
+    Runs the pipeline in a background thread so the web server stays responsive.
+    Returns an immediate "running" state; the SSE bridge will push the final result
+    when PipelineCompletedEvent/PipelineHaltedEvent fires.
+    """
+    import threading
+
+    from src.pipeline.application.commands import RunPipelineCommand
+    from src.pipeline.domain.value_objects import RunMode
+
+    ctx = request.app.state.ctx
+    handler = ctx["run_pipeline_handler"]
+
+    # Parse symbols
+    symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    is_dry_run = dry_run == "1"
+    symbols_display = ", ".join(symbol_list) if symbol_list else "default universe"
+    mode_display = "dry_run" if is_dry_run else "manual"
+
+    def _run_pipeline() -> None:
+        """Execute the pipeline in a background thread."""
+        if symbol_list:
+            handler._symbols = symbol_list
+        else:
+            handler._symbols = None
+        cmd = RunPipelineCommand(dry_run=is_dry_run, mode=RunMode.MANUAL)
+        handler.handle(cmd)
+
+    thread = threading.Thread(target=_run_pipeline, daemon=True)
+    thread.start()
+
+    return templates.TemplateResponse(
+        request,
+        "partials/pipeline_run_result.html",
+        {
+            "run_status": "running",
+            "symbols": symbols_display,
+            "mode": mode_display,
+            "dry_run": is_dry_run,
         },
     )
 

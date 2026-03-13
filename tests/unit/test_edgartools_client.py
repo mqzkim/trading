@@ -8,6 +8,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _set_edgar_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Set EDGAR_IDENTITY env var for all tests in this module."""
+    monkeypatch.setenv("EDGAR_IDENTITY", "TestBot test@example.com")
+    # Prevent set_identity from closing real HTTP clients during tests
+    monkeypatch.setattr(
+        "src.data_ingest.infrastructure.edgartools_client.set_identity", lambda _: None
+    )
+
+
 def _make_mock_filing(
     filing_date: date,
     period_of_report: date,

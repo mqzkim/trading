@@ -3,6 +3,11 @@
 {% block content %}
 <h2 class="text-2xl font-bold mb-6">Pipeline & Approval</h2>
 
+<!-- Run Pipeline -->
+<div id="pipeline-run-section" class="bg-white rounded-lg shadow p-4 mb-6">
+    {% include "partials/pipeline_run_result.html" %}
+</div>
+
 <!-- Pipeline Status -->
 <div id="pipeline-runs" class="bg-white rounded-lg shadow p-4 mb-6" sse-swap="PipelineCompletedEvent">
     {% include "partials/pipeline_status.html" %}
