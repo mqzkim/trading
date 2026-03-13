@@ -6,6 +6,7 @@ from .value_objects import PipelineStatus, RunMode, StageResult
 from .entities import PipelineRun
 from .events import PipelineCompletedEvent, PipelineHaltedEvent
 from .repositories import IPipelineRunRepository
+from .services import PipelineOrchestrator
 
 __all__ = [
     "PipelineStatus",
@@ -15,4 +16,5 @@ __all__ = [
     "PipelineCompletedEvent",
     "PipelineHaltedEvent",
     "IPipelineRunRepository",
+    "PipelineOrchestrator",
 ]
