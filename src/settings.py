@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     # KR capital
     KR_CAPITAL: float = 10_000_000.0  # KRW default
 
+    # Pipeline scheduler
+    SLACK_WEBHOOK_URL: Optional[str] = None
+    PIPELINE_SCHEDULE_HOUR: int = 16
+    PIPELINE_SCHEDULE_MINUTE: int = 30
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
