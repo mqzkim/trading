@@ -405,3 +405,80 @@ def test_review_approve_post():
     )
     assert resp.status_code == 200
     ctx["review_queue_repo"].mark_reviewed.assert_called_once_with(42, approved=True)
+
+
+# -- Dashboard data accuracy tests (19-02) --
+
+
+def test_risk_drawdown_from_portfolio():
+    """When portfolio has drawdown=0.12, risk page returns drawdown_pct=12.0."""
+    from src.portfolio.domain.value_objects import DrawdownLevel
+
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    mock_portfolio = MagicMock()
+    mock_portfolio.drawdown = 0.12
+    mock_portfolio.drawdown_level = DrawdownLevel.WARNING
+    ctx["portfolio_handler"]._portfolio_repo.find_by_id.return_value = mock_portfolio
+
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.get("/dashboard/risk")
+    assert resp.status_code == 200
+    assert "12.0" in resp.text
+
+
+def test_risk_drawdown_no_portfolio():
+    """When portfolio_handler returns None portfolio, risk page returns 0.0 (fallback)."""
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    ctx["portfolio_handler"]._portfolio_repo.find_by_id.return_value = None
+
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.get("/dashboard/risk")
+    assert resp.status_code == 200
+    assert "0.0" in resp.text
+
+
+def test_equity_curve_accumulates_pnl():
+    """When trade history has BUY trades with entry/target prices, equity curve accumulates P&L."""
+    from src.dashboard.application.queries import OverviewQueryHandler
+
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    handler = OverviewQueryHandler(ctx)
+    trade_history = [
+        {
+            "entry_price": 100,
+            "take_profit_price": 120,
+            "quantity": 10,
+            "direction": "BUY",
+            "created_at": "2024-01-01",
+        },
+        {
+            "entry_price": 50,
+            "take_profit_price": 65,
+            "quantity": 20,
+            "direction": "BUY",
+            "created_at": "2024-01-15",
+        },
+        {
+            "entry_price": 200,
+            "take_profit_price": 180,
+            "quantity": 5,
+            "direction": "SELL",
+            "created_at": "2024-02-01",
+        },
+    ]
+    result = handler._build_equity_curve(trade_history)
+    # Last value should not be 0.0 -- should accumulate P&L
+    assert len(result["values"]) == 3
+    assert result["values"][-1] != 0.0
+
+
+def test_equity_curve_empty_trades():
+    """When no trades exist, equity curve returns empty dates/values lists."""
+    from src.dashboard.application.queries import OverviewQueryHandler
+
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    handler = OverviewQueryHandler(ctx)
+    result = handler._build_equity_curve([])
+    assert result == {"dates": [], "values": []}
