@@ -41,6 +41,18 @@ def _make_ctx(execution_mode: ExecutionMode = ExecutionMode.PAPER) -> dict:
     signal_repo = MagicMock()
     signal_repo.find_all_active.return_value = []
 
+    # Mock approval_handler (returns no active approval by default)
+    approval_handler = MagicMock()
+    approval_handler.get_status.return_value = {
+        "approval": None,
+        "budget": None,
+        "pending_review_count": 0,
+    }
+
+    # Mock review_queue_repo
+    review_queue_repo = MagicMock()
+    review_queue_repo.list_pending.return_value = []
+
     return {
         "bus": SyncEventBus(),
         "execution_mode": execution_mode,
@@ -51,6 +63,8 @@ def _make_ctx(execution_mode: ExecutionMode = ExecutionMode.PAPER) -> dict:
         "regime_repo": regime_repo,
         "portfolio_handler": portfolio_handler,
         "signal_repo": signal_repo,
+        "approval_handler": approval_handler,
+        "review_queue_repo": review_queue_repo,
     }
 
 
@@ -210,3 +224,184 @@ def test_risk_page_position_limits(paper_client):
     assert resp.status_code == 200
     assert "Position Limits" in resp.text
     assert "0 / 20" in resp.text
+
+
+# -- Pipeline page tests (16-04) --
+
+
+def test_pipeline_page_renders_runs():
+    """GET /dashboard/pipeline with pipeline run data contains Run History."""
+    from datetime import datetime, timezone
+
+    from src.pipeline.domain.entities import PipelineRun
+    from src.pipeline.domain.value_objects import PipelineStatus, RunMode
+
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    mock_run = PipelineRun(
+        run_id="abc-123-def",
+        started_at=datetime(2026, 3, 13, 16, 30, tzinfo=timezone.utc),
+        finished_at=datetime(2026, 3, 13, 16, 35, tzinfo=timezone.utc),
+        status=PipelineStatus.COMPLETED,
+        mode=RunMode.AUTO,
+        stages=[],
+    )
+    ctx["pipeline_run_repo"].get_recent.return_value = [mock_run]
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.get("/dashboard/pipeline")
+    assert resp.status_code == 200
+    assert "Run History" in resp.text
+    assert "abc-123-" in resp.text
+
+
+def test_pipeline_shows_approval_form():
+    """With no active approval, page shows Create Approval form."""
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.get("/dashboard/pipeline")
+    assert resp.status_code == 200
+    assert "Create Approval" in resp.text
+
+
+def test_pipeline_shows_active_approval():
+    """With active approval mock, page contains Suspend button."""
+    from datetime import datetime, timezone
+
+    from src.approval.domain.entities import StrategyApproval
+
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    mock_approval = StrategyApproval(
+        _id="appr-001",
+        score_threshold=75.0,
+        allowed_regimes=["Bull", "Accumulation"],
+        max_per_trade_pct=8.0,
+        daily_budget_cap=10000.0,
+        expires_at=datetime(2026, 4, 13, tzinfo=timezone.utc),
+        created_at=datetime(2026, 3, 13, tzinfo=timezone.utc),
+        is_active=True,
+    )
+    ctx["approval_handler"].get_status.return_value = {
+        "approval": mock_approval,
+        "budget": None,
+        "pending_review_count": 0,
+    }
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.get("/dashboard/pipeline")
+    assert resp.status_code == 200
+    assert "Suspend" in resp.text
+    assert "75.0" in resp.text
+
+
+def test_pipeline_shows_budget_bar():
+    """Page contains budget progress section."""
+    from src.approval.domain.entities import StrategyApproval
+    from src.approval.domain.value_objects import DailyBudgetTracker
+    from datetime import datetime, timezone
+
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    mock_approval = StrategyApproval(
+        _id="appr-002",
+        score_threshold=70.0,
+        allowed_regimes=["Bull"],
+        max_per_trade_pct=8.0,
+        daily_budget_cap=5000.0,
+        expires_at=datetime(2026, 4, 13, tzinfo=timezone.utc),
+        created_at=datetime(2026, 3, 13, tzinfo=timezone.utc),
+        is_active=True,
+    )
+    mock_budget = DailyBudgetTracker(
+        budget_cap=5000.0,
+        date="2026-03-13",
+        spent=1500.0,
+        trade_count=3,
+    )
+    ctx["approval_handler"].get_status.return_value = {
+        "approval": mock_approval,
+        "budget": mock_budget,
+        "pending_review_count": 0,
+    }
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.get("/dashboard/pipeline")
+    assert resp.status_code == 200
+    assert "Daily Budget" in resp.text
+    assert "1,500" in resp.text
+    assert "5,000" in resp.text
+
+
+def test_pipeline_shows_review_queue():
+    """With pending reviews, page contains Approve button."""
+    from datetime import datetime, timezone
+
+    from src.approval.domain.value_objects import TradeReviewItem
+
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    mock_item = TradeReviewItem(
+        symbol="AAPL",
+        plan_json='{"strategy": "swing", "composite_score": 68.5}',
+        rejection_reason="score_below_threshold",
+        pipeline_run_id="run-001",
+        created_at=datetime(2026, 3, 13, tzinfo=timezone.utc),
+        id=42,
+    )
+    ctx["review_queue_repo"].list_pending.return_value = [mock_item]
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.get("/dashboard/pipeline")
+    assert resp.status_code == 200
+    assert "Approve" in resp.text
+    assert "AAPL" in resp.text
+
+
+def test_approval_create_post():
+    """POST /dashboard/approval/create with form data returns 200."""
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    # After create, get_status returns the new approval
+    from datetime import datetime, timezone
+
+    from src.approval.domain.entities import StrategyApproval
+
+    new_approval = StrategyApproval(
+        _id="appr-new",
+        score_threshold=70.0,
+        allowed_regimes=["Bull"],
+        max_per_trade_pct=8.0,
+        daily_budget_cap=10000.0,
+        expires_at=datetime(2026, 4, 13, tzinfo=timezone.utc),
+        created_at=datetime(2026, 3, 13, tzinfo=timezone.utc),
+        is_active=True,
+    )
+    ctx["approval_handler"].get_status.return_value = {
+        "approval": new_approval,
+        "budget": None,
+        "pending_review_count": 0,
+    }
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.post(
+        "/dashboard/approval/create",
+        data={
+            "score_threshold": "70.0",
+            "allowed_regimes": "Bull,Accumulation",
+            "max_per_trade_pct": "8.0",
+            "daily_budget_cap": "10000",
+            "expires_in_days": "30",
+        },
+    )
+    assert resp.status_code == 200
+    assert ctx["approval_handler"].create.called
+
+
+def test_review_approve_post():
+    """POST /dashboard/review/approve returns 200."""
+    ctx = _make_ctx(ExecutionMode.PAPER)
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.post(
+        "/dashboard/review/approve",
+        data={"review_id": "42"},
+    )
+    assert resp.status_code == 200
+    ctx["review_queue_repo"].mark_reviewed.assert_called_once_with(42, approved=True)
