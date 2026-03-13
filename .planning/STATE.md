@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
 status: completed
-stopped_at: Completed 17-01-PLAN.md (Phase 17 complete, v1.2 gap closure complete)
-last_updated: "2026-03-13T16:21:34.701Z"
-last_activity: 2026-03-13 -- Completed 17-01 SSE event wiring gap closure
+stopped_at: Completed 18-01-PLAN.md (Phase 18 complete, drawdown defense wiring)
+last_updated: "2026-03-13T18:05:10.279Z"
+last_activity: 2026-03-14 -- Completed 18-01 drawdown defense wiring
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 15
-  completed_plans: 15
+  total_phases: 7
+  completed_phases: 7
+  total_plans: 16
+  completed_plans: 16
   percent: 100
 ---
 
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 17 -- SSE Real-Time Event Wiring (gap closure)
+**Current focus:** Phase 18 -- Drawdown Defense Wiring (gap closure)
 
 ## Current Position
 
-Phase: 17 of 17 (SSE Real-Time Event Wiring) -- sixth of 6 v1.2 phases
+Phase: 18 of 18 (Drawdown Defense Wiring) -- seventh of 7 v1.2 phases
 Plan: 1 of 1 complete
 Status: Complete
-Last activity: 2026-03-13 -- Completed 17-01 SSE event wiring gap closure
+Last activity: 2026-03-14 -- Completed 18-01 drawdown defense wiring
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 43 (v1.0: 12, v1.1: 17, v1.2: 14)
+- Total plans completed: 44 (v1.0: 12, v1.1: 17, v1.2: 15)
 - Average duration: ~5.9 min/plan
 - Total execution time: ~3.5 hours
 
@@ -61,6 +61,8 @@ Progress: [██████████] 100%
 | 15. Live Trading | 2/2 | 11 min | 5.5 min |
 | 16. Web Dashboard | 4/4 | 28 min | 7.0 min |
 | 17. SSE Event Wiring | 1/1 | 7 min | 7.0 min |
+| 18. Drawdown Defense Wiring | 1/1 | 5 min | 5.0 min |
+| Phase 18 P01 | 5min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -124,6 +126,12 @@ Recent decisions affecting current work:
 - [17-01]: Monitor/stream lifecycle moved from _run_execute to dashboard app lifespan
 - [17-01]: PortfolioManagerHandler receives bus as optional param for backward compatibility
 - [17-01]: Order monitor waits on empty queue instead of exiting -- persistent loop
+- [18-01]: Only tier 2+ (warning/critical) triggers approval suspension; caution is tier 1 only
+- [18-01]: portfolio_repo added to bootstrap ctx dict for pipeline handler access
+- [18-01]: Default drawdown_level is "normal" when no portfolio exists (safe default)
+- [Phase 18]: Only tier 2+ (warning/critical) triggers approval suspension; caution is tier 1 only
+- [Phase 18]: portfolio_repo added to bootstrap ctx dict for pipeline handler access
+- [Phase 18]: Default drawdown_level is normal when no portfolio exists (safe default)
 
 ### Pending Todos
 
@@ -142,6 +150,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T16:16:48Z
-Stopped at: Completed 17-01-PLAN.md (Phase 17 complete, v1.2 gap closure complete)
-Resume file: None -- all plans complete
+Last session: 2026-03-13T18:05:03.383Z
+Stopped at: Completed 18-01-PLAN.md (Phase 18 complete, drawdown defense wiring)
+Resume file: None

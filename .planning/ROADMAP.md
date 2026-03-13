@@ -45,7 +45,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 - [x] **Phase 15: Live Trading Activation** - Live Alpaca execution with circuit breaker, order monitoring, and WebSocket fills (completed 2026-03-13)
 - [x] **Phase 16: Web Dashboard** - HTMX dashboard with portfolio, signals, risk metrics, pipeline status, and real-time SSE updates (completed 2026-03-13)
 - [x] **Phase 17: SSE Real-Time Event Wiring** - Fix SSE event name mismatches, publish missing events, extend order monitor lifecycle (gap closure) (completed 2026-03-13)
-- [ ] **Phase 18: Drawdown Defense Wiring** - Wire DrawdownAlertEvent to approval suspension and pass drawdown_level to pipeline halt (gap closure)
+- [x] **Phase 18: Drawdown Defense Wiring** - Wire DrawdownAlertEvent to approval suspension and pass drawdown_level to pipeline halt (gap closure) (completed 2026-03-13)
 
 ## Phase Details
 
@@ -185,4 +185,4 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 15. Live Trading Activation | v1.2 | 2/2 | Complete | 2026-03-13 |
 | 16. Web Dashboard | v1.2 | 4/4 | Complete | 2026-03-13 |
 | 17. SSE Real-Time Event Wiring | v1.2 | 1/1 | Complete | 2026-03-13 |
-| 18. Drawdown Defense Wiring | v1.2 | 0/1 | In Progress | - |
+| 18. Drawdown Defense Wiring | 1/1 | Complete   | 2026-03-13 | - |

@@ -25,7 +25,7 @@ Requirements for Production Trading & Dashboard milestone. Each maps to roadmap 
 - [x] **PIPE-03**: Each pipeline run logs stages completed, symbol counts, errors, and next scheduled run to SQLite
 - [x] **PIPE-04**: Dry-run mode executes full pipeline without submitting orders (for validation)
 - [x] **PIPE-05**: Individual pipeline stages retry with exponential backoff on transient failures (e.g., yfinance timeouts)
-- [ ] **PIPE-06**: Pipeline auto-halts execution when regime is Crisis or drawdown tier >= 2
+- [x] **PIPE-06**: Pipeline auto-halts execution when regime is Crisis or drawdown tier >= 2
 - [x] **PIPE-07**: APScheduler with SQLite job persistence manages schedule across process restarts
 
 ### Strategy & Budget Approval
@@ -34,7 +34,7 @@ Requirements for Production Trading & Dashboard milestone. Each maps to roadmap 
 - [x] **APPR-02**: User can set daily budget cap with real-time spent/remaining tracking per pipeline run
 - [x] **APPR-03**: Trades exceeding approved budget or strategy parameters queue for manual review instead of auto-executing
 - [x] **APPR-04**: Regime change event automatically suspends active strategy approval until user re-approves
-- [ ] **APPR-05**: Drawdown tier 2+ automatically suspends strategy approval and halts automated execution
+- [x] **APPR-05**: Drawdown tier 2+ automatically suspends strategy approval and halts automated execution
 
 ### Live Trading
 
@@ -107,13 +107,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PIPE-03 | Phase 13 | Complete |
 | PIPE-04 | Phase 13 | Complete |
 | PIPE-05 | Phase 13 | Complete |
-| PIPE-06 | Phase 18 | Pending |
+| PIPE-06 | Phase 18 | Complete |
 | PIPE-07 | Phase 13 | Complete |
 | APPR-01 | Phase 14 | Complete |
 | APPR-02 | Phase 14 | Complete |
 | APPR-03 | Phase 14 | Complete |
 | APPR-04 | Phase 14 | Complete |
-| APPR-05 | Phase 18 | Pending |
+| APPR-05 | Phase 18 | Complete |
 | LIVE-01 | Phase 15 | Complete |
 | LIVE-02 | Phase 15 | Complete |
 | LIVE-03 | Phase 15 | Complete |
