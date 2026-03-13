@@ -122,12 +122,13 @@ Plans:
   3. Risk dashboard shows live drawdown gauge, sector exposure chart, and position limit utilization -- operator sees risk posture at a glance
   4. Dashboard shows pipeline status (last run, next scheduled, stage results) and allows viewing/managing strategy approval and daily budget
   5. When an order fills or pipeline completes, dashboard updates in real-time via SSE without page refresh -- and a prominent banner shows whether system is in paper (green) or live (red) mode
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 16-01: TBD
-- [ ] 16-02: TBD
-- [ ] 16-03: TBD
+- [ ] 16-01-PLAN.md -- Dashboard foundation: FastAPI app, base template with sidebar + mode banner, SSE bridge, Plotly chart utilities, test scaffold
+- [ ] 16-02-PLAN.md -- Overview page: KPI cards, holdings table, equity curve chart with regime overlay, trade history table
+- [ ] 16-03-PLAN.md -- Signals page (scoring heatmap table, signal recommendations) + Risk page (drawdown gauge, sector donut, position limits, regime badge)
+- [ ] 16-04-PLAN.md -- Pipeline & Approval page (run history, approval CRUD, budget bar, review queue) + SSE real-time wiring
 
 ## Progress
 
@@ -150,5 +151,5 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 12. Safety Infrastructure | v1.2 | 3/3 | Complete | 2026-03-13 |
 | 13. Automated Pipeline Scheduler | v1.2 | 3/3 | Complete | 2026-03-13 |
 | 14. Strategy and Budget Approval | v1.2 | 2/2 | Complete | 2026-03-13 |
-| 15. Live Trading Activation | v1.2 | Complete    | 2026-03-13 | 2026-03-13 |
-| 16. Web Dashboard | v1.2 | 0/? | Not started | - |
+| 15. Live Trading Activation | v1.2 | 2/2 | Complete | 2026-03-13 |
+| 16. Web Dashboard | v1.2 | 0/4 | Not started | - |
