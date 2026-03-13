@@ -149,6 +149,6 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 11. Commercial FastAPI REST API | v1.1 | 3/3 | Complete | 2026-03-13 |
 | 12. Safety Infrastructure | v1.2 | 3/3 | Complete | 2026-03-13 |
 | 13. Automated Pipeline Scheduler | v1.2 | 3/3 | Complete | 2026-03-13 |
-| 14. Strategy and Budget Approval | v1.2 | 0/2 | Not started | - |
+| 14. Strategy and Budget Approval | 1/2 | In Progress|  | - |
 | 15. Live Trading Activation | v1.2 | 0/? | Not started | - |
 | 16. Web Dashboard | v1.2 | 0/? | Not started | - |
