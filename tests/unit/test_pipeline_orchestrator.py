@@ -381,6 +381,173 @@ class TestRunPipelineHandler:
         notifier.notify.assert_called_once()
 
 
+class TestPlanStage:
+    """Test _run_plan generates TradePlan objects from signal results."""
+
+    def test_plan_stage_generates_trade_plans(self):
+        """_run_plan calls trade_plan_handler.generate for BUY signals."""
+        orchestrator = PipelineOrchestrator()
+        handlers = _make_handlers()
+        signal_results = {
+            "AAPL": {"symbol": "AAPL", "direction": "BUY", "strength": "STRONG", "reasoning": "Strong momentum"},
+            "MSFT": {"symbol": "MSFT", "direction": "BUY", "strength": "MODERATE", "reasoning": "Value play"},
+        }
+        score_results = {
+            "AAPL": {"composite_score": 75.0, "margin_of_safety": 0.15},
+            "MSFT": {"composite_score": 68.0, "margin_of_safety": 0.10},
+        }
+
+        with patch("src.pipeline.domain.services.DataClient") as mock_dc_cls:
+            mock_client = MagicMock()
+            mock_client.get_full.return_value = {
+                "price": {"close": 150.0},
+                "indicators": {"atr21": 5.0},
+            }
+            mock_dc_cls.return_value = mock_client
+
+            stage, plans = orchestrator._run_plan(handlers, signal_results, score_results)
+
+        assert stage.stage_name == "plan"
+        assert stage.symbols_succeeded == 2
+        assert len(plans) == 2
+        assert handlers["trade_plan_handler"].generate.call_count == 2
+
+    def test_plan_stage_skips_hold_signals(self):
+        """HOLD signals are not sent to trade_plan_handler."""
+        orchestrator = PipelineOrchestrator()
+        handlers = _make_handlers()
+        signal_results = {
+            "AAPL": {"symbol": "AAPL", "direction": "HOLD", "strength": "WEAK"},
+            "GOOGL": {"symbol": "GOOGL", "direction": "HOLD", "strength": "WEAK"},
+        }
+        score_results = {}
+
+        with patch("src.pipeline.domain.services.DataClient") as mock_dc_cls:
+            stage, plans = orchestrator._run_plan(handlers, signal_results, score_results)
+
+        assert stage.symbols_succeeded == 0
+        assert len(plans) == 0
+        handlers["trade_plan_handler"].generate.assert_not_called()
+
+    def test_plan_stage_handles_data_fetch_failure(self):
+        """DataClient failure for a symbol: skip that symbol, continue rest."""
+        orchestrator = PipelineOrchestrator()
+        handlers = _make_handlers()
+        signal_results = {
+            "AAPL": {"symbol": "AAPL", "direction": "BUY", "strength": "STRONG", "reasoning": "Good"},
+            "MSFT": {"symbol": "MSFT", "direction": "BUY", "strength": "MODERATE", "reasoning": "Ok"},
+        }
+        score_results = {
+            "AAPL": {"composite_score": 75.0, "margin_of_safety": 0.15},
+            "MSFT": {"composite_score": 68.0, "margin_of_safety": 0.10},
+        }
+
+        with patch("src.pipeline.domain.services.DataClient") as mock_dc_cls:
+            mock_client = MagicMock()
+            call_count = {"n": 0}
+
+            def side_effect(sym):
+                call_count["n"] += 1
+                if sym == "AAPL":
+                    raise RuntimeError("Network timeout")
+                return {"price": {"close": 200.0}, "indicators": {"atr21": 4.0}}
+
+            mock_client.get_full.side_effect = side_effect
+            mock_dc_cls.return_value = mock_client
+
+            stage, plans = orchestrator._run_plan(handlers, signal_results, score_results)
+
+        # AAPL failed, MSFT succeeded
+        assert stage.symbols_succeeded == 1
+        assert stage.symbols_failed == 1
+        assert len(plans) == 1
+
+    def test_plan_stage_handles_rejected_plan(self):
+        """generate() returns None (rejected by risk gates) -> not counted as succeeded."""
+        orchestrator = PipelineOrchestrator()
+        handlers = _make_handlers()
+        handlers["trade_plan_handler"].generate.return_value = None  # rejected
+        signal_results = {
+            "AAPL": {"symbol": "AAPL", "direction": "BUY", "strength": "STRONG", "reasoning": "Test"},
+        }
+        score_results = {
+            "AAPL": {"composite_score": 75.0, "margin_of_safety": 0.15},
+        }
+
+        with patch("src.pipeline.domain.services.DataClient") as mock_dc_cls:
+            mock_client = MagicMock()
+            mock_client.get_full.return_value = {
+                "price": {"close": 150.0},
+                "indicators": {"atr21": 5.0},
+            }
+            mock_dc_cls.return_value = mock_client
+
+            stage, plans = orchestrator._run_plan(handlers, signal_results, score_results)
+
+        assert stage.symbols_succeeded == 0
+        assert len(plans) == 0
+        handlers["trade_plan_handler"].generate.assert_called_once()
+
+
+class TestExecuteStage:
+    """Test _run_execute submits orders via trade_plan_handler."""
+
+    def test_execute_stage_submits_orders(self):
+        """_run_execute calls approve + execute for each plan."""
+        orchestrator = PipelineOrchestrator()
+        handlers = _make_handlers()
+
+        plan1 = MagicMock()
+        plan1.symbol = "AAPL"
+        plan2 = MagicMock()
+        plan2.symbol = "MSFT"
+
+        stage = orchestrator._run_execute(handlers, [plan1, plan2])
+
+        assert stage.stage_name == "execute"
+        assert stage.symbols_processed == 2
+        assert stage.symbols_succeeded == 2
+        assert handlers["trade_plan_handler"].approve.call_count == 2
+        assert handlers["trade_plan_handler"].execute.call_count == 2
+
+    def test_execute_stage_handles_execution_failure(self):
+        """Execute failure for one symbol: skip and continue."""
+        orchestrator = PipelineOrchestrator()
+        handlers = _make_handlers()
+
+        call_count = {"n": 0}
+
+        def mock_execute(cmd):
+            call_count["n"] += 1
+            if cmd.symbol == "AAPL":
+                raise RuntimeError("Broker timeout")
+            return MagicMock(status="filled")
+
+        handlers["trade_plan_handler"].execute.side_effect = mock_execute
+
+        plan1 = MagicMock()
+        plan1.symbol = "AAPL"
+        plan2 = MagicMock()
+        plan2.symbol = "MSFT"
+
+        stage = orchestrator._run_execute(handlers, [plan1, plan2])
+
+        assert stage.symbols_processed == 2
+        assert stage.symbols_succeeded == 1
+        assert stage.symbols_failed == 1
+
+    def test_execute_stage_empty_plans(self):
+        """Empty plan list returns success with 0 counts."""
+        orchestrator = PipelineOrchestrator()
+        handlers = _make_handlers()
+
+        stage = orchestrator._run_execute(handlers, [])
+
+        assert stage.symbols_processed == 0
+        assert stage.symbols_succeeded == 0
+        assert stage.status == "success"
+
+
 class TestPipelineStatusHandler:
     """Test PipelineStatusHandler application handler."""
 
