@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
 status: completed
-stopped_at: Completed 16-04-PLAN.md (Phase 16 complete, v1.2 milestone complete)
-last_updated: "2026-03-13T15:39:02.154Z"
-last_activity: 2026-03-13 -- Completed 16-04 pipeline & approval page
+stopped_at: Completed 17-01-PLAN.md (Phase 17 complete, v1.2 gap closure complete)
+last_updated: "2026-03-13T16:16:48Z"
+last_activity: 2026-03-13 -- Completed 17-01 SSE event wiring gap closure
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 14
-  completed_plans: 14
+  total_phases: 6
+  completed_phases: 6
+  total_plans: 15
+  completed_plans: 15
   percent: 100
 ---
 
@@ -21,21 +21,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 16 -- Web Dashboard
+**Current focus:** Phase 17 -- SSE Real-Time Event Wiring (gap closure)
 
 ## Current Position
 
-Phase: 16 of 16 (Web Dashboard) -- fifth of 5 v1.2 phases
-Plan: 4 of 4 complete
+Phase: 17 of 17 (SSE Real-Time Event Wiring) -- sixth of 6 v1.2 phases
+Plan: 1 of 1 complete
 Status: Complete
-Last activity: 2026-03-13 -- Completed 16-04 pipeline & approval page
+Last activity: 2026-03-13 -- Completed 17-01 SSE event wiring gap closure
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 42 (v1.0: 12, v1.1: 17, v1.2: 13)
+- Total plans completed: 43 (v1.0: 12, v1.1: 17, v1.2: 14)
 - Average duration: ~5.9 min/plan
 - Total execution time: ~3.5 hours
 
@@ -60,6 +60,7 @@ Progress: [██████████] 100%
 | 14. Strategy Approval | 2/2 | 14 min | 7.0 min |
 | 15. Live Trading | 2/2 | 11 min | 5.5 min |
 | 16. Web Dashboard | 4/4 | 28 min | 7.0 min |
+| 17. SSE Event Wiring | 1/1 | 7 min | 7.0 min |
 
 ## Accumulated Context
 
@@ -104,7 +105,7 @@ Recent decisions affecting current work:
 - [15-01]: safe_adapter and kill_switch added to bootstrap context dict for CLI access
 - [15-02]: AlpacaOrderMonitor uses threading.Lock for thread-safe tracked_orders access
 - [15-02]: TradingStreamAdapter only created for LIVE mode in bootstrap
-- [15-02]: Monitor/stream lifecycle tied to _run_execute finally block for guaranteed cleanup
+- [15-02]: Monitor/stream lifecycle tied to _run_execute finally block for guaranteed cleanup -- SUPERSEDED by 17-01
 - [16-01]: SSE test uses route registration check instead of streaming test to avoid infinite stream hang
 - [16-01]: TemplateResponse uses new Starlette API (request as first param) to avoid deprecation warnings
 - [16-01]: sse-starlette added as explicit dependency for EventSourceResponse support
@@ -120,6 +121,9 @@ Recent decisions affecting current work:
 - [16-04]: Approval section and review queue as separate partials for independent HTMX swap
 - [16-04]: SSE _render_partial dispatches by event type to render appropriate HTML partial
 - [16-04]: PipelineQueryHandler delegates to approval_handler.get_status() for budget data
+- [17-01]: Monitor/stream lifecycle moved from _run_execute to dashboard app lifespan
+- [17-01]: PortfolioManagerHandler receives bus as optional param for backward compatibility
+- [17-01]: Order monitor waits on empty queue instead of exiting -- persistent loop
 
 ### Pending Todos
 
@@ -138,6 +142,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T15:33:00Z
-Stopped at: Completed 16-04-PLAN.md (Phase 16 complete, v1.2 milestone complete)
+Last session: 2026-03-13T16:16:48Z
+Stopped at: Completed 17-01-PLAN.md (Phase 17 complete, v1.2 gap closure complete)
 Resume file: None -- all plans complete
