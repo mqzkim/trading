@@ -288,10 +288,20 @@ class OverviewQueryHandler:
 
         for trade in trades:
             date_str = str(trade.get("created_at", ""))[:10]
-            # position_value is total trade value; approximate realized P&L as 0
-            # since we don't have exit price in trade_plans table
+            entry = trade.get("entry_price", 0.0) or 0.0
+            target = trade.get("take_profit_price", 0.0) or 0.0
+            qty = trade.get("quantity", 0) or 0
+            direction = trade.get("direction", "BUY")
+
+            if entry > 0 and target > 0 and qty > 0:
+                if direction == "BUY":
+                    trade_pnl = (target - entry) * qty
+                else:
+                    trade_pnl = (entry - target) * qty
+                cumulative += trade_pnl
+
             dates.append(date_str)
-            values.append(cumulative)
+            values.append(round(cumulative, 2))
 
         return {"dates": dates, "values": values}
 
@@ -424,6 +434,7 @@ class RiskQueryHandler:
     MAX_POSITIONS = 20
 
     def __init__(self, ctx: dict) -> None:
+        self._ctx = ctx
         self._position_repo = ctx["position_repo"]
         self._regime_repo = ctx["regime_repo"]
 
@@ -457,9 +468,19 @@ class RiskQueryHandler:
                 s: round(v / total_value * 100, 1) for s, v in sector_totals.items()
             }
 
-        # Drawdown -- simplified: report 0 without Portfolio aggregate in ctx
+        # Drawdown from Portfolio aggregate
         drawdown_pct = 0.0
         drawdown_level = "normal"
+        handler = self._ctx.get("portfolio_handler")
+        if handler is not None:
+            try:
+                repo = handler._portfolio_repo
+                portfolio = repo.find_by_id("default")
+                if portfolio is not None:
+                    drawdown_pct = portfolio.drawdown * 100  # fraction -> percentage
+                    drawdown_level = portfolio.drawdown_level.value
+            except Exception:
+                pass
 
         # Regime
         try:
