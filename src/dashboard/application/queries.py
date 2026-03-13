@@ -218,3 +218,142 @@ class OverviewQueryHandler:
             }
         except Exception:
             return None
+
+
+class SignalsQueryHandler:
+    """Fetches latest scores and active signals for the signals page."""
+
+    def __init__(self, ctx: dict) -> None:
+        self._score_repo = ctx["score_repo"]
+        self._signal_repo = ctx["signal_repo"]
+
+    def handle(self, sort_by: str = "composite", sort_desc: bool = True) -> dict:
+        """Return scores and signals for the signals page.
+
+        Returns:
+            dict with keys:
+                scores: list of dicts with symbol, composite, risk_adjusted, strategy, signal
+                signals: list of dicts with symbol, direction, strength, metadata
+        """
+        # Fetch latest scores per symbol: dict[str, CompositeScore]
+        try:
+            raw_scores = self._score_repo.find_all_latest()
+        except Exception:
+            raw_scores = {}
+
+        # Build score rows
+        scores = []
+        for symbol, cs in raw_scores.items():
+            scores.append({
+                "symbol": symbol,
+                "composite": round(cs.value, 1),
+                "risk_adjusted": round(cs.risk_adjusted, 1),
+                "strategy": cs.strategy,
+            })
+
+        # Sort scores
+        sort_key = "composite" if sort_by == "composite" else sort_by
+        if sort_key in ("composite", "risk_adjusted"):
+            scores.sort(key=lambda s: s.get(sort_key, 0), reverse=sort_desc)
+        else:
+            scores.sort(key=lambda s: s.get("composite", 0), reverse=True)
+
+        # Fetch active signals
+        try:
+            raw_signals = self._signal_repo.find_all_active()
+        except Exception:
+            raw_signals = []
+
+        signals = []
+        signal_by_symbol: dict[str, dict] = {}
+        for sig in raw_signals:
+            meta = sig.get("metadata", "")
+            if isinstance(meta, str) and meta:
+                try:
+                    meta = json.loads(meta)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            entry = {
+                "symbol": sig["symbol"],
+                "direction": sig["direction"],
+                "strength": round(sig.get("strength", 0.0), 2),
+                "metadata": meta,
+            }
+            signals.append(entry)
+            signal_by_symbol[sig["symbol"]] = entry
+
+        # Attach signal direction to each score row
+        for score_row in scores:
+            sig = signal_by_symbol.get(score_row["symbol"])
+            score_row["signal"] = sig["direction"] if sig else "--"
+
+        return {"scores": scores, "signals": signals}
+
+
+class RiskQueryHandler:
+    """Fetches risk metrics for the risk page."""
+
+    MAX_POSITIONS = 20
+
+    def __init__(self, ctx: dict) -> None:
+        self._position_repo = ctx["position_repo"]
+        self._regime_repo = ctx["regime_repo"]
+
+    def handle(self) -> dict:
+        """Return risk metrics for the risk page.
+
+        Returns:
+            dict with keys: drawdown_pct, drawdown_level, sector_weights,
+                position_count, max_positions, regime, gauge_json, donut_json
+        """
+        # Get open positions
+        try:
+            positions = self._position_repo.find_all_open()
+        except Exception:
+            positions = []
+
+        position_count = len(positions)
+
+        # Calculate sector weights from positions
+        sector_totals: dict[str, float] = {}
+        total_value = 0.0
+        for pos in positions:
+            mv = pos.entry_price * pos.quantity
+            total_value += mv
+            sector = pos.sector if pos.sector else "Unknown"
+            sector_totals[sector] = sector_totals.get(sector, 0.0) + mv
+
+        sector_weights: dict[str, float] = {}
+        if total_value > 0:
+            sector_weights = {
+                s: round(v / total_value * 100, 1) for s, v in sector_totals.items()
+            }
+
+        # Drawdown -- simplified: report 0 without Portfolio aggregate in ctx
+        drawdown_pct = 0.0
+        drawdown_level = "normal"
+
+        # Regime
+        try:
+            regime_obj = self._regime_repo.find_latest()
+        except Exception:
+            regime_obj = None
+
+        regime = regime_obj.regime_type.value if regime_obj is not None else "Unknown"
+
+        # Build chart JSON
+        gauge_json = build_drawdown_gauge(drawdown_pct)
+        donut_json = build_sector_donut(
+            sector_weights if sector_weights else {"No positions": 100}
+        )
+
+        return {
+            "drawdown_pct": drawdown_pct,
+            "drawdown_level": drawdown_level,
+            "sector_weights": sector_weights,
+            "position_count": position_count,
+            "max_positions": self.MAX_POSITIONS,
+            "regime": regime,
+            "gauge_json": gauge_json,
+            "donut_json": donut_json,
+        }

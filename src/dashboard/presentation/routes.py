@@ -8,7 +8,11 @@ from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
-from src.dashboard.application.queries import OverviewQueryHandler
+from src.dashboard.application.queries import (
+    OverviewQueryHandler,
+    RiskQueryHandler,
+    SignalsQueryHandler,
+)
 from src.dashboard.presentation.charts import build_equity_curve
 
 router = APIRouter(prefix="/dashboard")
@@ -59,22 +63,41 @@ def overview_page(request: Request):
 
 
 @router.get("/signals")
-def signals_page(request: Request):
+def signals_page(request: Request, sort: str = "composite", desc: str = "1"):
     """Signals page with scoring heatmap and recommendations."""
+    ctx = request.app.state.ctx
+    handler = SignalsQueryHandler(ctx)
+    data = handler.handle(sort_by=sort, sort_desc=(desc == "1"))
+
     return templates.TemplateResponse(
         request,
         "signals.html",
-        {"execution_mode": _get_mode(request), "active_page": "signals"},
+        {
+            "execution_mode": _get_mode(request),
+            "active_page": "signals",
+            "scores": data["scores"],
+            "signals": data["signals"],
+            "sort_by": sort,
+            "sort_desc": desc == "1",
+        },
     )
 
 
 @router.get("/risk")
 def risk_page(request: Request):
     """Risk page with drawdown gauge, sector exposure, position limits."""
+    ctx = request.app.state.ctx
+    handler = RiskQueryHandler(ctx)
+    data = handler.handle()
+
     return templates.TemplateResponse(
         request,
         "risk.html",
-        {"execution_mode": _get_mode(request), "active_page": "risk"},
+        {
+            "execution_mode": _get_mode(request),
+            "active_page": "risk",
+            **data,
+        },
     )
 
 
