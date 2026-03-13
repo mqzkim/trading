@@ -40,7 +40,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 **Milestone Goal:** Automate the full pipeline, add live trading with safety infrastructure, and provide a web dashboard for operational visibility -- transforming the CLI tool into a production trading system.
 
 - [x] **Phase 12: Safety Infrastructure** - Production-safe execution adapters, persistent drawdown defense, position reconciliation, kill switch (completed 2026-03-13)
-- [x] **Phase 13: Automated Pipeline Scheduler** - Daily cron pipeline in paper mode with market calendar, stage retry, run logging (completed 2026-03-13)
+- [ ] **Phase 13: Automated Pipeline Scheduler** - Daily cron pipeline in paper mode with market calendar, stage retry, run logging (gap closure in progress)
 - [ ] **Phase 14: Strategy and Budget Approval** - Human-approved trading rules and daily budget caps gating automated execution
 - [ ] **Phase 15: Live Trading Activation** - Live Alpaca execution with circuit breaker, order monitoring, and WebSocket fills
 - [ ] **Phase 16: Web Dashboard** - HTMX dashboard with portfolio, signals, risk metrics, pipeline status, and real-time SSE updates
@@ -74,11 +74,12 @@ Plans:
   3. If yfinance times out during data ingest, the failed stage retries automatically and the pipeline completes -- transient failures do not abort the full run
   4. When regime is Crisis or drawdown tier >= 2, the pipeline halts before plan creation and logs the reason -- no trades generated in dangerous conditions
   5. User can run the pipeline in dry-run mode that executes everything except order submission -- validating the full chain without risk
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
 - [x] 13-01-PLAN.md -- Pipeline domain model, infrastructure (PipelineRun entity, StageResult, SQLite run repo, MarketCalendarService, SlackNotifier)
 - [x] 13-02-PLAN.md -- PipelineOrchestrator, APScheduler integration, CLI commands (orchestrator with retry/halt, SchedulerService, trade pipeline run/status)
+- [ ] 13-03-PLAN.md -- Gap closure: wire _run_plan/_run_execute stubs with real handler calls, instantiate SchedulerService in bootstrap, add daemon CLI command
 
 ### Phase 14: Strategy and Budget Approval
 **Goal**: Human defines trading rules and daily capital limits once; automated pipeline executes within those boundaries until approval expires or conditions change
@@ -147,7 +148,7 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 10. Korean Broker Integration | v1.1 | 2/2 | Complete | 2026-03-12 |
 | 11. Commercial FastAPI REST API | v1.1 | 3/3 | Complete | 2026-03-13 |
 | 12. Safety Infrastructure | v1.2 | 3/3 | Complete | 2026-03-13 |
-| 13. Automated Pipeline Scheduler | v1.2 | 2/2 | Complete | 2026-03-13 |
+| 13. Automated Pipeline Scheduler | v1.2 | 2/3 | Gap closure | - |
 | 14. Strategy and Budget Approval | v1.2 | 0/? | Not started | - |
 | 15. Live Trading Activation | v1.2 | 0/? | Not started | - |
 | 16. Web Dashboard | v1.2 | 0/? | Not started | - |
