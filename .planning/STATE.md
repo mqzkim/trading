@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Production Trading & Dashboard
-status: in-progress
-stopped_at: Completed 15-01 circuit breaker and capital ratio
-last_updated: "2026-03-13T13:56:00Z"
-last_activity: 2026-03-13 -- Completed 15-01 circuit breaker, capital ratio, CLI commands
+status: executing
+stopped_at: Completed 15-02 order monitor and trading stream
+last_updated: "2026-03-13T14:04:12.254Z"
+last_activity: 2026-03-13 -- Completed 15-02 order monitor, trading stream, pipeline integration
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
   percent: 100
 ---
 
@@ -26,16 +26,16 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 ## Current Position
 
 Phase: 15 of 16 (Live Trading Activation) -- fourth of 5 v1.2 phases
-Plan: 1 of 2 complete
-Status: In Progress
-Last activity: 2026-03-13 -- Completed 15-01 circuit breaker, capital ratio, CLI commands
+Plan: 2 of 2 complete
+Status: Complete
+Last activity: 2026-03-13 -- Completed 15-02 order monitor, trading stream, pipeline integration
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 38 (v1.0: 12, v1.1: 17, v1.2: 9)
+- Total plans completed: 39 (v1.0: 12, v1.1: 17, v1.2: 10)
 - Average duration: ~5.9 min/plan
 - Total execution time: ~3.5 hours
 
@@ -58,7 +58,7 @@ Progress: [██████████] 100%
 | 12. Safety Infrastructure | 3/3 | 12 min | 4.0 min |
 | 13. Pipeline Scheduler | 3/3 | 18 min | 6.0 min |
 | 14. Strategy Approval | 2/2 | 14 min | 7.0 min |
-| 15. Live Trading | 1/2 | 7 min | 7.0 min |
+| 15. Live Trading | 2/2 | 11 min | 5.5 min |
 
 ## Accumulated Context
 
@@ -101,6 +101,9 @@ Recent decisions affecting current work:
 - [15-01]: Circuit breaker trips on 3rd failure, calls kill switch with liquidate=False
 - [15-01]: Notifier wired into SafeExecutionAdapter after pipeline notifier creation in bootstrap
 - [15-01]: safe_adapter and kill_switch added to bootstrap context dict for CLI access
+- [15-02]: AlpacaOrderMonitor uses threading.Lock for thread-safe tracked_orders access
+- [15-02]: TradingStreamAdapter only created for LIVE mode in bootstrap
+- [15-02]: Monitor/stream lifecycle tied to _run_execute finally block for guaranteed cleanup
 
 ### Pending Todos
 
@@ -119,6 +122,6 @@ New for v1.2:
 
 ## Session Continuity
 
-Last session: 2026-03-13T13:56:00Z
-Stopped at: Completed 15-01 circuit breaker and capital ratio
-Resume file: .planning/phases/15-live-trading-activation/15-01-SUMMARY.md
+Last session: 2026-03-13T14:02:39Z
+Stopped at: Completed 15-02 order monitor and trading stream
+Resume file: .planning/phases/15-live-trading-activation/15-02-SUMMARY.md

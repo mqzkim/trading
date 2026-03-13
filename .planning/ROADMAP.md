@@ -42,7 +42,7 @@ Full details: [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md)
 - [x] **Phase 12: Safety Infrastructure** - Production-safe execution adapters, persistent drawdown defense, position reconciliation, kill switch (completed 2026-03-13)
 - [x] **Phase 13: Automated Pipeline Scheduler** - Daily cron pipeline in paper mode with market calendar, stage retry, run logging (completed 2026-03-13)
 - [x] **Phase 14: Strategy and Budget Approval** - Human-approved trading rules and daily budget caps gating automated execution (completed 2026-03-13)
-- [ ] **Phase 15: Live Trading Activation** - Live Alpaca execution with circuit breaker, order monitoring, and WebSocket fills
+- [x] **Phase 15: Live Trading Activation** - Live Alpaca execution with circuit breaker, order monitoring, and WebSocket fills (completed 2026-03-13)
 - [ ] **Phase 16: Web Dashboard** - HTMX dashboard with portfolio, signals, risk metrics, pipeline status, and real-time SSE updates
 
 ## Phase Details
@@ -110,7 +110,7 @@ Plans:
 
 Plans:
 - [x] 15-01-PLAN.md -- Circuit breaker in SafeExecutionAdapter, OrderFilledEvent, LIVE_CAPITAL_RATIO, CLI config/reset commands
-- [ ] 15-02-PLAN.md -- AlpacaOrderMonitor background thread, TradingStreamAdapter WebSocket, pipeline integration with circuit breaker error handling
+- [x] 15-02-PLAN.md -- AlpacaOrderMonitor background thread, TradingStreamAdapter WebSocket, pipeline integration with circuit breaker error handling
 
 ### Phase 16: Web Dashboard
 **Goal**: Operator has full visibility into portfolio, pipeline, risk, and approval status through a browser-based dashboard with real-time updates
@@ -150,5 +150,5 @@ Phases execute in numeric order: 12 -> 13 -> 14 -> 15 -> 16
 | 12. Safety Infrastructure | v1.2 | 3/3 | Complete | 2026-03-13 |
 | 13. Automated Pipeline Scheduler | v1.2 | 3/3 | Complete | 2026-03-13 |
 | 14. Strategy and Budget Approval | v1.2 | 2/2 | Complete | 2026-03-13 |
-| 15. Live Trading Activation | v1.2 | 1/2 | In Progress | - |
+| 15. Live Trading Activation | v1.2 | 2/2 | Complete | 2026-03-13 |
 | 16. Web Dashboard | v1.2 | 0/? | Not started | - |
