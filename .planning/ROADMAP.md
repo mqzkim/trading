@@ -65,11 +65,11 @@ Delivered: Bloomberg terminal-style React dashboard with TradingView charts, dat
   3. Domain events (e.g., ScoringCompletedEvent) are published by producers and received by consumers through the EventBus
   4. Trade plans show a real target_price from the valuation engine and a current_price from latest market data (not 0.0 or entry_price)
   5. All pipeline operations route through src/ DDD path; legacy core/ wrappers are fallback only
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 26-01: TBD
-- [ ] 26-02: TBD
+- [ ] 26-01-PLAN.md — Unify scoring store, wire event bus, inject DDD adapters
+- [ ] 26-02-PLAN.md — Wire real prices (current_price, target_price) and verify pipeline E2E
 
 ### Phase 27: Scoring Expansion
 **Goal**: Composite score reflects three real axes -- fundamental (existing), technical (5 indicators), and sentiment (4 data sources) -- with proper normalization and confidence tracking
@@ -131,7 +131,7 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29
 | 5-11 | v1.1 | 17/17 | Complete | 2026-03-12 |
 | 12-20 | v1.2 | 20/20 | Complete | 2026-03-14 |
 | 21-25 | v1.3 | 9/9 | Complete | 2026-03-14 |
-| 26. Pipeline Stabilization | v1.4 | 0/? | Not started | - |
+| 26. Pipeline Stabilization | v1.4 | 0/2 | Not started | - |
 | 27. Scoring Expansion | v1.4 | 0/? | Not started | - |
 | 28. Commercial API & Dashboard | v1.4 | 0/? | Not started | - |
 | 29. Performance & Self-Improvement | v1.4 | 0/? | Not started | - |
