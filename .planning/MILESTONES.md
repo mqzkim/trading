@@ -1,5 +1,29 @@
 # Milestones
 
+## v1.3 Bloomberg Dashboard (Shipped: 2026-03-14)
+
+**Phases completed:** 5 phases, 9 plans
+**Commits:** 40 | **Files:** 178 | **LOC:** 2,430 TypeScript + 13,008 Python
+**Timeline:** 1 day (2026-03-14)
+**Git range:** `7dbf877..764adc9`
+
+**Key accomplishments:**
+1. Next.js 16 + FastAPI BFF proxy architecture with JSON API endpoints
+2. Bloomberg OKLCH dark theme design system with shadcn/ui and JetBrains Mono
+3. 4-page professional trading dashboard (Overview, Signals, Risk, Pipeline)
+4. TradingView Lightweight Charts equity curve with regime histogram overlay
+5. SSE real-time updates via EventSource-to-TanStack-Query invalidation mapping
+6. Legacy HTMX/Jinja2/Plotly complete removal with DDD violation fix
+
+**Delivered:** Bloomberg terminal-style React dashboard replacing legacy HTMX, with data-dense dark theme, TradingView charts, sortable tables, CSS-only visualizations (drawdown gauge, sector donut), real-time SSE updates, and pipeline approval queue.
+
+**Tech Debt:**
+- 4 visual verification items pending human browser confirmation (Phase 22)
+- target_price always 0.0 (Position entity has no target field)
+- current_price uses entry_price proxy (no live price feed in daily-frequency system)
+
+---
+
 ## v1.2 Production Trading & Dashboard (Shipped: 2026-03-14)
 
 **Phases completed:** 9 phases, 20 plans, 0 tasks

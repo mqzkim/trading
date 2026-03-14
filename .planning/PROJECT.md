@@ -38,19 +38,16 @@ Every recommendation must be explainable and risk-controlled — the system prio
 - ✓ Kill switch, cooldown, circuit breaker safety infrastructure — v1.2
 - ✓ SSE real-time event wiring — v1.2
 - ✓ Drawdown defense wiring (3-tier auto-suspension) — v1.2
+- ✓ Next.js 16 + React Bloomberg dashboard with BFF proxy architecture — v1.3
+- ✓ Bloomberg OKLCH dark theme design system with shadcn/ui — v1.3
+- ✓ TradingView Lightweight Charts equity curve with regime overlay — v1.3
+- ✓ 4-page dashboard (Overview, Signals, Risk, Pipeline) with data-dense layout — v1.3
+- ✓ SSE real-time updates via EventSource-to-TanStack-Query mapping — v1.3
+- ✓ Legacy HTMX/Jinja2/Plotly complete removal — v1.3
 
 ### Active
 
-#### Bloomberg Dashboard (Next.js)
-- [ ] Next.js + React 프론트엔드 프로젝트 설정
-- [ ] Bloomberg 터미널 스타일 디자인 시스템 (다크 테마, 데이터 밀도)
-- [ ] TradingView 차트 통합 (캔들스틱, 기술적 지표, 실시간)
-- [ ] Overview 페이지 리디자인 (포트폴리오, P&L, 에쿼티 커브)
-- [ ] Signals 페이지 리디자인 (스코어링, 시그널 추천)
-- [ ] Risk 페이지 리디자인 (드로다운, 섹터 노출, 레짐)
-- [ ] Pipeline & Approval 페이지 리디자인 (파이프라인 실행, 승인, 리뷰)
-- [ ] Next.js API Routes로 백엔드 통합 (FastAPI 대시보드 라우트 대체)
-- [ ] 실시간 업데이트 (WebSocket/SSE)
+(Next milestone requirements to be defined via `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -60,24 +57,17 @@ Every recommendation must be explainable and risk-controlled — the system prio
 - Options/derivatives — stock-only
 - Social/sentiment scoring — focus on fundamentals + technicals first
 
-## Current Milestone: v1.3 Bloomberg Dashboard
+## Current State
 
-**Goal:** 기존 HTMX+Jinja2 대시보드를 React+Next.js로 전면 전환하고, Bloomberg 터미널 스타일의 프로페셔널 트레이딩 대시보드를 구축한다. TradingView 차트, 데이터 밀도 높은 레이아웃, 실시간 업데이트.
-
-**Target features:**
-- Next.js + React 프론트엔드 (Bloomberg 터미널 다크 테마)
-- TradingView Lightweight Charts (캔들스틱, 기술적 지표)
-- 4개 페이지 리디자인 (Overview, Signals, Risk, Pipeline & Approval)
-- Next.js API Routes로 Python 백엔드 통합
-- WebSocket/SSE 실시간 데이터 스트리밍
+Shipped v1.3 Bloomberg Dashboard (2026-03-14). All 4 milestones delivered. Next milestone to be planned.
 
 ## Context
 
-Shipped v1.0 MVP with 20,357 LOC Python across 4 bounded contexts (data_ingest, scoring, signals, portfolio + execution).
-Tech stack: Python 3.12, DuckDB (analytics), SQLite (operational), yfinance + edgartools (data), Alpaca (broker), Typer + Rich (CLI).
+Shipped v1.3 Bloomberg Dashboard with 13,008 LOC Python + 2,430 LOC TypeScript across 4 bounded contexts + Next.js dashboard.
+Tech stack: Python 3.12, DuckDB (analytics), SQLite (operational), yfinance + edgartools (data), Alpaca (broker), Typer + Rich (CLI), Next.js 16 + React + TanStack Query + shadcn/ui (dashboard).
 DDD architecture with domain VOs, async event bus, and adapter pattern wrapping core/ functions.
-352+ behavioral tests passing. 16 tech debt items documented in milestone audit.
-Legacy core/ path provides working alternatives where DDD path has wiring gaps.
+Bloomberg terminal-style dark theme dashboard with TradingView charts and SSE real-time updates.
+352+ behavioral tests passing. Legacy core/ path provides working alternatives where DDD path has wiring gaps.
 
 ## Constraints
 
@@ -105,9 +95,12 @@ Legacy core/ path provides working alternatives where DDD path has wiring gaps.
 | core/ wrapper + DDD adapter pattern | Reuse existing scoring/signal math without rewriting | ✓ Good — reduced implementation time significantly |
 | Coarse 4-phase roadmap | Strict dependency chain, each phase standalone | ✓ Good — clean execution, 12 plans in 10 days |
 
-| Next.js + React for dashboard | HTMX+Jinja2 too limited for Bloomberg-style data density and interactions | — Pending |
-| TradingView Lightweight Charts | Professional trading charts with candlestick, indicators, real-time | — Pending |
-| Next.js API Routes (not FastAPI for dashboard) | Single-stack frontend+backend, simpler deployment | — Pending |
+| Next.js 16 + React for dashboard | HTMX+Jinja2 too limited for Bloomberg-style data density and interactions | ✓ Good — professional UI with 2,430 LOC TypeScript |
+| TradingView Lightweight Charts | Professional trading charts with candlestick, indicators, real-time | ✓ Good — equity curve with regime overlay works well |
+| BFF proxy via next.config.ts rewrites | Avoid direct DB access from Node.js, single proxy point | ✓ Good — clean separation, SSE proxied without buffering |
+| Biome 2.x replacing ESLint+Prettier | Next.js 16 removed next lint, Biome faster and simpler | ✓ Good — single tool for lint+format |
+| CSS conic-gradient for visualizations | No chart library needed for gauges and donuts | ✓ Good — zero dependencies for risk visualizations |
+| EventSource-to-TanStack-Query mapping | Native browser API, no WebSocket library needed | ✓ Good — simple and reliable real-time updates |
 
 ---
-*Last updated: 2026-03-14 after v1.3 milestone start*
+*Last updated: 2026-03-14 after v1.3 milestone completion*
