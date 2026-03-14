@@ -16,7 +16,7 @@ class InMemoryScoreRepository(IScoreRepository):
 
     # ── IScoreRepository 구현 ─────────────────────────────────────
 
-    def save(self, symbol: str, score: CompositeScore) -> None:
+    def save(self, symbol: str, score: CompositeScore, details: dict | None = None) -> None:
         self._store[symbol] = score
 
     def find_latest(self, symbol: str) -> Optional[CompositeScore]:

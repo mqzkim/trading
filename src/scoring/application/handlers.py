@@ -114,8 +114,16 @@ class ScoreSymbolHandler:
             is_growth_stock=fundamental_data.get("is_growth_stock", False),
         )
 
-        # 5. 결과 저장 (Repository)
-        self._score_repo.save(symbol, composite)
+        # 5. 결과 저장 (Repository) -- sub-scores 포함
+        details = {
+            "fundamental_score": fundamental.value,
+            "technical_score": technical.value,
+            "sentiment_score": sentiment.value,
+            "f_score": fundamental.f_score,
+            "z_score": fundamental.z_score,
+            "m_score": fundamental.m_score,
+        }
+        self._score_repo.save(symbol, composite, details=details)
 
         # 6. 도메인 이벤트 발행
         event = ScoreUpdatedEvent(

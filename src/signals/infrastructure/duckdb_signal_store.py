@@ -65,16 +65,15 @@ class DuckDBSignalStore(ISignalRepository):
         """)
 
     def sync_scores(self, rows: list[dict]) -> None:
-        """Populate scores table from external data.
+        """Sync scores to DuckDB using upsert semantics.
 
-        Used by bootstrap or CLI to sync SQLite scores to DuckDB
-        before screening. Each dict has keys: symbol, composite_score,
-        risk_adjusted_score, strategy.
+        Used by event-driven sync (per-symbol) or bulk CLI sync.
+        Each dict has keys: symbol, composite_score, risk_adjusted_score, strategy.
+        Uses INSERT OR REPLACE to avoid data loss during per-symbol sync.
         """
-        self._conn.execute("DELETE FROM scores")
         for row in rows:
             self._conn.execute(
-                "INSERT INTO scores (symbol, composite_score, risk_adjusted_score, strategy) "
+                "INSERT OR REPLACE INTO scores (symbol, composite_score, risk_adjusted_score, strategy) "
                 "VALUES (?, ?, ?, ?)",
                 [row["symbol"], row["composite_score"], row["risk_adjusted_score"], row["strategy"]],
             )

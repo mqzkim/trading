@@ -211,6 +211,24 @@ def bootstrap(
 
     bus.subscribe(ScoreUpdatedEvent, _log_score_event)
 
+    # -- Score -> DuckDB sync (event-driven, per-symbol upsert) --
+    from src.signals.infrastructure.duckdb_signal_store import DuckDBSignalStore
+
+    duckdb_signal_store = DuckDBSignalStore(db_factory.duckdb_conn())
+
+    def _sync_score_to_duckdb(event: ScoreUpdatedEvent) -> None:
+        """Sync individual score to DuckDB after scoring."""
+        latest = score_repo.find_latest(event.symbol)
+        if latest is not None:
+            duckdb_signal_store.sync_scores([{
+                "symbol": event.symbol,
+                "composite_score": latest.value,
+                "risk_adjusted_score": latest.risk_adjusted,
+                "strategy": latest.strategy,
+            }])
+
+    bus.subscribe(ScoreUpdatedEvent, _sync_score_to_duckdb)
+
     # -- Approval context wiring --
     from src.approval.infrastructure import (
         SqliteApprovalRepository,
@@ -339,6 +357,7 @@ def bootstrap(
         # Repos exposed for dashboard queries
         "score_repo": score_repo,
         "signal_repo": signal_repo,
+        "duckdb_signal_store": duckdb_signal_store,
         "position_repo": position_repo,
         "regime_repo": regime_repo,
         "trade_plan_repo": trade_plan_repo,

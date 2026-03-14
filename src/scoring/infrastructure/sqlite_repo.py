@@ -57,19 +57,28 @@ class SqliteScoreRepository(IScoreRepository):
 
     # ── IScoreRepository 구현 ─────────────────────────────────────
 
-    def save(self, symbol: str, score: CompositeScore) -> None:
+    def save(self, symbol: str, score: CompositeScore, details: dict | None = None) -> None:
+        d = details or {}
         with sqlite3.connect(self._db_path) as conn:
             conn.execute(
                 """
                 INSERT INTO scored_symbols
-                    (symbol, composite_score, risk_adjusted, strategy)
-                VALUES (?, ?, ?, ?)
+                    (symbol, composite_score, risk_adjusted, strategy,
+                     fundamental_score, technical_score, sentiment_score,
+                     f_score, z_score, m_score)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     symbol,
                     score.value,
                     score.risk_adjusted,
                     score.strategy,
+                    d.get("fundamental_score"),
+                    d.get("technical_score"),
+                    d.get("sentiment_score"),
+                    d.get("f_score"),
+                    d.get("z_score"),
+                    d.get("m_score"),
                 ),
             )
 
@@ -106,6 +115,34 @@ class SqliteScoreRepository(IScoreRepository):
                 (limit,),
             ).fetchall()
         return {row["symbol"]: self._row_to_vo(dict(row)) for row in rows}
+
+    def find_all_latest_for_sync(self) -> list[dict]:
+        """Return latest scores in sync format for DuckDB.
+
+        Returns list of dicts with keys: symbol, composite_score,
+        risk_adjusted_score, strategy.
+        """
+        with sqlite3.connect(self._db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT symbol, composite_score, risk_adjusted, strategy
+                FROM scored_symbols
+                WHERE id IN (
+                    SELECT MAX(id) FROM scored_symbols GROUP BY symbol
+                )
+                ORDER BY composite_score DESC
+                """,
+            ).fetchall()
+        return [
+            {
+                "symbol": row["symbol"],
+                "composite_score": row["composite_score"],
+                "risk_adjusted_score": row["risk_adjusted"],
+                "strategy": row["strategy"],
+            }
+            for row in rows
+        ]
 
     # ── 내부 헬퍼 ─────────────────────────────────────────────────
 
