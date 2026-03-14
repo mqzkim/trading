@@ -47,7 +47,14 @@ Every recommendation must be explainable and risk-controlled — the system prio
 
 ### Active
 
-(Next milestone requirements to be defined via `/gsd:new-milestone`)
+- [ ] Pipeline stabilization and tech debt resolution (DDD wiring, store mismatch, failed runs)
+- [ ] Technical scoring axis (RSI/MACD/MA/ADX/OBV) integrated into composite score
+- [ ] Regime detection enhancement (VIX/yield curve/HMM-based)
+- [ ] Sentiment scoring (news sentiment, insider trades, institutional holdings, analyst revisions)
+- [ ] Performance attribution (4-level P&L decomposition)
+- [ ] Self-improver (parameter optimization from performance analysis)
+- [ ] Commercial REST API (QuantScore/RegimeRadar/SignalFusion with auth/billing/rate-limiting)
+- [ ] Dashboard enhancement (real data display, new feature UIs)
 
 ### Out of Scope
 
@@ -55,11 +62,23 @@ Every recommendation must be explainable and risk-controlled — the system prio
 - Mobile app — web dashboard first
 - Real-time intraday trading — daily granularity for mid-term holding
 - Options/derivatives — stock-only
-- Social/sentiment scoring — focus on fundamentals + technicals first
+- Korean market (KIS broker) — deferred, may require Korean brokerage account
+
+## Current Milestone: v1.4 Full Stack Trading Platform
+
+**Goal:** Complete the trading system with technical/sentiment scoring, regime enhancement, commercial API, performance analysis, and self-improvement loop — transforming from MVP to production-grade platform.
+
+**Target features:**
+- Pipeline stabilization + tech debt resolution
+- Technical & sentiment scoring axes
+- Enhanced regime detection
+- Commercial FastAPI REST API (3 products)
+- Performance analyst + self-improver
+- Dashboard with real data
 
 ## Current State
 
-Shipped v1.3 Bloomberg Dashboard (2026-03-14). All 4 milestones delivered. Next milestone to be planned.
+Shipped v1.3 Bloomberg Dashboard (2026-03-14). Starting v1.4 Full Stack Trading Platform.
 
 ## Context
 
