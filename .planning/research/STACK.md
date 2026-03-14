@@ -1,457 +1,429 @@
-# Stack Research -- v1.2 Additions
+# Technology Stack -- v1.3 Bloomberg Dashboard
 
-**Domain:** Automated trading pipeline, live trading, web dashboard
-**Researched:** 2026-03-13
+**Project:** Intrinsic Alpha Trader -- Bloomberg-style Dashboard
+**Researched:** 2026-03-14
 **Confidence:** HIGH
-**Scope:** NEW dependencies only for v1.2 capabilities (automated scheduler, Alpaca live trading, web dashboard, real-time monitoring)
+**Scope:** NEW frontend stack for Next.js dashboard replacing HTMX+Jinja2. Python backend remains unchanged.
 
-## Existing Stack (DO NOT re-add)
+## Existing Stack (DO NOT change)
 
-Everything from v1.0 and v1.1 is already installed and working. Listed for context only.
+The Python backend is fully operational and stays as-is. The Next.js frontend consumes it.
 
-| Already Have | Version Installed | Relevant to v1.2 |
-|-------------|-------------------|-------------------|
-| FastAPI | 0.135.1 | Dashboard backend + existing API -- has native SSE since 0.135.0 |
-| uvicorn | 0.41.0 | ASGI server for dashboard + API |
-| Jinja2 | 3.1.2 | Already installed (FastAPI dep) -- use for HTML templates |
-| Starlette | 0.52.1 | Already installed (FastAPI dep) -- SSE via `fastapi.sse` |
-| alpaca-py | 0.43.2 | Existing Alpaca adapter -- `TradingClient(paper=True)` needs config change |
-| pydantic | 2.12.5 | Data models, settings |
-| pydantic-settings | 2.13.1 | Configuration management |
-| SQLite | stdlib | Operational database (scores, signals, trade plans) |
-| DuckDB | 1.5.0 | Analytical database (OHLCV, financials) |
-| httpx | 0.28.1 | HTTP client |
-| slowapi | 0.1.9 | Rate limiting (v1.1 addition) |
-| PyJWT | 2.9.x | JWT auth (v1.1 addition) |
+| Already Have | Version | Relevant to v1.3 |
+|-------------|---------|-------------------|
+| FastAPI | 0.135.1 | Backend API server -- Next.js proxies to this |
+| uvicorn | 0.41.0 | ASGI server hosting the FastAPI app |
+| SSE (sse-starlette) | 2.0+ | Real-time event stream -- Next.js EventSource connects directly |
+| SQLite + DuckDB | stdlib / 1.5.0 | Data stores -- no change, backend reads them |
+| Alpaca TradingStream | alpaca-py 0.43.2 | WebSocket stream for order updates -- feeds SSE bridge |
+| Plotly (server-side) | 6.5.0+ | **Replaced by TradingView Lightweight Charts on frontend** |
+| HTMX + Jinja2 templates | 2.0.x CDN | **Replaced entirely by Next.js + React** |
+| Tailwind CSS (CDN) | via cdn.tailwindcss.com | **Replaced by proper Tailwind v4 build** |
 
-**Key existing capability:** FastAPI 0.135.1 already has built-in SSE support via `fastapi.sse.EventSourceResponse` and `ServerSentEvent`. No external SSE library needed. Jinja2 is already installed as a FastAPI dependency. This means the web dashboard can be built with zero frontend framework dependencies.
+**Key architectural change:** The HTMX dashboard served HTML fragments from FastAPI. The Next.js dashboard serves a standalone React SPA that fetches JSON from the same FastAPI backend via `next.config.ts` rewrites (or `proxy.ts` in Next.js 16). The FastAPI dashboard routes (`/dashboard/*`) that return HTML become JSON API routes, or the existing query handlers are exposed as new JSON endpoints alongside the old HTML ones during migration.
 
 ---
 
-## New Dependencies for v1.2
+## New Frontend Stack
 
-### 1. Pipeline Scheduler: APScheduler
+### Core Framework
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| APScheduler | >=3.11.2 | Daily automated pipeline scheduling | Production-proven Python scheduler with cron triggers, SQLite job persistence, and asyncio support. `AsyncIOScheduler` runs alongside FastAPI's event loop without blocking. `SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')` persists job schedules across process restarts, so the daily screening pipeline resumes automatically after system reboot. 3.11.2 released Dec 2025, supports Python 3.8-3.13. | HIGH |
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| Next.js | 16.1.x | React meta-framework with App Router | Latest stable (released Oct 2025). Turbopack default for 2-5x faster builds. App Router for layouts, loading states, streaming. `proxy.ts` replaces middleware for cleaner API proxying to FastAPI. React Compiler support (stable) eliminates manual memoization. Node.js 20.9+ required (project runs 22.x). |
+| React | 19.2.x | UI library | Bundled with Next.js 16. View Transitions for page animations. `<Activity>` for background rendering (sidebar state preservation). React Compiler auto-memoizes -- no more `useMemo`/`useCallback` boilerplate. |
+| TypeScript | 5.x | Type safety | Enforced by `create-next-app` default. Catches integration bugs between API response shapes and component props. |
 
-**Architecture integration:**
+**Why Next.js 16 and not 15:** Next.js 16 ships Turbopack as default (no config), has stable React Compiler support, and the new `proxy.ts` is cleaner for API proxying to FastAPI than `next.config.ts` rewrites. Next.js 15 still works but requires explicit Turbopack opt-in and has experimental React Compiler.
 
-The scheduler runs as part of the same FastAPI process (not a separate daemon). The `AsyncIOScheduler` shares the asyncio event loop with uvicorn, eliminating the need for a separate process manager. Jobs trigger the existing pipeline functions:
+### Charting
 
-```python
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-from apscheduler.triggers.cron import CronTrigger
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| lightweight-charts | 5.1.x | TradingView candlestick charts | The industry standard for financial web charts. 45KB gzipped -- smallest performant charting library. HTML5 canvas rendering handles large datasets (1000+ candles) without DOM overhead. Built-in candlestick, line, area, histogram series. Plugin system for custom indicators. v5.1.0 added data conflation for very large datasets. Free and open-source (Apache 2.0). |
 
-scheduler = AsyncIOScheduler(
-    jobstores={'default': SQLAlchemyJobStore(url='sqlite:///data/scheduler.db')},
-)
+**Why NOT Plotly.js on the frontend:** Plotly.js is 1.2MB+ minified. `lightweight-charts` is 45KB. For a Bloomberg-style dashboard that renders multiple charts simultaneously, bundle size matters. Plotly's strength is Python-side generation (which we used in HTMX); for a React app, TradingView's library is purpose-built for this use case.
 
-# Daily screening at 7:00 AM ET (before market open)
-scheduler.add_job(
-    run_daily_pipeline,
-    CronTrigger(hour=7, minute=0, timezone='US/Eastern'),
-    id='daily_pipeline',
-    replace_existing=True,
-)
+**Why NOT recharts or chart.js:** Neither has proper financial chart support (OHLC candlesticks, time-price axes, crosshair sync). TradingView Lightweight Charts is the only serious option for professional trading UIs.
+
+**React integration pattern (from official docs, v5.1):**
+
+```typescript
+// Direct useRef + useEffect -- NO third-party wrapper needed
+import { createChart, CandlestickSeries } from 'lightweight-charts';
+
+function CandlestickChart({ data }: { data: OHLCData[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const chart = createChart(containerRef.current!, {
+      layout: { background: { color: '#1a1a2e' }, textColor: '#e0e0e0' },
+      grid: { vertLines: { color: '#2a2a3e' }, horzLines: { color: '#2a2a3e' } },
+    });
+    const series = chart.addSeries(CandlestickSeries);
+    series.setData(data);
+
+    return () => chart.remove();
+  }, [data]);
+
+  return <div ref={containerRef} style={{ width: '100%', height: '400px' }} />;
+}
 ```
 
-**Why APScheduler and not alternatives:**
+**Do NOT use community React wrappers** (`kaktana-react-lightweight-charts`, `lightweight-charts-react-wrapper`). They are unmaintained third-party packages that lag behind v5.x. The official TradingView docs recommend direct `useRef`+`useEffect` integration. It is 20 lines of code.
 
-| Alternative | Why Not |
-|-------------|---------|
-| Celery | Requires Redis/RabbitMQ broker. Massive infrastructure overhead for a single daily cron job. Designed for distributed task queues, not single-instance scheduling. |
-| `schedule` (pip) | No job persistence (all jobs lost on restart). No asyncio support. No cron expressions. Fine for scripts, insufficient for production daemon. |
-| System cron (`crontab`) | Cannot access Python process state (portfolio, approved strategies). Requires separate process management. No job persistence visibility. Cannot be managed from the web dashboard. |
-| Airflow | DAG-based pipeline orchestrator. Runs its own web server, database, and scheduler as 3 separate processes. Absurd overhead for a single daily pipeline with 4 steps. |
-| Prefect | Cloud-centric orchestrator. Similar to Airflow in complexity. Overkill for single-instance deployment. |
+### State Management
 
-**APScheduler 4.0 note:** v4.0 is in alpha (4.0.0a1). It is an async-first ground-up redesign using AnyIO. Do NOT use it -- it is unstable and the API is not finalized. Stick with 3.11.x which is production-stable. Revisit 4.0 when it reaches stable release.
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| @tanstack/react-query | 5.90.x | Server state (API data fetching, caching, refetching) | Handles all FastAPI data fetching with automatic caching, background refetch, stale-while-revalidate. Eliminates custom `useEffect` + `useState` data fetching patterns. ~5M weekly npm downloads. Provides `useQuery` for reads and `useMutation` for writes (trade approvals, pipeline triggers). |
+| zustand | 5.0.x | Client state (UI state, dashboard layout, filter selections) | 2KB bundle. No boilerplate (no providers, no reducers). Perfect for UI-only state: active tab, sidebar collapse, selected ticker, filter preferences. Persists to localStorage for session continuity. |
 
-### 2. Web Dashboard: HTMX + Jinja2 (Python-Only Stack)
+**Why this combination:** TanStack Query owns server state (what comes from FastAPI). Zustand owns client state (what the user is doing in the UI). This is the dominant pattern in 2026 React apps. They do not overlap.
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| HTMX | 2.0.x (CDN) | Hypermedia-driven interactive UI | Eliminates the need for React/Next.js. HTMX adds AJAX, SSE, and WebSocket capabilities to HTML via attributes. The dashboard sends HTML fragments from FastAPI, not JSON. Zero JS build toolchain (no npm, no webpack, no Node.js). Sub-50ms server-rendered updates. The existing FastAPI backend serves both the REST API and the dashboard from a single process. | HIGH |
-| Plotly.py | >=6.5.0 | Interactive charts (candlesticks, P&L, allocation pie) | Generates standalone HTML/JS chart fragments that embed directly in HTMX templates. Native financial chart support (candlestick, OHLC, waterfall). plotly.js renders client-side from server-generated JSON specs. Already the standard for Python financial visualization. v6.5.2 released Jan 2026. | MEDIUM |
+**Why NOT Redux:** Overkill for a single-user dashboard. Redux requires boilerplate (slices, actions, reducers, middleware). Zustand + TanStack Query achieves the same result with ~60% less code.
 
-**HTMX is NOT a pip install.** It is a single JS file loaded via CDN `<script>` tag in the base HTML template:
+**Why NOT React Context alone:** Context triggers full re-renders on any state change. For a data-dense Bloomberg dashboard with multiple panels, this causes visible performance issues. Zustand uses external stores with selective subscriptions.
 
-```html
-<script src="https://unpkg.com/htmx.org@2.0.4"></script>
-<!-- SSE extension for real-time dashboard updates -->
-<script src="https://unpkg.com/htmx-ext-sse@2.2.2/sse.js"></script>
+### Styling & Design System
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| Tailwind CSS | 4.x | Utility-first CSS framework | v4 is CSS-first config (no `tailwind.config.js`). 5x faster full builds, 100x faster incremental. Ships with `create-next-app` default. Already familiar from existing HTMX dashboard (was using CDN version). Dark theme via CSS custom properties. |
+| shadcn/ui | latest | Accessible React components (tables, dropdowns, dialogs, tabs) | NOT a dependency -- components are copied into the project source. Built on Radix UI primitives (fully accessible). Styled with Tailwind. Data Table component wraps TanStack Table for sortable/filterable data grids. Dark mode works out of the box via CSS variables. |
+| next-themes | 0.4.x | Dark/light theme management | 2-line setup for dark mode. Prevents flash of wrong theme on load. System preference detection. We default to dark (Bloomberg style) but the toggle is trivial. |
+
+**Bloomberg dark theme approach:** Define CSS custom properties in `globals.css` under `:root` (light) and `.dark` (dark) classes. Tailwind v4 reads these via `@theme`. shadcn/ui components automatically adapt.
+
+```css
+/* Bloomberg-style color tokens */
+.dark {
+  --background: 222.2 84% 4.9%;      /* near-black */
+  --foreground: 210 40% 98%;          /* off-white text */
+  --card: 222.2 84% 6.9%;            /* slightly lighter panels */
+  --muted: 217.2 32.6% 17.5%;        /* disabled/secondary */
+  --accent: 210 40% 45%;             /* Bloomberg blue */
+  --destructive: 0 62.8% 60.6%;      /* red for losses */
+  --success: 142 76% 36%;            /* green for gains */
+}
 ```
 
-**Architecture integration:**
+**Why NOT Material UI / Chakra UI / Ant Design:** All are full component libraries with their own CSS-in-JS runtime. They add 100-300KB+ to the bundle and fight with Tailwind. shadcn/ui is zero-runtime -- it copies source code into your project. You own it, you customize it, no library overhead.
 
-The web dashboard is a new set of FastAPI routes under `/dashboard/` that return Jinja2-rendered HTML instead of JSON. HTMX attributes on HTML elements trigger partial page updates:
+### Data Tables
 
-```python
-# commercial/api/routers/dashboard.py (or new personal/dashboard/)
-from fastapi import APIRouter, Request
-from fastapi.templating import Jinja2Templates
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| @tanstack/react-table | 8.x | Headless table logic (sorting, filtering, pagination) | Headless -- renders nothing, provides logic only. shadcn/ui Data Table component wraps this. Handles column sorting, faceted filtering, row selection, column visibility for holdings tables, signal lists, scoring heatmaps. |
 
-router = APIRouter(prefix="/dashboard")
-templates = Jinja2Templates(directory="templates")
+**This is pulled in by shadcn/ui Data Table**, not installed separately. When you run `npx shadcn@latest add data-table`, it installs `@tanstack/react-table` as a dependency.
 
-@router.get("/portfolio")
-async def portfolio_view(request: Request):
-    holdings = await get_portfolio_holdings()
-    return templates.TemplateResponse("portfolio.html", {"request": request, "holdings": holdings})
+### Real-Time Data
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| Native EventSource API | Browser built-in | SSE client for real-time updates from FastAPI | No library needed. The browser's `EventSource` API connects to FastAPI's existing `/dashboard/events` SSE endpoint. Wrap in a custom React hook (`useSSE`) that parses events and feeds them to TanStack Query's cache via `queryClient.setQueryData()`. Auto-reconnect is built into the EventSource spec. |
+
+**Why NOT Socket.IO / WebSocket client library:** The existing FastAPI backend uses SSE (Server-Sent Events) via `sse-starlette`. SSE is unidirectional (server to client), which is exactly what we need -- the dashboard receives order updates, regime changes, and pipeline status. The one bidirectional action (approve trade, trigger pipeline) uses regular HTTP POST via TanStack Query `useMutation`. No WebSocket complexity needed.
+
+**SSE integration pattern:**
+
+```typescript
+// hooks/useSSE.ts
+function useSSE(url: string) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const es = new EventSource(url);
+
+    es.addEventListener('order_update', (e) => {
+      const data = JSON.parse(e.data);
+      queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+    });
+
+    es.addEventListener('regime_change', (e) => {
+      const data = JSON.parse(e.data);
+      queryClient.setQueryData(['regime'], data);
+    });
+
+    return () => es.close();
+  }, [url, queryClient]);
+}
 ```
 
-```html
-<!-- templates/portfolio.html -->
-<div hx-get="/dashboard/portfolio/table" hx-trigger="every 30s" hx-swap="innerHTML">
-  <!-- Auto-refreshes holdings table every 30 seconds -->
-  {% include "partials/holdings_table.html" %}
-</div>
+### Build & Dev Tooling
 
-<!-- SSE for real-time order status updates -->
-<div hx-ext="sse" sse-connect="/dashboard/stream" sse-swap="order_update">
-  <!-- Live order status updates via Server-Sent Events -->
-</div>
-```
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| Turbopack | (bundled with Next.js 16) | Dev server & production bundler | Default in Next.js 16 -- no configuration needed. 2-5x faster production builds than Webpack. Up to 10x faster Fast Refresh. File system caching (beta) for even faster subsequent starts. |
+| Biome | 2.x | Linting + formatting (replaces ESLint + Prettier) | Next.js 16 removed the `next lint` command. Biome combines linting and formatting in one tool, is 35x faster than ESLint, and handles TypeScript/JSX natively. One config file, one tool. |
 
-**Why HTMX + Jinja2 and not React/Next.js:**
-
-| Criterion | HTMX + Jinja2 | React/Next.js |
-|-----------|---------------|---------------|
-| Languages needed | Python only | Python + TypeScript + JSX |
-| Build toolchain | None | npm, webpack/turbopack, Node.js |
-| Time to implement | Days | Weeks |
-| Deployment | Same FastAPI process | Separate Node.js server or static build |
-| Performance (TTI) | ~45ms (server-rendered) | ~650ms (client-side hydration) |
-| Real-time updates | SSE via HTMX extension | WebSocket + React state management |
-| Charting | Plotly.py generates HTML fragments | recharts/d3 (separate JS library) |
-| Complexity for 1 developer | Low | High |
-| SEO/public facing | N/A (personal dashboard) | N/A |
-
-The dashboard is a personal tool for a single user (the trader), not a public web app serving thousands. HTMX eliminates an entire technology layer (Node.js/TypeScript/React) for no benefit. If the dashboard later needs to serve external users (SaaS product), React can be added then.
-
-**Why Plotly.py and not alternatives:**
-
-| Alternative | Why Not |
-|-------------|---------|
-| Matplotlib | Static images, not interactive. No zoom, no hover tooltips. Bad for financial charts. |
-| Bokeh | Heavier than Plotly, less financial chart support. Requires separate Bokeh server for interactivity. |
-| Chart.js (JS) | Would require writing JavaScript. Plotly.py generates the same quality charts from Python. |
-| Lightweight Charts (TradingView) | JS-only library. Would need a separate JS build step or inline scripting. Good for later if pure candlestick experience needed. |
-| Altair | Simpler API but less financial chart support. No native candlestick charts. |
-
-### 3. Real-Time Monitoring: FastAPI Native SSE + Alpaca TradingStream
-
-**No new dependencies needed.** Both capabilities exist in already-installed packages.
-
-| Capability | Package | Already Installed | How |
-|-----------|---------|-------------------|-----|
-| Server-Sent Events | FastAPI 0.135.1 | Yes | `from fastapi.sse import EventSourceResponse, ServerSentEvent` |
-| Alpaca order streaming | alpaca-py 0.43.2 | Yes | `from alpaca.trading.stream import TradingStream` |
-| HTML templating | Jinja2 3.1.2 | Yes | `from fastapi.templating import Jinja2Templates` |
-
-**SSE architecture for dashboard:**
-
-```python
-from fastapi.sse import EventSourceResponse, ServerSentEvent
-from collections.abc import AsyncIterable
-
-@router.get("/dashboard/stream", response_class=EventSourceResponse)
-async def dashboard_stream() -> AsyncIterable[ServerSentEvent]:
-    """SSE stream for real-time dashboard updates."""
-    while True:
-        event = await monitor.get_next_event()  # from internal event queue
-        yield ServerSentEvent(
-            data=event.to_json(),
-            event=event.event_type,  # "order_update", "drawdown_alert", etc.
-        )
-```
-
-**Alpaca TradingStream integration:**
-
-```python
-from alpaca.trading.stream import TradingStream
-
-# Runs in background task, pushes events to internal queue
-trading_stream = TradingStream(api_key, secret_key, paper=is_paper)
-
-async def trade_update_handler(data):
-    # Forward to SSE broadcast queue
-    await monitor.broadcast(OrderUpdateEvent.from_alpaca(data))
-
-trading_stream.subscribe_trade_updates(trade_update_handler)
-```
-
-The Alpaca `TradingStream` connects to `wss://paper-api.alpaca.markets/stream` (paper) or `wss://api.alpaca.markets/stream` (live) and delivers `trade_updates` events for order fills, partial fills, cancellations, and rejections.
-
-### 4. Alpaca Live Trading: Configuration Change Only
-
-**No new dependencies.** The existing `alpaca-py 0.43.2` supports live trading by changing `paper=True` to `paper=False` in `TradingClient`.
-
-**Current code** (`src/execution/infrastructure/alpaca_adapter.py` line 43-44):
-```python
-self._client = TradingClient(
-    self._api_key, self._secret_key, paper=True  # hardcoded
-)
-```
-
-**Required change:** Make `paper` configurable via settings:
-```python
-self._client = TradingClient(
-    self._api_key, self._secret_key, paper=self._paper_mode
-)
-```
-
-**Alpaca live trading requirements:**
-- Separate API key pair for live account (different from paper keys)
-- Live account requires identity verification + funding
-- Same SDK, same methods, different endpoint URLs internally
-- Paper: `https://paper-api.alpaca.markets` / Live: `https://api.alpaca.markets`
-
-**Configuration approach via pydantic-settings (already installed):**
-```python
-class AlpacaSettings(BaseSettings):
-    api_key: str
-    secret_key: str
-    paper_mode: bool = True  # Default to paper, explicit opt-in for live
-
-    model_config = SettingsConfigDict(env_prefix="ALPACA_")
-```
-
-**Safety guardrails for live trading:**
-- `paper_mode` defaults to `True` -- must be explicitly set to `False`
-- Daily budget limit in settings (max dollars auto-executed per day)
-- Kill switch: setting to immediately halt all auto-execution
-- Order confirmation logging before submission
-- All live orders must pass the same risk gates (drawdown defense, position limits)
+**Why Biome and not ESLint:** Next.js 16 explicitly removed `next lint` and recommends using Biome or ESLint directly. Biome is faster, requires less configuration, and handles both linting and formatting (replacing Prettier too). For a new project, Biome is the cleaner choice.
 
 ---
 
-## Updated pyproject.toml Changes
+## Integration Architecture: Next.js <-> FastAPI
 
-Only additions needed (diff from current v1.1):
+### API Proxying
 
-```toml
-# ADD to [project] dependencies
-dependencies = [
-    # ... existing v1.0 + v1.1 deps unchanged ...
+The Next.js app proxies API requests to the FastAPI backend. Two approaches available in Next.js 16:
 
-    # NEW v1.2: Pipeline scheduler
-    "APScheduler>=3.11.2",
+**Option A: `proxy.ts` (recommended for Next.js 16)**
 
-    # NEW v1.2: Interactive charts for dashboard
-    "plotly>=6.5.0",
-]
+```typescript
+// src/proxy.ts
+import { NextRequest, NextResponse } from 'next/server';
+
+export default function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    const url = new URL(request.nextUrl.pathname, 'http://127.0.0.1:8000');
+    return NextResponse.rewrite(url);
+  }
+}
 ```
 
-That is it. Two new pip packages. Everything else either exists already or is a CDN script tag (HTMX).
+**Option B: `next.config.ts` rewrites (simpler, proven)**
 
-## Installation Commands
+```typescript
+// next.config.ts
+const nextConfig = {
+  async rewrites() {
+    return [
+      { source: '/api/:path*', destination: 'http://127.0.0.1:8000/api/:path*' },
+      { source: '/dashboard/events', destination: 'http://127.0.0.1:8000/dashboard/events' },
+    ];
+  },
+};
+```
+
+**Recommendation:** Start with Option B (rewrites) because it is simpler and proven. Migrate to `proxy.ts` later if you need conditional logic (e.g., auth header injection).
+
+### SSE Proxying
+
+The SSE endpoint (`/dashboard/events`) must be proxied without buffering. Next.js rewrites handle this correctly for SSE because they are transparent HTTP proxies -- the response streams through without Next.js buffering it.
+
+### Backend Changes Needed
+
+The existing HTMX dashboard routes return HTML. For the Next.js frontend, the same query handlers need JSON endpoints:
+
+| Existing Route | Returns | New Route | Returns |
+|---------------|---------|-----------|---------|
+| `GET /dashboard/` | HTML (overview page) | `GET /api/dashboard/overview` | JSON |
+| `GET /dashboard/signals` | HTML (signals page) | `GET /api/dashboard/signals` | JSON |
+| `GET /dashboard/risk` | HTML (risk page) | `GET /api/dashboard/risk` | JSON |
+| `GET /dashboard/pipeline` | HTML (pipeline page) | `GET /api/dashboard/pipeline` | JSON |
+| `POST /dashboard/pipeline/run` | HTML partial | `POST /api/dashboard/pipeline/run` | JSON |
+| `POST /dashboard/pipeline/approve` | HTML partial | `POST /api/dashboard/pipeline/approve` | JSON |
+| `GET /dashboard/events` (SSE) | SSE stream | `GET /dashboard/events` (SSE) | SSE stream (unchanged) |
+
+The existing `OverviewQueryHandler`, `SignalsQueryHandler`, `RiskQueryHandler`, `PipelineQueryHandler` already produce Python dicts. The new JSON routes just call `handler.handle()` and return `JSONResponse(data)` instead of `templates.TemplateResponse(...)`. Minimal backend change.
+
+---
+
+## Project Structure
+
+```
+trading/
+  dashboard/                    # NEW: Next.js project root
+    src/
+      app/                      # App Router pages
+        layout.tsx              # Root layout (dark theme, sidebar)
+        page.tsx                # Overview page (redirects to /overview)
+        overview/
+          page.tsx              # Portfolio, P&L, equity curve
+        signals/
+          page.tsx              # Scoring heatmap, signal recommendations
+        risk/
+          page.tsx              # Drawdown, sector exposure, regime
+        pipeline/
+          page.tsx              # Pipeline runs, approval, review
+      components/
+        charts/
+          CandlestickChart.tsx  # TradingView lightweight-charts wrapper
+          EquityCurve.tsx       # Line chart for portfolio equity
+          DrawdownGauge.tsx     # Visual drawdown indicator
+        tables/
+          HoldingsTable.tsx     # shadcn/ui DataTable for positions
+          SignalsTable.tsx      # Scoring + signals data grid
+        layout/
+          Sidebar.tsx           # Navigation sidebar
+          Header.tsx            # Mode banner (LIVE/PAPER), status
+          KPICard.tsx           # Metric card component
+        ui/                     # shadcn/ui generated components
+          button.tsx
+          card.tsx
+          table.tsx
+          tabs.tsx
+          ...
+      hooks/
+        useSSE.ts               # SSE connection to FastAPI
+        useDashboard.ts         # TanStack Query hooks for each page
+      lib/
+        api.ts                  # API client (fetch wrapper)
+        utils.ts                # Formatting (currency, %, dates)
+      stores/
+        ui-store.ts             # Zustand store for UI state
+      types/
+        api.ts                  # TypeScript types matching FastAPI response shapes
+    public/
+      fonts/                    # JetBrains Mono or similar monospace
+    next.config.ts
+    tailwind.css                # Tailwind v4 CSS-first config
+    tsconfig.json
+    package.json
+  src/                          # EXISTING: Python backend (unchanged)
+    dashboard/                  # Existing HTMX dashboard (kept during migration, removed after)
+    ...
+```
+
+---
+
+## Installation
 
 ```bash
-# Install new v1.2 dependencies
-pip install "APScheduler>=3.11.2" "plotly>=6.5.0"
+# Create Next.js project inside trading repo
+cd /home/mqz/workspace/trading
+npx create-next-app@latest dashboard \
+  --typescript \
+  --tailwind \
+  --app \
+  --src-dir \
+  --turbopack \
+  --no-import-alias
 
-# Or update from pyproject.toml
-pip install -e "."
+# Core dependencies
+cd dashboard
+npm install lightweight-charts @tanstack/react-query zustand next-themes
+
+# shadcn/ui initialization (copies components into project)
+npx shadcn@latest init
+# Select: dark theme, zinc color, CSS variables
+
+# Add specific shadcn components
+npx shadcn@latest add button card table tabs badge separator
+npx shadcn@latest add data-table  # pulls in @tanstack/react-table
+
+# Dev tooling
+npm install -D @biomejs/biome
+npx biome init
 ```
+
+**Total npm packages added to `package.json`:**
+
+| Package | Type | Size (gzipped) |
+|---------|------|----------------|
+| next | core | ~130KB (framework) |
+| react + react-dom | core | ~45KB |
+| lightweight-charts | runtime | ~45KB |
+| @tanstack/react-query | runtime | ~40KB |
+| zustand | runtime | ~2KB |
+| next-themes | runtime | ~2KB |
+| @tanstack/react-table | runtime | ~15KB (via shadcn) |
+| @biomejs/biome | devDep | n/a (dev only) |
+| tailwindcss + postcss | devDep | n/a (build only) |
+
+**Client bundle overhead:** ~150KB gzipped for all runtime deps. This is smaller than Plotly.js alone (1.2MB).
 
 ---
 
 ## Alternatives Considered
 
-| Category | Recommended | Alternative | When to Use Alternative |
-|----------|-------------|-------------|-------------------------|
-| Scheduler | APScheduler 3.11 | Celery + Redis | When scaling to multiple workers processing concurrent pipelines. Not needed for single daily cron. |
-| Scheduler | APScheduler 3.11 | System crontab | When the job is a standalone script with no process state. Not suitable here because the scheduler needs access to approved strategies and portfolio state. |
-| Dashboard | HTMX + Jinja2 | React + Next.js | When building a multi-user SaaS dashboard with complex client-side interactions. Overkill for a single-trader personal dashboard. |
-| Dashboard | HTMX + Jinja2 | Streamlit | When building a quick data exploration prototype. Not suitable for production dashboard (RAM per session, session affinity, no custom layout). |
-| Dashboard | HTMX + Jinja2 | Dash (Plotly) | When building a standalone analytics app with heavy Plotly integration. Adds Flask as second web framework alongside FastAPI -- redundant. |
-| Real-time | Native FastAPI SSE | WebSocket | When bidirectional communication needed (e.g., interactive chat). Dashboard is server-push only (order updates, alerts), so SSE is simpler and sufficient. |
-| Real-time | Native FastAPI SSE | sse-starlette | When running FastAPI < 0.135.0. We have 0.135.1, so native SSE is available. No external package needed. |
-| Charts | Plotly.py | Bokeh | When you need a Bokeh server for streaming charts. Plotly generates standalone HTML that works without a separate server process. |
-| Charts | Plotly.py | Matplotlib | When generating static PDF reports. Not suitable for interactive web dashboard charts. |
-| Live trading | Alpaca (config change) | Alpaca + separate live wrapper | When you want a separate codebase for live trading. Unnecessary -- same SDK, same interface, just `paper=False`. |
+| Category | Recommended | Alternative | Why Not |
+|----------|-------------|-------------|---------|
+| Framework | Next.js 16 | Vite + React | Vite lacks SSR, layouts, file-based routing, proxy built-in. Next.js provides all of these out of the box. For a dashboard that will eventually have SEO needs (commercial product), Next.js is the better foundation. |
+| Framework | Next.js 16 | Next.js 15 | Still works, but 15 requires explicit Turbopack opt-in, has experimental React Compiler, and uses `middleware.ts` instead of cleaner `proxy.ts`. Since this is a new project (not migration), start with 16. |
+| Charts | lightweight-charts 5.1 | Plotly.js | 1.2MB bundle vs 45KB. Plotly excels in Python-side generation (HTMX pattern); lightweight-charts excels in client-side React rendering. Different tools for different architectures. |
+| Charts | lightweight-charts 5.1 | recharts | No OHLC candlestick support. Not designed for financial charts. Fine for generic dashboards, wrong for trading terminals. |
+| Charts | lightweight-charts 5.1 | D3.js | Low-level -- would need to build every chart type from scratch. Lightweight Charts provides financial charts out of the box. |
+| State | TanStack Query + Zustand | Redux Toolkit | RTK requires ~3x more boilerplate (slices, thunks, selectors). TanStack Query handles the server-state part better than RTK Query for simple API consumption. |
+| State | TanStack Query + Zustand | React Context | Context re-renders all consumers on any change. For a dashboard with 10+ data panels, this is a performance problem. Zustand has selective subscriptions. |
+| Styling | Tailwind + shadcn/ui | Material UI (MUI) | MUI adds 200KB+ runtime, has its own CSS-in-JS engine (Emotion), and fights with Tailwind. shadcn/ui is zero-runtime, Tailwind-native. |
+| Styling | Tailwind + shadcn/ui | Chakra UI | Same problem as MUI -- runtime CSS-in-JS, conflicts with Tailwind. Also less actively maintained in 2026. |
+| Tables | @tanstack/react-table (via shadcn) | AG-Grid | AG-Grid Community is 500KB+. Overkill for 4 tables in a personal dashboard. TanStack Table is headless, 15KB, and integrated with shadcn/ui. |
+| Real-time | Native EventSource | Socket.IO | Socket.IO requires a Node.js server component. Our backend is Python+FastAPI using SSE. EventSource API is the native browser client for SSE. Zero additional dependencies. |
+| Real-time | Native EventSource | Custom WebSocket | Would require rewriting the FastAPI SSE infrastructure to WebSocket. SSE is sufficient for server-push (order updates, regime changes). No bidirectional need. |
+| Dark theme | next-themes | CSS prefers-color-scheme only | next-themes prevents flash of wrong theme on page load (injects script before React hydration). Pure CSS approach causes visible theme flash. |
+| Linting | Biome | ESLint + Prettier | Next.js 16 removed `next lint`. Biome is 35x faster, combines linting and formatting, single config. For a new project, Biome is simpler. |
+
+---
 
 ## What NOT to Add
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| React / Next.js / TypeScript | Adds entire Node.js toolchain for a single-user personal dashboard. HTMX achieves the same result in pure Python. | HTMX + Jinja2 + Plotly.py |
-| Celery + Redis | Massive infrastructure for a single daily cron job. Redis is another process to manage. | APScheduler with SQLite jobstore |
-| sse-starlette | Redundant. FastAPI 0.135.0+ has native SSE support via `fastapi.sse`. | `from fastapi.sse import EventSourceResponse` |
-| Streamlit | Runs its own web server. Cannot integrate with existing FastAPI app. RAM scales linearly per session. | FastAPI + HTMX |
-| Dash | Adds Flask as second web framework alongside FastAPI. Redundant. | Plotly.py (chart generation only, no Dash server) |
-| APScheduler 4.0 | Alpha release (4.0.0a1). Unstable API, not production-ready. | APScheduler 3.11.2 (stable) |
-| Redis | Not needed for v1.2. SSE replaces polling. APScheduler uses SQLite for persistence. slowapi uses in-memory storage. Redis adds infrastructure complexity for zero benefit at single-instance scale. | SQLite for persistence, in-memory for caching |
-| Docker | Single-instance personal deployment. systemd or a process manager (pm2, supervisord) is sufficient. Docker adds complexity for a Python-only stack. | systemd service file or `nohup uvicorn ...` |
-| Gunicorn | Single-instance with 1 worker. uvicorn alone is sufficient. Gunicorn adds process management overhead when we only need 1 process (scheduler + API + dashboard in same asyncio loop). | `uvicorn main:app --host 0.0.0.0 --port 8000` |
+| Plotly.js (frontend) | 1.2MB bundle. Wrong tool for client-side React charts. Was correct for HTMX (server-side generation). | lightweight-charts (45KB) |
+| Redux / Redux Toolkit | Boilerplate overhead for a single-user dashboard. No shared state across browser tabs. | Zustand (UI state) + TanStack Query (server state) |
+| Socket.IO / ws | Backend uses SSE, not WebSocket. Adding WebSocket requires rewriting the SSE bridge. | Native EventSource API |
+| Material UI / Chakra UI | CSS-in-JS runtime conflicts with Tailwind. Large bundles. | shadcn/ui (zero runtime, Tailwind-native) |
+| AG-Grid | 500KB+ for a library when we have 4 tables. | @tanstack/react-table via shadcn Data Table |
+| Storybook | Overhead for a personal dashboard. Component library design tool for teams, not solo projects. | Develop components directly in pages |
+| Jest | Next.js 16 recommends Vitest for App Router testing. | Vitest (if frontend tests needed) |
+| Prisma / Drizzle | No database on the frontend. All data comes from FastAPI backend. | FastAPI JSON endpoints via TanStack Query |
+| NextAuth.js | Single-user personal dashboard. Auth is unnecessary. If commercial later, add then. | None -- or simple API key header if needed |
+| Docker (for Next.js) | Single-instance personal deployment. `npm run build && npm start` is sufficient. | Direct Node.js process |
+| Framer Motion | Animation library. Bloomberg terminals are not animated -- they are data-dense and static. | CSS transitions for minimal UI feedback |
 
 ---
 
-## Integration Points with Existing Stack
+## Version Compatibility Matrix
 
-### Pipeline Scheduler + Existing Code
+| Package | Version | Requires | Compatible With |
+|---------|---------|----------|-----------------|
+| Next.js 16.1.x | latest | Node.js 20.9+ | Node.js 22.x (project) |
+| React 19.2.x | bundled with Next.js 16 | -- | Next.js 16 |
+| TypeScript 5.x | bundled with create-next-app | -- | Next.js 16 |
+| lightweight-charts 5.1.x | latest | -- | Any React (DOM rendering) |
+| @tanstack/react-query 5.90.x | latest | React 18+ | React 19.2 |
+| zustand 5.0.x | latest | React 18+ | React 19.2 |
+| Tailwind CSS 4.x | latest | PostCSS | Next.js 16 (via @tailwindcss/postcss) |
+| next-themes 0.4.x | latest | Next.js 13+ | Next.js 16 |
+| @biomejs/biome 2.x | latest | -- | Any project |
+| shadcn/ui | CLI-based, no version | Tailwind CSS, React | Tailwind v4 + React 19 |
 
-The scheduler calls functions that already exist:
-
-| Pipeline Step | Existing Function/Handler | Trigger |
-|---------------|--------------------------|---------|
-| Data ingestion | `DataPipeline.ingest_universe()` | Cron 7:00 AM ET |
-| Regime detection | `DetectRegimeHandler.handle()` | After data ingestion |
-| Scoring | `ScoreSymbolHandler.handle()` | After regime detection |
-| Signal generation | `GenerateSignalHandler.handle()` | After scoring |
-| Auto-execution | `AlpacaExecutionAdapter.submit_bracket_order()` | After signal, within approved budget |
-
-The scheduler is an orchestration layer on top of existing handlers -- no new business logic needed.
-
-### Web Dashboard + Existing Repositories
-
-The dashboard reads from the same SQLite/DuckDB stores that the CLI reads:
-
-| Dashboard View | Data Source | Repository |
-|----------------|-------------|------------|
-| Portfolio holdings | SQLite `positions` | `SqlitePositionRepository` |
-| Scoring results | SQLite `composite_scores` | `SqliteScoreRepository` |
-| Signal history | SQLite `signals` | `SqliteSignalRepository` |
-| Trade plans | SQLite `trade_plans` | `SqliteTradePlanRepository` |
-| Regime status | SQLite `market_regimes` | `SqliteRegimeRepository` |
-| OHLCV charts | DuckDB `ohlcv` | `DuckDBStore` |
-
-No new data stores needed. The dashboard is a read-only presentation layer over existing repositories.
-
-### Alpaca Live Trading + Existing Adapter
-
-The change is confined to `src/execution/infrastructure/alpaca_adapter.py`:
-
-1. Add `paper: bool` parameter to `__init__`
-2. Pass `paper=self._paper` to `TradingClient`
-3. Add `TradingStream` for real-time order updates
-4. Add budget enforcement (daily limit check before order submission)
-
-The rest of the execution pipeline (risk gates, position sizing, drawdown defense) remains unchanged.
-
-### SSE + Existing Event System
-
-The existing `AsyncEventBus` in `src/shared/infrastructure/event_bus.py` can be wired to feed SSE streams:
-
-1. Domain events (ScoreUpdatedEvent, RegimeChangedEvent, etc.) published to AsyncEventBus
-2. SSE subscriber listens to AsyncEventBus, forwards events to SSE broadcast queue
-3. Dashboard clients receive events via `/dashboard/stream` SSE endpoint
-
-This is the first real consumer of the event bus that was built in v1.0 but never used.
+**No version conflicts identified.** All packages are current stable releases compatible with each other.
 
 ---
 
-## Version Compatibility
+## Key Stack Decisions for v1.3
 
-| Package | Version | Compatible With | Notes |
-|---------|---------|-----------------|-------|
-| APScheduler 3.11.2 | Python 3.8-3.13 | Python 3.12 (project) | Uses SQLAlchemy internally for SQLite jobstore |
-| Plotly 6.5.x | Python 3.9+ | Python 3.12 (project) | Generates standalone HTML/JS, no server-side deps |
-| HTMX 2.0.x | Browser-side JS | Any server | CDN script, no Python dependency |
-| FastAPI SSE | 0.135.0+ | FastAPI 0.135.1 (installed) | Native, no extra package |
-| Alpaca TradingStream | alpaca-py 0.43.x | alpaca-py 0.43.2 (installed) | Same package, different class |
+1. **Next.js 16 over keeping HTMX** -- The HTMX dashboard works but cannot achieve Bloomberg-level data density, synchronized multi-panel layouts, client-side chart interactions (zoom, crosshair, time range selection), or smooth loading states. Next.js provides the component model, routing, and streaming needed for a professional trading UI.
 
-**No version conflicts.** APScheduler uses SQLAlchemy internally for its jobstore, which is a separate concern from the project's direct SQLite usage via `sqlite3` stdlib. They do not conflict -- APScheduler manages its own `scheduler.db` file.
+2. **Lightweight Charts over Plotly.js** -- Plotly.js was the right choice for HTMX (generate chart HTML on the server). For a React app, TradingView Lightweight Charts is 26x smaller, renders directly in the browser via canvas, and is the industry standard for financial charting.
 
----
+3. **TanStack Query + Zustand over Redux** -- Server state (API data) and client state (UI preferences) are separate concerns. TanStack Query handles caching, refetching, and loading states for API calls. Zustand handles which tab is active, sidebar state, and filter selections. Together they replace Redux with less code.
 
-## Stack Patterns by Variant
+4. **shadcn/ui over full component library** -- shadcn/ui copies component source code into the project. No library dependency, no version conflicts, full customization control. The Data Table component wraps TanStack Table for sortable/filterable grids. Dark mode via CSS variables matches the Bloomberg aesthetic.
 
-**If you need the scheduler to survive process crashes (recommended for live trading):**
-- Use `SQLAlchemyJobStore(url='sqlite:///data/scheduler.db')` for persistent job schedules
-- Use `misfire_grace_time=3600` so missed jobs (e.g., reboot during market hours) run when process restarts
-- Run uvicorn via systemd with `Restart=always`
+5. **Native EventSource over WebSocket library** -- The existing FastAPI SSE bridge (`SSEBridge` class in `src/dashboard/infrastructure/sse_bridge.py`) already broadcasts domain events. The React frontend connects via the browser's built-in `EventSource` API. Zero additional dependencies on either side.
 
-**If you need horizontal scaling later (multi-instance API):**
-- Replace APScheduler's SQLite jobstore with PostgreSQL
-- Replace slowapi's in-memory store with Redis backend
-- Add Redis pub/sub for SSE broadcast across instances
-- This is a v1.3+ concern, not v1.2
+6. **Biome over ESLint + Prettier** -- Next.js 16 removed `next lint`. Starting fresh with Biome gives a single fast tool for both linting and formatting.
 
-**If you want TradingView-quality candlestick charts later:**
-- Add `lightweight-charts` JS library alongside HTMX (CDN script tag)
-- Generate chart data in Python, render with TradingView's library client-side
-- This is a cosmetic enhancement, not a v1.2 blocker
-
----
-
-## Dependency Summary
-
-### Must Add (2 packages)
-
-| Package | Version | Purpose | Risk |
-|---------|---------|---------|------|
-| APScheduler | >=3.11.2 | Daily pipeline scheduler with cron triggers, SQLite persistence | Low -- mature, production-proven, 10+ years of releases |
-| plotly | >=6.5.0 | Interactive financial charts for web dashboard | Low -- generates standalone HTML, no server-side complexity |
-
-### Already Have (use what is installed)
-
-| Package | Version | v1.2 Capability | What to Use |
-|---------|---------|-----------------|-------------|
-| FastAPI | 0.135.1 | Native SSE for real-time monitoring | `from fastapi.sse import EventSourceResponse` |
-| Jinja2 | 3.1.2 | HTML template rendering for dashboard | `from fastapi.templating import Jinja2Templates` |
-| alpaca-py | 0.43.2 | Live trading + TradingStream | `TradingClient(paper=False)`, `TradingStream` |
-| pydantic-settings | 2.13.1 | Live/paper mode configuration | `AlpacaSettings` with `paper_mode: bool` |
-| Starlette | 0.52.1 | Static file serving for dashboard assets | `from starlette.staticfiles import StaticFiles` |
-
-### Browser-Side Only (no pip install)
-
-| Asset | Version | Delivery | Purpose |
-|-------|---------|----------|---------|
-| HTMX | 2.0.4 | CDN `<script>` tag | Interactive HTML without JavaScript frameworks |
-| htmx-ext-sse | 2.2.2 | CDN `<script>` tag | SSE extension for live dashboard updates |
-| Plotly.js | (bundled with plotly.py) | Embedded in chart HTML | Client-side chart rendering |
-
-### Do NOT Add
-
-| Package | Reason |
-|---------|--------|
-| React / Next.js / TypeScript | Entire Node.js toolchain for single-user dashboard. HTMX achieves same result. |
-| sse-starlette | Redundant. FastAPI 0.135.0+ has native SSE. |
-| Celery / Redis | Massive overhead for single daily cron job. |
-| Streamlit / Dash | Separate web servers. Cannot integrate with existing FastAPI. |
-| APScheduler 4.0 | Alpha. Unstable API. Use 3.11.2. |
-| Gunicorn | Single-instance. uvicorn alone sufficient. |
-| Docker | Single-instance personal deployment. systemd sufficient. |
-
----
-
-## Key Stack Decisions for v1.2
-
-1. **HTMX over React** -- The dashboard is a personal tool for one trader. HTMX eliminates the Node.js/TypeScript/React toolchain entirely. The same FastAPI process serves both the REST API and the dashboard. If a multi-user SaaS dashboard is needed later, React can be added as a separate frontend then.
-
-2. **APScheduler over Celery** -- A single daily pipeline (ingest -> regime -> score -> signal -> execute) runs as a cron job within the existing FastAPI process. No message broker, no separate worker process, no Redis. SQLite jobstore provides persistence across restarts.
-
-3. **Native FastAPI SSE over WebSocket** -- Dashboard monitoring is server-push only (order fills, alerts, pipeline status). SSE is simpler than WebSocket for unidirectional data flow. FastAPI 0.135.1 has built-in SSE support, so no external package is needed.
-
-4. **Plotly.py over Matplotlib/Bokeh** -- Generates interactive HTML chart fragments that embed directly in HTMX templates. Native financial chart types (candlestick, OHLC). The chart HTML renders client-side via plotly.js, so no extra server-side computation after initial generation.
-
-5. **Alpaca config change over rewrite** -- Live trading requires only changing `paper=True` to a configurable `paper=self._settings.paper_mode`. The same `TradingClient` API, same order types, same bracket orders. The safety layer (budget limits, kill switch) is application logic, not a dependency concern.
-
-6. **Total new pip packages: 2** (APScheduler + Plotly). Everything else is already installed or is a CDN script tag. This is the minimum viable addition for the four v1.2 capabilities.
+7. **API proxy via `next.config.ts` rewrites** -- The Next.js dev server proxies `/api/*` requests to FastAPI at `http://127.0.0.1:8000`. In production, both run on the same machine. This is simpler than CORS configuration and matches the existing single-process deployment model.
 
 ---
 
 ## Sources
 
-- [APScheduler PyPI](https://pypi.org/project/APScheduler/) -- v3.11.2, Dec 2025, verified 2026-03-13 (HIGH confidence)
-- [APScheduler 3.x User Guide](https://apscheduler.readthedocs.io/en/3.x/userguide.html) -- AsyncIOScheduler, SQLAlchemyJobStore, CronTrigger (HIGH confidence)
-- [Plotly.py PyPI](https://pypi.org/project/plotly/) -- v6.5.2, Jan 2026, verified 2026-03-13 (HIGH confidence)
-- [FastAPI SSE Docs](https://fastapi.tiangolo.com/tutorial/server-sent-events/) -- Native SSE in 0.135.0+, EventSourceResponse, ServerSentEvent (HIGH confidence)
-- [Alpaca-py PyPI](https://pypi.org/project/alpaca-py/) -- v0.43.2, Nov 2025, confirmed (HIGH confidence)
-- [Alpaca Trading SDK Docs](https://alpaca.markets/sdks/python/trading.html) -- TradingClient paper param, TradingStream WebSocket (HIGH confidence)
-- [Alpaca WebSocket Streaming](https://alpaca.markets/docs/api-references/trading-api/streaming/) -- trade_updates events, live/paper endpoints (HIGH confidence)
-- [sse-starlette PyPI](https://pypi.org/project/sse-starlette/) -- v3.3.2, Feb 2026 -- confirmed NOT needed since FastAPI has native SSE (HIGH confidence)
-- [HTMX + FastAPI Patterns 2025](https://johal.in/htmx-fastapi-patterns-hypermedia-driven-single-page-applications-2025/) -- SSR performance benchmarks (MEDIUM confidence)
-- [Realtime Dashboard: FastAPI, Streamlit, Next.js](https://jaehyeon.me/blog/2025-03-04-realtime-dashboard-3/) -- Architecture comparison (MEDIUM confidence)
-- Direct codebase analysis: `src/execution/infrastructure/alpaca_adapter.py` line 43-44 confirms `paper=True` hardcoded (HIGH confidence)
-- Direct codebase analysis: `pip show` confirms installed versions of FastAPI 0.135.1, Jinja2 3.1.2, Starlette 0.52.1 (HIGH confidence)
+- [Next.js 16 Release Blog](https://nextjs.org/blog/next-16) -- Turbopack stable, React Compiler, proxy.ts, React 19.2 (HIGH confidence)
+- [Next.js 16.1 Release Blog](https://nextjs.org/blog/next-16-1) -- Latest patch (HIGH confidence)
+- [Next.js 16 Upgrade Guide](https://nextjs.org/docs/app/guides/upgrading/version-16) -- Breaking changes, Node.js 20.9+ requirement (HIGH confidence)
+- [TradingView Lightweight Charts Official Docs](https://tradingview.github.io/lightweight-charts/) -- v5.1, React integration tutorials (HIGH confidence)
+- [TradingView Lightweight Charts npm](https://www.npmjs.com/package/lightweight-charts) -- v5.1.0, published ~3 months ago (HIGH confidence)
+- [TradingView Lightweight Charts React Basic Tutorial](https://tradingview.github.io/lightweight-charts/tutorials/react/simple) -- useRef+useEffect pattern (HIGH confidence)
+- [TradingView Lightweight Charts React Advanced Tutorial](https://tradingview.github.io/lightweight-charts/tutorials/react/advanced) -- Component-based architecture (HIGH confidence)
+- [@tanstack/react-query npm](https://www.npmjs.com/package/@tanstack/react-query) -- v5.90.21, published ~1 month ago (HIGH confidence)
+- [zustand npm](https://www.npmjs.com/package/zustand) -- v5.0.11, published ~1 month ago (HIGH confidence)
+- [shadcn/ui Dark Mode Next.js Guide](https://ui.shadcn.com/docs/dark-mode/next) -- next-themes integration (HIGH confidence)
+- [shadcn/ui Data Table Component](https://ui.shadcn.com/docs/components/radix/data-table) -- TanStack Table integration (HIGH confidence)
+- [Tailwind CSS v4 Release](https://tailwindcss.com/blog/tailwindcss-v4) -- CSS-first config, performance improvements (HIGH confidence)
+- [next-themes GitHub](https://github.com/pacocoursey/next-themes) -- Flash prevention, system preference (HIGH confidence)
+- [State of React State Management 2026](https://www.pkgpulse.com/blog/state-of-react-state-management-2026) -- TanStack Query + Zustand dominant pattern (MEDIUM confidence)
+- [Next.js 16 Proxy Architecture](https://learnwebcraft.com/learn/nextjs/nextjs-16-proxy-ts-changes-everything) -- proxy.ts patterns (MEDIUM confidence)
+- Direct codebase analysis: `src/dashboard/infrastructure/sse_bridge.py` confirms SSEBridge with asyncio queues (HIGH confidence)
+- Direct codebase analysis: `src/dashboard/presentation/routes.py` confirms HTMX template rendering with query handlers (HIGH confidence)
+- Direct codebase analysis: `src/dashboard/presentation/templates/base.html` confirms Tailwind CDN + HTMX + Plotly.js CDN (HIGH confidence)
 
 ---
-*Stack research for: v1.2 Production Trading & Dashboard*
-*Researched: 2026-03-13*
-*All versions verified against PyPI + installed packages on 2026-03-13*
+*Stack research for: v1.3 Bloomberg Dashboard (Next.js)*
+*Researched: 2026-03-14*
+*All versions verified against npm registry + official documentation on 2026-03-14*

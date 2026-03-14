@@ -1,1007 +1,687 @@
-# Architecture Patterns: v1.2 Production Trading & Dashboard
+# Architecture Research: v1.3 Bloomberg Dashboard (Next.js + React)
 
-**Domain:** Automated trading pipeline, live execution, strategy/budget approval, and web dashboard integration into existing DDD architecture
-**Researched:** 2026-03-13
-**Overall Confidence:** HIGH (based on direct codebase analysis of existing 20K+ LOC system plus verified library research)
-
----
-
-## Executive Summary
-
-The v1.2 milestone introduces four capabilities -- automated pipeline scheduler, live trading, strategy/budget approval workflow, and web dashboard -- into an existing DDD system with 8 bounded contexts, a dual-database (DuckDB + SQLite) architecture, and a working but mostly unwired async event bus.
-
-The critical architectural finding is that these four features require **one new bounded context** (`scheduler`), **one new presentation layer** (`dashboard`), and **significant modifications to two existing contexts** (`execution` for live trading + approval workflow, `portfolio` for real-time monitoring). The existing event bus, which was defined but largely dormant in v1.0-v1.1, becomes the backbone for v1.2 -- the scheduler publishes pipeline stage events, the execution context publishes order events, and the dashboard subscribes to all of them for real-time updates.
-
-The AlpacaExecutionAdapter already has a `paper=True` flag. Switching to live is a one-line configuration change (`paper=False`), but the real work is the safeguards around it: budget enforcement, daily spending limits, circuit breakers, and error recovery. These safeguards are new domain logic in `execution/domain/` that wraps the existing IBrokerAdapter.
-
-For the web dashboard, the recommended approach is **FastAPI + Jinja2 + HTMX + SSE** -- server-side rendered HTML with HTMX for partial updates and Server-Sent Events for real-time streaming. This avoids introducing a JavaScript SPA framework, stays within the Python-centric stack, and leverages the existing FastAPI infrastructure from the commercial API. The dashboard is a separate FastAPI app mounted alongside (not replacing) the commercial API.
-
-**Key architectural decision: The pipeline scheduler, approval workflow, and live execution are personal-use features (not commercial). They share the same DDD handlers and domain logic as the CLI, but are orchestrated by a new `scheduler` bounded context instead of manual CLI commands.**
+**Domain:** Bloomberg-style trading dashboard replacing HTMX+Jinja2 with Next.js+React, integrating with existing Python/FastAPI backend
+**Researched:** 2026-03-14
+**Confidence:** HIGH
 
 ---
 
-## Current Architecture (As-Is, post-v1.1)
+## Standard Architecture
 
 ### System Overview
 
 ```
-User (CLI: Typer+Rich)
-    |
-    v
-bootstrap.py (Composition Root)
-    |-- SyncEventBus (CLI context, used for regime -> scoring weight adjustment)
-    |-- DBFactory (DuckDB analytics + SQLite operational)
-    |-- 5 handlers: score, signal, regime, portfolio, trade_plan
-    |-- 1 broker adapter: AlpacaExecutionAdapter (paper=True) or KisExecutionAdapter
-    v
-Manual Pipeline: ingest -> score -> signal -> plan -> approve -> execute
-    (each step is a separate CLI command)
+                          v1.3 Target Architecture
+ ======================================================================
+
+  Browser (React SPA)
+  +---------------------------------------------------------+
+  | Next.js App (localhost:3000)                             |
+  |                                                         |
+  |  /overview    /signals     /risk      /pipeline         |
+  |  [React]      [React]      [React]    [React]           |
+  |                                                         |
+  |  TradingView     shadcn/ui         Recharts/            |
+  |  Lightweight     Data Tables       Lightweight          |
+  |  Charts                            Charts               |
+  |                                                         |
+  |  EventSource (SSE) ----+                                |
+  +--------------------------|----- |-----------------------+
+                             |      |
+            next.config.js rewrites (proxy)
+              /api/* --> localhost:8000/api/*
+              /dashboard/events --> localhost:8000/dashboard/events
+                             |      |
+  +--------------------------|----- |-----------------------+
+  | FastAPI (localhost:8000)  |      |                      |
+  |                          v      v                       |
+  |  /api/dashboard/*    /dashboard/events (SSE)            |
+  |  [JSON REST]         [SSE stream]                       |
+  |                                                         |
+  |  DashboardQueryHandlers  -->  bootstrap ctx             |
+  |  (overview, signals,         (repos, handlers,          |
+  |   risk, pipeline)             bus, adapters)            |
+  |                                                         |
+  |  Commercial API (/api/v1/*)                             |
+  |  [Unchanged]                                            |
+  +---------------------------------------------------------+
+                             |
+  +--------------------------+------------------------------+
+  |  Data Layer                                             |
+  |  SQLite (operational)    DuckDB (analytics)             |
+  |  Alpaca (broker)         yfinance/EDGAR (data)          |
+  +---------------------------------------------------------+
 ```
 
-### Key Existing Components
+### Component Responsibilities
 
-| Component | State | v1.2 Impact |
-|-----------|-------|-------------|
-| `SyncEventBus` | Active, wires RegimeChangedEvent -> scoring weights | Must support async for scheduler/dashboard |
-| `AsyncEventBus` | Exists, unused in production | Becomes the primary bus for v1.2 |
-| `TradePlanHandler` | generate -> approve -> execute lifecycle | Extend with budget/strategy approval workflow |
-| `AlpacaExecutionAdapter` | paper=True, mock fallback | Add paper=False path with safeguards |
-| `DataPipeline` | async ingest_universe() | Becomes first stage of automated pipeline |
-| `ITradePlanRepository` | save/find_pending/find_by_symbol/update_status | Add find_by_date_range, budget tracking queries |
-| `TradePlanStatus` | PENDING/APPROVED/REJECTED/MODIFIED/EXECUTED/FAILED | Add BUDGET_CHECK, AUTO_APPROVED states |
-
-### Data Flow (Current -- Manual)
-
-```
-CLI: ingest AAPL MSFT GOOG  --> DataPipeline.ingest_universe()  --> DuckDB
-CLI: score AAPL              --> ScoreSymbolHandler.handle()     --> SQLite
-CLI: signal AAPL             --> GenerateSignalHandler.handle()  --> SQLite
-CLI: plan AAPL               --> TradePlanHandler.generate()     --> SQLite (PENDING)
-CLI: approve AAPL            --> TradePlanHandler.approve()      --> SQLite (APPROVED)
-CLI: execute AAPL            --> TradePlanHandler.execute()      --> Alpaca (paper)
-CLI: monitor                 --> Position/Portfolio read          --> Display
-```
-
-Each step is triggered manually by the user via CLI commands. There is no orchestration layer that chains these steps together.
+| Component | Responsibility | Typical Implementation |
+|-----------|----------------|------------------------|
+| Next.js App | UI rendering, client-side interactivity, route management | App Router with pages for each dashboard view |
+| Next.js API Routes | Proxy layer to FastAPI, optional BFF (Backend-for-Frontend) transforms | Route handlers calling FastAPI via `fetch()` |
+| FastAPI Dashboard API | JSON REST endpoints replacing Jinja2 template rendering | New `/api/dashboard/*` routes returning JSON |
+| FastAPI SSE Bridge | Real-time domain event streaming to browser | Existing SSEBridge, unchanged |
+| TradingView Charts | Candlestick charts, equity curves, technical indicators | `lightweight-charts` v5.x with React wrapper |
+| shadcn/ui Components | Data tables, gauges, badges, cards, dark theme | Vendored components with Tailwind CSS |
+| Dashboard Query Handlers | Aggregate data from multiple bounded contexts | Existing `OverviewQueryHandler`, `SignalsQueryHandler`, etc. |
+| Bootstrap Context | Composition root wiring all repos and handlers | Existing `bootstrap.py`, no changes needed |
 
 ---
 
-## Target Architecture (v1.2 To-Be)
+## Recommended Project Structure
 
-### New Components
+The dashboard is a **separate directory at the project root**, not inside `src/` (which is the Python DDD codebase). This keeps the TypeScript/Node.js toolchain completely isolated from the Python toolchain.
 
 ```
-NEW BOUNDED CONTEXT:
-  src/scheduler/
-    domain/
-      entities.py          # PipelineRun, ScheduleConfig
-      value_objects.py     # PipelineStage, RunStatus, DailyBudget, StrategyApproval
-      events.py            # PipelineStartedEvent, StageCompletedEvent, PipelineCompletedEvent
-      services.py          # PipelineOrchestratorService (chains stages)
-      repositories.py      # IPipelineRunRepository, IScheduleConfigRepository
-      __init__.py
-    application/
-      commands.py          # RunPipelineCommand, ApproveStrategyCommand, SetBudgetCommand
-      handlers.py          # PipelineRunHandler, StrategyApprovalHandler
-      __init__.py
-    infrastructure/
-      apscheduler_adapter.py   # APScheduler integration
-      sqlite_pipeline_repo.py  # Pipeline run history
-      sqlite_config_repo.py    # Schedule + approval config
-      __init__.py
-    DOMAIN.md
-
-NEW PRESENTATION LAYER:
-  dashboard/
-    app.py                 # FastAPI app (personal dashboard, not commercial)
-    routes/
-      overview.py          # Portfolio overview, P&L
-      pipeline.py          # Pipeline status, history
-      approval.py          # Strategy/budget approval forms
-      trades.py            # Trade history, execution log
-      risk.py              # Risk dashboard (drawdown, exposure)
-      sse.py               # SSE endpoint for real-time updates
-    templates/
-      base.html            # Jinja2 base template (HTMX + DaisyUI/Tailwind)
-      overview.html         # Portfolio overview page
-      pipeline.html        # Pipeline status page
-      approval.html        # Approval workflow page
-      trades.html          # Trade history page
-      risk.html            # Risk metrics page
-      partials/            # HTMX partial templates for live updates
-    static/
-      css/                 # Tailwind output
-      js/                  # Minimal JS (HTMX only, no framework)
-    __init__.py
-
-MODIFIED EXISTING CONTEXTS:
-  src/execution/
-    domain/
-      value_objects.py     # + DailyBudget, BudgetStatus, ExecutionMode (PAPER/LIVE)
-      events.py            # Already has OrderExecutedEvent, OrderFailedEvent
-      services.py          # + BudgetEnforcementService, CircuitBreakerService
-      repositories.py      # + IBudgetRepository
-    application/
-      commands.py          # + AutoExecuteWithBudgetCommand
-      handlers.py          # + AutoExecutionHandler (budget-checked execution)
-    infrastructure/
-      alpaca_adapter.py    # paper=False support (already designed, add safeguards)
-      sqlite_budget_repo.py  # NEW: daily budget tracking
-      order_monitor.py       # NEW: real-time order status polling
-
-  src/portfolio/
-    domain/
-      events.py            # Already has DrawdownAlertEvent (wire it to bus)
-    application/
-      handlers.py          # + get_dashboard_summary() query method
-
-  src/shared/
-    infrastructure/
-      event_bus.py         # Already async-capable, no changes needed
+trading/                          # Project root
+├── dashboard/                    # NEW: Next.js frontend
+│   ├── package.json
+│   ├── next.config.ts
+│   ├── tsconfig.json
+│   ├── tailwind.config.ts
+│   ├── postcss.config.js
+│   ├── .env.local                # NEXT_PUBLIC_API_URL=http://localhost:8000
+│   ├── public/
+│   │   └── favicon.ico
+│   └── src/
+│       ├── app/                  # App Router pages
+│       │   ├── layout.tsx        # Root layout (dark theme, sidebar nav)
+│       │   ├── page.tsx          # Overview page (redirect or default)
+│       │   ├── overview/
+│       │   │   └── page.tsx      # Portfolio overview
+│       │   ├── signals/
+│       │   │   └── page.tsx      # Scoring + signal recommendations
+│       │   ├── risk/
+│       │   │   └── page.tsx      # Drawdown, sector exposure, regime
+│       │   └── pipeline/
+│       │       └── page.tsx      # Pipeline runs, approval, review
+│       ├── components/           # Shared React components
+│       │   ├── ui/               # shadcn/ui vendored primitives
+│       │   │   ├── button.tsx
+│       │   │   ├── card.tsx
+│       │   │   ├── data-table.tsx
+│       │   │   ├── badge.tsx
+│       │   │   └── ...
+│       │   ├── layout/           # Layout components
+│       │   │   ├── sidebar.tsx
+│       │   │   ├── header.tsx
+│       │   │   └── mode-banner.tsx
+│       │   ├── charts/           # Chart components
+│       │   │   ├── equity-curve.tsx
+│       │   │   ├── candlestick-chart.tsx
+│       │   │   ├── drawdown-gauge.tsx
+│       │   │   └── sector-donut.tsx
+│       │   ├── overview/         # Page-specific components
+│       │   │   ├── kpi-cards.tsx
+│       │   │   ├── holdings-table.tsx
+│       │   │   └── trade-history.tsx
+│       │   ├── signals/
+│       │   │   ├── scoring-table.tsx
+│       │   │   └── signal-cards.tsx
+│       │   ├── risk/
+│       │   │   ├── risk-metrics.tsx
+│       │   │   └── regime-badge.tsx
+│       │   └── pipeline/
+│       │       ├── pipeline-runs.tsx
+│       │       ├── approval-panel.tsx
+│       │       └── review-queue.tsx
+│       ├── hooks/                # Custom React hooks
+│       │   ├── use-sse.ts        # SSE EventSource hook
+│       │   ├── use-api.ts        # Fetch wrapper with error handling
+│       │   └── use-interval.ts   # Polling fallback
+│       ├── lib/                  # Utilities
+│       │   ├── api-client.ts     # Typed fetch wrapper
+│       │   ├── formatters.ts     # Currency, percentage, date formatting
+│       │   └── constants.ts      # API URLs, refresh intervals
+│       └── types/                # TypeScript types
+│           ├── overview.ts       # OverviewData, Position, TradeHistory
+│           ├── signals.ts        # ScoreRow, SignalData
+│           ├── risk.ts           # RiskMetrics, SectorWeight
+│           └── pipeline.ts       # PipelineRun, ApprovalStatus, ReviewItem
+├── src/                          # Python DDD codebase (UNCHANGED)
+│   ├── dashboard/                # MODIFIED: add JSON API routes
+│   │   ├── presentation/
+│   │   │   ├── api_routes.py     # NEW: JSON REST endpoints
+│   │   │   ├── routes.py         # KEEP: HTMX routes (deprecated, remove later)
+│   │   │   ├── app.py            # MODIFIED: mount api_routes
+│   │   │   └── templates/        # KEEP temporarily, remove after migration
+│   │   ├── application/
+│   │   │   └── queries.py        # UNCHANGED: reuse query handlers
+│   │   └── infrastructure/
+│   │       └── sse_bridge.py     # UNCHANGED: SSE streaming
+│   ├── scoring/                  # UNCHANGED
+│   ├── signals/                  # UNCHANGED
+│   ├── portfolio/                # UNCHANGED
+│   ├── execution/                # UNCHANGED
+│   ├── regime/                   # UNCHANGED
+│   ├── pipeline/                 # UNCHANGED
+│   ├── approval/                 # UNCHANGED
+│   └── bootstrap.py              # UNCHANGED
+├── commercial/                   # UNCHANGED
+├── cli/                          # UNCHANGED
+├── pyproject.toml                # UNCHANGED
+└── .gitignore                    # ADD: dashboard/node_modules, dashboard/.next
 ```
 
-### Component Boundaries (v1.2)
+### Structure Rationale
 
-| Component | Responsibility | Communicates With | New/Modified |
-|-----------|---------------|-------------------|--------------|
-| `scheduler` | Pipeline orchestration, cron scheduling, strategy/budget config | All handlers via commands, event bus | **NEW** bounded context |
-| `execution` (modified) | Live execution with budget enforcement, order monitoring | scheduler (receives auto-execute commands), portfolio (risk checks), broker (Alpaca live) | **Modified** -- budget service, live mode, circuit breaker |
-| `portfolio` (modified) | Dashboard summary queries, real-time P&L | execution (receives order results), dashboard (serves summaries) | **Modified** -- dashboard query methods |
-| `dashboard` | Web UI presentation layer | scheduler, execution, portfolio via handlers + SSE via event bus | **NEW** presentation layer |
-| `data_ingest` | Unchanged | scheduler triggers ingest_universe() | Unchanged |
-| `scoring` | Unchanged | scheduler triggers score commands | Unchanged |
-| `signals` | Unchanged | scheduler triggers signal commands | Unchanged |
-| `regime` | Unchanged | scheduler triggers regime detection | Unchanged |
+- **`dashboard/` at root, not inside `src/`:** The Python `src/` directory has its own package resolution, mypy configuration, and ruff rules. Mixing Node.js files into it would break Python tooling. A sibling directory keeps toolchains isolated while sharing the same Git repo.
+- **Not a Turborepo/monorepo tool:** This project has exactly two units (Python backend, Next.js frontend). Turborepo adds complexity for no benefit at this scale. A simple `package.json` with scripts is sufficient.
+- **`src/dashboard/presentation/api_routes.py` (new):** The existing `queries.py` handlers return Python dicts. Currently these dicts feed Jinja2 templates. The new `api_routes.py` wraps the same handlers but returns JSON via FastAPI's `JSONResponse`. Zero business logic duplication.
+- **`components/ui/` for shadcn:** shadcn/ui components are vendored (copied into project), not installed as a package. This is by design -- you own the code and can customize it freely.
+- **Page-specific component folders:** Each page (`overview/`, `signals/`, `risk/`, `pipeline/`) gets its own component subfolder. This matches the existing 4-page structure and keeps components close to their consumers.
 
 ---
 
-## Integration Point 1: Automated Pipeline Scheduler
+## Architectural Patterns
 
-### Architecture Decision: APScheduler as In-Process Scheduler
+### Pattern 1: Next.js Rewrites as API Proxy
 
-**Use APScheduler** (v3.x stable, not v4 alpha) with `AsyncIOScheduler` running inside the same process as the FastAPI dashboard. APScheduler provides persistent job stores (SQLite-backed), cron-style scheduling, and misfire grace time -- all needed for a daily trading pipeline.
+**What:** `next.config.ts` rewrites forward `/api/*` requests from the Next.js dev server to the FastAPI backend at `localhost:8000`. The browser never contacts FastAPI directly.
 
-**Why not systemd cron / external scheduler:** The pipeline scheduler needs access to the same DDD handlers, event bus, and database connections as the rest of the system. Running it in-process avoids inter-process communication complexity. APScheduler's SQLite job store provides restart resilience.
+**When to use:** Always in development. In production, use the same pattern or a reverse proxy (nginx/Caddy).
 
-**Why not Celery/Temporal:** Overkill for a single-user system with one daily pipeline run. The pipeline is sequential (ingest -> score -> signal -> plan -> execute), not a distributed workflow.
+**Trade-offs:**
+- Pro: Single origin for the browser (no CORS issues), API keys stay server-side
+- Pro: Can add BFF transforms in Next.js Route Handlers before proxying
+- Con: Adds one network hop in production if not colocated
+- Con: SSE streams through the proxy need special care (no response buffering)
 
-### Pipeline Orchestration Service
+**Configuration:**
 
-The `PipelineOrchestratorService` in `scheduler/domain/` defines the pipeline as a sequence of stages. Each stage maps to an existing DDD handler:
+```typescript
+// dashboard/next.config.ts
+import type { NextConfig } from 'next';
+
+const FASTAPI_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
+
+const nextConfig: NextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: '/api/dashboard/:path*',
+        destination: `${FASTAPI_URL}/api/dashboard/:path*`,
+      },
+      {
+        source: '/dashboard/events',
+        destination: `${FASTAPI_URL}/dashboard/events`,
+      },
+    ];
+  },
+};
+
+export default nextConfig;
+```
+
+### Pattern 2: JSON API Routes Wrapping Existing Query Handlers
+
+**What:** New FastAPI routes in `api_routes.py` that call the same `OverviewQueryHandler`, `SignalsQueryHandler`, `RiskQueryHandler`, `PipelineQueryHandler` but return JSON instead of HTML templates.
+
+**When to use:** For every dashboard data endpoint. The query handlers already aggregate data from multiple bounded contexts -- this pattern reuses them.
+
+**Trade-offs:**
+- Pro: Zero business logic duplication -- same query handlers, different serialization
+- Pro: The HTMX dashboard can run in parallel during migration (both routes coexist)
+- Con: Must ensure dict shapes are JSON-serializable (they already are)
+
+**Example:**
 
 ```python
-# scheduler/domain/services.py
-class PipelineOrchestratorService:
-    """Orchestrates the daily trading pipeline as a sequence of stages.
+# src/dashboard/presentation/api_routes.py
+from fastapi import APIRouter, Request
+from src.dashboard.application.queries import OverviewQueryHandler
 
-    Each stage wraps an existing DDD handler. The service enforces
-    stage ordering, tracks progress, and publishes stage events.
-    """
+api_router = APIRouter(prefix="/api/dashboard")
 
-    STAGES = [
-        PipelineStage.DATA_INGEST,    # DataPipeline.ingest_universe()
-        PipelineStage.REGIME_DETECT,   # DetectRegimeHandler.handle()
-        PipelineStage.SCORE,           # ScoreSymbolHandler.handle() x N tickers
-        PipelineStage.SIGNAL,          # GenerateSignalHandler.handle() x scored tickers
-        PipelineStage.PLAN,            # TradePlanHandler.generate() x BUY signals
-        PipelineStage.BUDGET_CHECK,    # BudgetEnforcementService.check()
-        PipelineStage.AUTO_EXECUTE,    # TradePlanHandler.execute() within budget
-    ]
+@api_router.get("/overview")
+def overview_data(request: Request):
+    ctx = request.app.state.ctx
+    handler = OverviewQueryHandler(ctx)
+    data = handler.handle()
+    # Equity curve chart data moves to frontend (React builds the chart)
+    # No more Plotly JSON -- return raw data, let TradingView/Recharts render
+    return data
 
-    def run_pipeline(self, run_config: PipelineRunConfig) -> PipelineRun:
-        """Execute all stages sequentially. Returns run summary."""
-        ...
+@api_router.get("/signals")
+def signals_data(request: Request, sort: str = "composite", desc: bool = True):
+    ctx = request.app.state.ctx
+    handler = SignalsQueryHandler(ctx)
+    return handler.handle(sort_by=sort, sort_desc=desc)
+
+@api_router.get("/risk")
+def risk_data(request: Request):
+    ctx = request.app.state.ctx
+    handler = RiskQueryHandler(ctx)
+    data = handler.handle()
+    # Remove Plotly chart JSON -- frontend renders its own charts
+    data.pop("gauge_json", None)
+    data.pop("donut_json", None)
+    return data
+
+@api_router.get("/pipeline")
+def pipeline_data(request: Request):
+    ctx = request.app.state.ctx
+    handler = PipelineQueryHandler(ctx)
+    return handler.handle()
 ```
 
-### Pipeline Run Entity
+### Pattern 3: SSE Hook for Real-Time Updates
 
-```python
-# scheduler/domain/entities.py
-@dataclass
-class PipelineRun(Entity):
-    run_id: str
-    started_at: datetime
-    completed_at: datetime | None = None
-    status: RunStatus = RunStatus.RUNNING  # RUNNING, COMPLETED, FAILED, ABORTED
-    stages: list[StageResult] = field(default_factory=list)
-    tickers_processed: int = 0
-    signals_generated: int = 0
-    plans_created: int = 0
-    orders_executed: int = 0
-    budget_remaining: float = 0.0
+**What:** A React hook that connects to the existing `/dashboard/events` SSE endpoint and dispatches typed events to components.
+
+**When to use:** For all real-time updates (order fills, pipeline completion, drawdown alerts, regime changes).
+
+**Trade-offs:**
+- Pro: SSE is simpler than WebSocket (one-directional, auto-reconnect via EventSource)
+- Pro: The Python SSEBridge already works -- no backend changes needed
+- Pro: EventSource is supported in all modern browsers
+- Con: SSE is unidirectional (server-to-client only). For client-to-server actions (approve trade, run pipeline), use POST requests.
+
+**Example:**
+
+```typescript
+// dashboard/src/hooks/use-sse.ts
+import { useEffect, useCallback, useRef } from 'react';
+
+type SSEEventType =
+  | 'OrderFilledEvent'
+  | 'PipelineCompletedEvent'
+  | 'PipelineHaltedEvent'
+  | 'DrawdownAlertEvent'
+  | 'RegimeChangedEvent';
+
+type SSEHandler = (payload: Record<string, string>) => void;
+
+export function useSSE(handlers: Partial<Record<SSEEventType, SSEHandler>>) {
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
+
+  useEffect(() => {
+    const eventSource = new EventSource('/dashboard/events');
+
+    const eventTypes: SSEEventType[] = [
+      'OrderFilledEvent',
+      'PipelineCompletedEvent',
+      'PipelineHaltedEvent',
+      'DrawdownAlertEvent',
+      'RegimeChangedEvent',
+    ];
+
+    for (const eventType of eventTypes) {
+      eventSource.addEventListener(eventType, (event) => {
+        const handler = handlersRef.current[eventType];
+        if (handler) {
+          // The SSE bridge sends JSON payload
+          try {
+            const data = JSON.parse(event.data);
+            handler(data);
+          } catch {
+            // Bridge may send HTML (legacy) -- ignore
+          }
+        }
+      });
+    }
+
+    eventSource.onerror = () => {
+      // EventSource auto-reconnects; no manual handling needed
+    };
+
+    return () => eventSource.close();
+  }, []);
+}
 ```
 
-### Schedule Configuration
-
-```python
-# scheduler/domain/value_objects.py
-@dataclass(frozen=True)
-class ScheduleConfig(ValueObject):
-    """Daily pipeline schedule configuration."""
-    cron_expression: str = "0 10 * * 1-5"  # 10:00 AM, weekdays (after market open)
-    market: str = "US"
-    universe: str = "sp500"
-    enabled: bool = True
-    max_tickers: int = 100  # limit per run to control duration
-```
-
-### APScheduler Integration
-
-```python
-# scheduler/infrastructure/apscheduler_adapter.py
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-
-class APSchedulerAdapter:
-    """Wraps APScheduler for pipeline scheduling."""
-
-    def __init__(self, db_path: str, pipeline_handler: PipelineRunHandler):
-        jobstores = {"default": SQLAlchemyJobStore(url=f"sqlite:///{db_path}")}
-        self._scheduler = AsyncIOScheduler(jobstores=jobstores)
-        self._handler = pipeline_handler
-
-    async def start(self) -> None:
-        self._scheduler.start()
-
-    async def stop(self) -> None:
-        self._scheduler.shutdown()
-
-    def schedule_daily_pipeline(self, config: ScheduleConfig) -> None:
-        self._scheduler.add_job(
-            self._handler.run_daily,
-            trigger=CronTrigger.from_crontab(config.cron_expression),
-            id="daily_pipeline",
-            replace_existing=True,
-            misfire_grace_time=3600,  # 1 hour grace for missed runs
-        )
-```
-
-### Data Flow Change
-
-```
-BEFORE (v1.1): User manually runs each CLI command in sequence
-AFTER  (v1.2): APScheduler triggers PipelineOrchestratorService daily
-
-APScheduler (cron: "0 10 * * 1-5")
-    |
-    v
-PipelineOrchestratorService.run_pipeline()
-    |
-    |-- Stage 1: DataPipeline.ingest_universe()        --> DuckDB
-    |   publishes: StageCompletedEvent(DATA_INGEST)
-    |
-    |-- Stage 2: DetectRegimeHandler.handle()           --> SQLite
-    |   publishes: StageCompletedEvent(REGIME_DETECT)
-    |
-    |-- Stage 3: ScoreSymbolHandler.handle() x N        --> SQLite
-    |   publishes: StageCompletedEvent(SCORE)
-    |
-    |-- Stage 4: GenerateSignalHandler.handle() x M     --> SQLite
-    |   publishes: StageCompletedEvent(SIGNAL)
-    |
-    |-- Stage 5: TradePlanHandler.generate() x BUY      --> SQLite
-    |   publishes: StageCompletedEvent(PLAN)
-    |
-    |-- Stage 6: BudgetEnforcementService.check()
-    |   filters plans within daily budget
-    |
-    |-- Stage 7: AutoExecutionHandler.execute() x approved
-    |   publishes: OrderExecutedEvent / OrderFailedEvent
-    |
-    v
-PipelineRun (COMPLETED) --> SQLite (pipeline history)
-    |
-    publishes: PipelineCompletedEvent
-    |
-    v
-Dashboard SSE --> Browser update
-```
-
-**Complexity:** MEDIUM. The orchestration logic is new but each stage delegates to existing handlers. The main risk is error handling between stages (what happens if scoring fails for 50% of tickers -- does the pipeline continue or abort?).
-
----
-
-## Integration Point 2: Strategy/Budget Approval Workflow
-
-### Architecture Decision: Approval as Domain State, Not External Workflow
-
-The approval workflow is a domain concept in the `scheduler` bounded context, not an external workflow engine. The user approves a **strategy configuration** (which strategies to use, risk parameters) and a **daily budget** (max capital to deploy per day). Individual trade plans are then auto-approved within these constraints.
-
-This is deliberately different from v1.0's per-trade approval. In v1.2, the human approves the _rules_, not each _trade_.
-
-### Strategy Approval Value Objects
-
-```python
-# scheduler/domain/value_objects.py
-@dataclass(frozen=True)
-class StrategyApproval(ValueObject):
-    """Human-approved strategy configuration for automated pipeline."""
-    strategy: str = "swing"                # swing | position
-    min_composite_score: float = 65.0      # minimum score to generate signal
-    min_signal_strength: float = 0.6       # minimum fusion strength for trade plan
-    max_positions: int = 10                # maximum concurrent positions
-    max_sector_exposure: float = 0.25      # 25% sector cap
-    approved_at: datetime | None = None
-    approved_by: str = "owner"             # single-user system
-    valid_until: datetime | None = None    # expiry for re-approval
-
-    def is_valid(self) -> bool:
-        if self.valid_until is None:
-            return self.approved_at is not None
-        return self.approved_at is not None and datetime.now(UTC) < self.valid_until
-
-@dataclass(frozen=True)
-class DailyBudget(ValueObject):
-    """Daily capital deployment limit for automated execution."""
-    max_daily_capital: float = 5000.0      # max USD to deploy per day
-    max_orders_per_day: int = 3            # max number of orders per day
-    max_single_order: float = 2500.0       # max capital per single order
-    approved_at: datetime | None = None
-    valid_until: datetime | None = None
-
-    def is_valid(self) -> bool:
-        if self.valid_until is None:
-            return self.approved_at is not None
-        return self.approved_at is not None and datetime.now(UTC) < self.valid_until
-```
-
-### Approval State Machine
-
-```
-StrategyApproval lifecycle:
-  DRAFT --> [user reviews] --> APPROVED --> [time passes or user revokes] --> EXPIRED/REVOKED
-                          |
-                          +--> REJECTED
-
-DailyBudget lifecycle:
-  DRAFT --> [user sets amount] --> ACTIVE --> [daily reset at market open] --> ACTIVE (reset)
-                              |                                          |
-                              +--> PAUSED [user pauses]                  +--> EXHAUSTED (daily limit hit)
-
-TradePlan lifecycle (v1.2 extended):
-  PENDING --> BUDGET_CHECK --> AUTO_APPROVED --> EXECUTED
-                           |                |
-                           +--> BUDGET_EXCEEDED (deferred to next day)
-                                            |
-                                            +--> FAILED
-```
-
-### Budget Enforcement Service
-
-```python
-# execution/domain/services.py (new addition)
-class BudgetEnforcementService:
-    """Enforces daily budget limits on trade plan auto-execution."""
-
-    def check_budget(
-        self,
-        plan: TradePlan,
-        budget: DailyBudget,
-        today_spent: float,
-        today_orders: int,
-    ) -> BudgetCheckResult:
-        if not budget.is_valid():
-            return BudgetCheckResult(allowed=False, reason="Budget not approved")
-        if today_spent + plan.position_value > budget.max_daily_capital:
-            return BudgetCheckResult(allowed=False, reason="Daily capital limit exceeded")
-        if today_orders >= budget.max_orders_per_day:
-            return BudgetCheckResult(allowed=False, reason="Daily order count limit exceeded")
-        if plan.position_value > budget.max_single_order:
-            return BudgetCheckResult(allowed=False, reason="Single order limit exceeded")
-        return BudgetCheckResult(allowed=True, remaining=budget.max_daily_capital - today_spent - plan.position_value)
-```
-
-### Dashboard Approval Flow
-
-```
-User opens Dashboard --> Approval page
-    |
-    v
-Sees current strategy config + daily budget
-    |-- Modifies parameters (score threshold, budget, etc.)
-    |-- Clicks "Approve Strategy" or "Set Daily Budget"
-    |
-    v
-POST /dashboard/api/approve-strategy  --> StrategyApprovalHandler.approve()
-POST /dashboard/api/set-budget        --> StrategyApprovalHandler.set_budget()
-    |
-    v
-Config stored in SQLite --> Scheduler reads at next pipeline run
-```
-
-**Complexity:** MEDIUM. The approval logic is straightforward state management. The main design challenge is defining the right granularity -- approving a strategy vs. approving individual trades vs. approving a daily budget. The recommended approach (approve rules, auto-execute within rules) matches the project constraint: "human approves strategy + daily budget, execution is automatic."
-
----
-
-## Integration Point 3: Alpaca Live Trading
-
-### Architecture Decision: Same Adapter, Configuration Switch + Safeguard Layer
-
-The existing `AlpacaExecutionAdapter` already parameterizes `paper=True`. Live trading changes this to `paper=False`. However, live trading requires a safeguard layer that does not exist in v1.0.
-
-**What changes for live:**
-
-```python
-# settings.py (extended)
-class Settings(BaseSettings):
-    # Existing
-    ALPACA_API_KEY: Optional[str] = None
-    ALPACA_SECRET_KEY: Optional[str] = None
-
-    # NEW for v1.2
-    ALPACA_LIVE_API_KEY: Optional[str] = None    # separate live keys
-    ALPACA_LIVE_SECRET_KEY: Optional[str] = None
-    EXECUTION_MODE: str = "paper"                 # "paper" | "live"
-    LIVE_MAX_DAILY_CAPITAL: float = 5000.0
-    LIVE_MAX_SINGLE_ORDER: float = 2500.0
-    LIVE_CIRCUIT_BREAKER_LOSS: float = 0.03       # 3% daily loss triggers halt
-```
-
-### Safeguard Architecture
-
-The safeguard layer wraps `IBrokerAdapter` with pre-execution checks:
-
-```python
-# execution/domain/services.py (new)
-class SafeExecutionService:
-    """Wraps broker adapter with safety checks for live trading.
-
-    Enforces: budget limits, circuit breaker, position limits, drawdown defense.
-    All checks happen BEFORE the order reaches the broker adapter.
-    """
-
-    def __init__(
-        self,
-        broker: IBrokerAdapter,
-        budget_service: BudgetEnforcementService,
-        circuit_breaker: CircuitBreakerService,
-    ):
-        self._broker = broker
-        self._budget = budget_service
-        self._breaker = circuit_breaker
-
-    def execute_safely(self, spec: OrderSpec, budget: DailyBudget, ...) -> OrderResult:
-        # 1. Circuit breaker check (daily loss limit)
-        if self._breaker.is_tripped():
-            return OrderResult(status="CIRCUIT_BREAKER_TRIPPED", ...)
-
-        # 2. Budget enforcement
-        budget_check = self._budget.check_budget(...)
-        if not budget_check.allowed:
-            return OrderResult(status="BUDGET_EXCEEDED", ...)
-
-        # 3. Execute via broker
-        result = self._broker.submit_order(spec)
-
-        # 4. Update circuit breaker state
-        self._breaker.record_execution(result)
-
-        return result
-```
-
-### Circuit Breaker Service
-
-```python
-# execution/domain/services.py (new)
-class CircuitBreakerService:
-    """Halts all execution if daily losses exceed threshold.
-
-    Implements the 3-tier drawdown defense from project constraints:
-    - Tier 1 (10%): no new entries, monitoring only
-    - Tier 2 (15%): reduce positions 50%
-    - Tier 3 (20%): full liquidation, 1-month cooldown
-    """
-
-    def __init__(self, loss_threshold: float = 0.03):
-        self._daily_loss_threshold = loss_threshold
-        self._tripped = False
-        self._daily_pnl = 0.0
-
-    def is_tripped(self) -> bool:
-        return self._tripped
-
-    def record_execution(self, result: OrderResult) -> None:
-        # Track daily P&L from filled orders
-        ...
-
-    def reset_daily(self) -> None:
-        """Called at market open to reset daily circuit breaker."""
-        self._tripped = False
-        self._daily_pnl = 0.0
-```
-
-### Order Monitoring
-
-For live trading, the system needs to poll Alpaca for order status updates (fills, partial fills, rejections). This is a new infrastructure concern:
-
-```python
-# execution/infrastructure/order_monitor.py
-class AlpacaOrderMonitor:
-    """Polls Alpaca for order status updates and publishes events.
-
-    Runs as a background task in the FastAPI/scheduler process.
-    Polling interval: every 30 seconds during market hours.
-    """
-
-    def __init__(self, adapter: AlpacaExecutionAdapter, bus: AsyncEventBus):
-        self._adapter = adapter
-        self._bus = bus
-
-    async def poll_orders(self) -> None:
-        """Check pending orders for status changes."""
-        # Get open orders from Alpaca
-        # Compare with local state
-        # Publish OrderExecutedEvent / OrderFailedEvent for changes
-        ...
-```
-
-### Paper-to-Live Migration Path
-
-```
-Phase 1 (current): paper=True, manual CLI execution
-Phase 2 (v1.2a):   paper=True, automated pipeline with budget enforcement
-Phase 3 (v1.2b):   paper=False, automated pipeline with full safeguards
-```
-
-The migration is progressive. First, validate the automated pipeline works correctly with paper trading. Only then switch to live with real money. The budget enforcement and circuit breaker work identically in both modes.
-
-**Complexity:** MEDIUM-HIGH. The Alpaca API change is trivial, but the safeguard layer (budget enforcement, circuit breaker, order monitoring) is new domain logic that must be correct -- errors mean real money loss.
-
----
-
-## Integration Point 4: Web Dashboard
-
-### Architecture Decision: FastAPI + Jinja2 + HTMX + SSE
-
-**Use FastAPI + Jinja2 templates + HTMX for interactions + SSE for real-time updates.** This approach:
-
-1. **Stays Python-centric** -- no JavaScript framework to learn, build, or maintain
-2. **Leverages existing FastAPI** -- the commercial API already runs FastAPI; the dashboard is a second FastAPI app
-3. **HTMX handles interactions** -- form submissions, partial page updates, polling -- without client-side state management
-4. **SSE for real-time** -- pipeline progress, order fills, portfolio P&L updates stream to the browser without WebSocket complexity
-5. **DaisyUI/Tailwind for styling** -- pre-built component library, no custom CSS design needed
-
-**Why not React/Vue/Svelte:** The project is Python-centric (20K+ LOC Python, zero JS). Adding a JavaScript SPA framework doubles the technology surface, requires a build pipeline (node, npm, webpack/vite), and introduces client-side state management complexity. HTMX achieves 90% of the interactivity with zero JavaScript framework code.
-
-**Why not Streamlit/Gradio:** These are designed for ML demos, not production dashboards. They lack fine-grained layout control, cannot handle complex forms (approval workflows), and have poor real-time streaming support.
-
-**Why SSE over WebSocket:** The dashboard is server-push-only (pipeline status, order updates, P&L changes). The browser never sends data back through the real-time channel -- form submissions use standard HTTP POST via HTMX. SSE is simpler (standard HTTP, auto-reconnect, no connection upgrade negotiation).
-
-### Dashboard Architecture
-
-```
-Browser (HTMX + SSE)
-    |
-    |-- HTTP GET/POST --> FastAPI routes --> Jinja2 templates
-    |                         |
-    |                         |-- Read: handlers, repositories (same as CLI/API)
-    |                         |-- Write: approval commands, budget commands
-    |
-    |-- SSE stream    --> /dashboard/sse/events
-                            |
-                            |-- Subscribes to AsyncEventBus
-                            |-- Streams: PipelineStageEvent, OrderEvent, PortfolioEvent
-```
-
-### Dashboard Pages
-
-| Page | URL | Data Source | Real-Time? |
-|------|-----|------------|------------|
-| Portfolio Overview | `/dashboard/` | PortfolioManagerHandler, AlpacaAdapter.get_positions() | Yes (SSE: P&L, position changes) |
-| Pipeline Status | `/dashboard/pipeline` | IPipelineRunRepository | Yes (SSE: stage progress) |
-| Strategy Approval | `/dashboard/approval` | IScheduleConfigRepository | No (form submission) |
-| Trade History | `/dashboard/trades` | ITradePlanRepository | Yes (SSE: new executions) |
-| Risk Dashboard | `/dashboard/risk` | Portfolio aggregate, drawdown calculations | Yes (SSE: drawdown alerts) |
-| Scoring Results | `/dashboard/scores` | IScoreRepository | No (batch display) |
-
-### SSE Event Stream
-
-```python
-# dashboard/routes/sse.py
-from sse_starlette.sse import EventSourceResponse
-
-@router.get("/sse/events")
-async def event_stream(request: Request):
-    """Server-Sent Events endpoint for real-time dashboard updates."""
-    async def generate():
-        queue = asyncio.Queue()
-
-        # Subscribe to relevant events
-        bus = get_event_bus()
-        bus.subscribe(PipelineStageCompletedEvent, lambda e: queue.put_nowait(e))
-        bus.subscribe(OrderExecutedEvent, lambda e: queue.put_nowait(e))
-        bus.subscribe(OrderFailedEvent, lambda e: queue.put_nowait(e))
-        bus.subscribe(DrawdownAlertEvent, lambda e: queue.put_nowait(e))
-
-        try:
-            while True:
-                if await request.is_disconnected():
-                    break
-                event = await queue.get()
-                yield {
-                    "event": event.__class__.__name__,
-                    "data": json.dumps(event_to_dict(event)),
-                }
-        finally:
-            # Unsubscribe cleanup
-            ...
-
-    return EventSourceResponse(generate())
-```
-
-### HTMX Partial Updates
-
-Each dashboard page has a full-page template and partial templates. HTMX swaps partials on user interaction (tab click, form submit) and on SSE events:
-
-```html
-<!-- templates/partials/portfolio_summary.html -->
-<div id="portfolio-summary" hx-swap-oob="true">
-  <div class="stat">
-    <div class="stat-title">Portfolio Value</div>
-    <div class="stat-value">${{ portfolio.total_value | format_currency }}</div>
-    <div class="stat-desc {{ 'text-success' if portfolio.daily_pnl >= 0 else 'text-error' }}">
-      {{ portfolio.daily_pnl | format_currency }} ({{ portfolio.daily_pnl_pct | format_pct }})
-    </div>
-  </div>
-</div>
-```
-
-### Dashboard Mounting
-
-The dashboard is a separate FastAPI app, mounted alongside the commercial API. This keeps personal dashboard features separate from commercial API endpoints:
-
-```python
-# main.py (top-level)
-from commercial.api.main import app as commercial_app
-from dashboard.app import app as dashboard_app
-
-root_app = FastAPI()
-root_app.mount("/api", commercial_app)       # Commercial API at /api/v1/...
-root_app.mount("/dashboard", dashboard_app)  # Personal dashboard at /dashboard/...
-```
-
-**Complexity:** MEDIUM. The FastAPI + Jinja2 + HTMX stack is well-documented. The SSE integration with the event bus is the novel part. The main effort is building 5-6 HTML templates with Tailwind styling and wiring them to existing handler queries.
-
----
-
-## Data Flow (v1.2 Target -- Automated)
-
-### Daily Pipeline (Automated)
-
-```
-APScheduler (10:00 AM EST, weekdays)
-    |
-    v
-PipelineOrchestratorService
-    |
-    |-- [CHECK] StrategyApproval.is_valid()?
-    |   NO  --> PipelineAbortedEvent --> Dashboard SSE --> "Approval expired" alert
-    |   YES |
-    |       v
-    |-- Stage 1: DataPipeline.ingest_universe(universe="sp500", market="US")
-    |   --> DuckDB (ohlcv, financials)
-    |   --> StageCompletedEvent(DATA_INGEST, tickers=100)
-    |   --> Dashboard SSE update
-    |
-    |-- Stage 2: DetectRegimeHandler.handle(auto_fetch=True)
-    |   --> SQLite (market_regimes)
-    |   --> RegimeChangedEvent (if regime changed) --> scoring weight update
-    |   --> StageCompletedEvent(REGIME_DETECT)
-    |
-    |-- Stage 3: ScoreSymbolHandler.handle() x 100 tickers
-    |   --> SQLite (composite_scores)
-    |   --> StageCompletedEvent(SCORE, scored=100, above_threshold=25)
-    |
-    |-- Stage 4: GenerateSignalHandler.handle() x 25 above-threshold
-    |   --> SQLite (signals)
-    |   --> StageCompletedEvent(SIGNAL, buy=5, hold=15, sell=5)
-    |
-    |-- Stage 5: TradePlanHandler.generate() x 5 BUY signals
-    |   --> SQLite (trade_plans, status=PENDING)
-    |   --> TradePlanCreatedEvent x 5
-    |   --> StageCompletedEvent(PLAN, plans=5)
-    |
-    |-- Stage 6: BudgetEnforcementService.check() x 5 plans
-    |   --> Filter: 3 plans within budget, 2 exceed
-    |   --> StageCompletedEvent(BUDGET_CHECK, approved=3, deferred=2)
-    |
-    |-- Stage 7: SafeExecutionService.execute_safely() x 3 plans
-    |   --> Alpaca API (paper or live)
-    |   --> OrderExecutedEvent x 3 (or OrderFailedEvent)
-    |   --> SQLite (trade_plans, status=EXECUTED)
-    |   --> StageCompletedEvent(AUTO_EXECUTE, executed=3)
-    |
-    v
-PipelineCompletedEvent(run_id, summary)
-    --> Dashboard SSE --> "Pipeline complete: 3 orders executed"
-    --> Pipeline history stored in SQLite
-```
-
-### Real-Time Dashboard Updates
-
-```
-AsyncEventBus (in-process)
-    |
-    |-- PipelineStageCompletedEvent --> SSE --> Dashboard pipeline progress bar
-    |-- OrderExecutedEvent          --> SSE --> Dashboard trade log + portfolio update
-    |-- OrderFailedEvent            --> SSE --> Dashboard error notification
-    |-- DrawdownAlertEvent          --> SSE --> Dashboard risk alert banner
-    |-- RegimeChangedEvent          --> SSE --> Dashboard regime indicator update
+### Pattern 4: TradingView Lightweight Charts as Client Components
+
+**What:** Use `lightweight-charts` v5.x directly (no wrapper library) in `"use client"` components. TradingView's official React tutorial shows using `useEffect` + `useRef` to manage the chart lifecycle.
+
+**When to use:** For candlestick charts, equity curves, and any financial chart that needs zoom/pan/crosshair.
+
+**Trade-offs:**
+- Pro: 45KB bundle size, extremely performant canvas-based rendering
+- Pro: Native candlestick, area, histogram, baseline chart types
+- Pro: No wrapper library dependency (wrappers are unmaintained; latest is 2+ years old)
+- Con: Requires manual lifecycle management (create/destroy in useEffect)
+- Con: No SSR -- must be `"use client"` components
+
+**Example:**
+
+```typescript
+// dashboard/src/components/charts/equity-curve.tsx
+'use client';
+
+import { useEffect, useRef } from 'react';
+import { createChart, ColorType, AreaSeries } from 'lightweight-charts';
+
+interface EquityCurveProps {
+  data: { time: string; value: number }[];
+}
+
+export function EquityCurve({ data }: EquityCurveProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || data.length === 0) return;
+
+    const chart = createChart(containerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: '#1a1a2e' },
+        textColor: '#d1d5db',
+      },
+      grid: {
+        vertLines: { color: '#2d2d44' },
+        horzLines: { color: '#2d2d44' },
+      },
+      width: containerRef.current.clientWidth,
+      height: 350,
+    });
+
+    const series = chart.addSeries(AreaSeries, {
+      lineColor: '#4fc3f7',
+      topColor: 'rgba(79, 195, 247, 0.3)',
+      bottomColor: 'rgba(79, 195, 247, 0.0)',
+    });
+
+    series.setData(data);
+    chart.timeScale().fitContent();
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (containerRef.current) {
+        chart.applyOptions({ width: containerRef.current.clientWidth });
+      }
+    });
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+      chart.remove();
+    };
+  }, [data]);
+
+  return <div ref={containerRef} />;
+}
 ```
 
 ---
 
-## EventBus Subscription Map (v1.2 Complete)
+## Data Flow
+
+### Page Load Flow (Initial Data)
 
 ```
-PipelineStartedEvent
-  --> Dashboard SSE (show pipeline running indicator)
-
-StageCompletedEvent
-  --> Dashboard SSE (update pipeline progress bar)
-  --> PipelineRunRepository (log stage results)
-
-PipelineCompletedEvent
-  --> Dashboard SSE (show completion summary)
-  --> PipelineRunRepository (close run record)
-
-RegimeChangedEvent
-  --> ConcreteRegimeWeightAdjuster (update scoring weights)  [EXISTING, already wired]
-  --> Dashboard SSE (update regime indicator)                 [NEW]
-
-ScoreUpdatedEvent
-  --> (future: auto-trigger signal generation)
-
-TradePlanCreatedEvent
-  --> Dashboard SSE (show new pending plans)
-
-OrderExecutedEvent
-  --> PortfolioManagerHandler.on_order_executed() (sync portfolio)  [NEW]
-  --> Dashboard SSE (update trade log + portfolio)                  [NEW]
-  --> CircuitBreakerService.record_execution()                     [NEW]
-
-OrderFailedEvent
-  --> Dashboard SSE (show error notification)  [NEW]
-  --> CircuitBreakerService.record_failure()   [NEW]
-
-DrawdownAlertEvent
-  --> Dashboard SSE (show risk alert)                [NEW]
-  --> CircuitBreakerService.check_drawdown_tier()    [NEW]
+Browser navigates to /overview
+    |
+Next.js App Router renders overview/page.tsx (Server Component)
+    |
+    +--> fetch('/api/dashboard/overview')
+              |
+              +--> next.config.ts rewrite --> FastAPI :8000
+                        |
+                        +--> OverviewQueryHandler(ctx).handle()
+                                  |
+                                  +--> position_repo.find_all_open()     --> SQLite
+                                  +--> score_repo.find_all_latest()      --> SQLite
+                                  +--> trade_plan_repo (direct SQL)      --> SQLite
+                                  +--> regime_repo.find_latest()         --> SQLite
+                                  +--> portfolio_repo.find_by_id()       --> SQLite
+                                  |
+                        <-- JSON response (positions, kpis, equity_curve, ...)
+              |
+    <-- Rendered HTML with hydrated data
+    |
+Client Components hydrate (charts mount, SSE connects)
 ```
+
+### Real-Time Update Flow (SSE)
+
+```
+Domain Event fires (e.g., OrderFilledEvent from Alpaca monitor)
+    |
+SyncEventBus.publish(OrderFilledEvent)
+    |
+SSEBridge._on_event() --> serializes to JSON, fans out to asyncio queues
+    |
+EventSourceResponse yields ServerSentEvent
+    |
+    +--> Browser EventSource receives event
+              |
+              +--> useSSE hook dispatches to registered handler
+                        |
+                        +--> Handler calls React state setter
+                                  |
+                                  +--> Component re-renders with new data
+                                  |
+                                  +--> (Optional) Refetch full data from API
+```
+
+### Action Flow (User Mutations)
+
+```
+User clicks "Run Pipeline" button
+    |
+React onClick handler
+    |
+    +--> fetch('/api/dashboard/pipeline/run', { method: 'POST', body: ... })
+              |
+              +--> next.config.ts rewrite --> FastAPI :8000
+                        |
+                        +--> RunPipelineHandler.handle(cmd)
+                                  |
+                                  +--> Background thread executes pipeline
+                                  |
+                        <-- JSON { status: "running", ... }
+              |
+    <-- Update UI to show "running" state
+    |
+    ... SSE event (PipelineCompletedEvent) arrives later ...
+    |
+    +--> useSSE handler triggers refetch of pipeline data
+```
+
+### Key Data Flows
+
+1. **Initial page data:** Server Component `fetch()` -> rewrite -> FastAPI -> Query Handler -> Repos -> JSON response. The existing query handlers return Python dicts that are already JSON-serializable. No transformation needed.
+
+2. **Real-time events:** Domain event -> SyncEventBus -> SSEBridge -> EventSource -> React state update. The SSE bridge must change from sending HTML partials to sending JSON payloads. The `_render_partial()` function in `routes.py` becomes unnecessary for React -- the bridge sends raw event data and the React components re-render themselves.
+
+3. **User actions (POST):** React form -> fetch POST -> rewrite -> FastAPI -> Command Handler -> side effects + event publication. The existing HTMX POST handlers return HTML partials; the new JSON API routes return JSON status responses instead.
 
 ---
 
-## Database Architecture (v1.2)
+## Integration Points
 
-### SQLite (Operational -- Extended)
+### What Changes in the Python Backend
 
-| Table | Context | Status | Purpose |
-|-------|---------|--------|---------|
-| `composite_scores` | scoring | Existing | Score results |
-| `signals` | signals | Existing | Signal results |
-| `market_regimes` | regime | Existing | Regime history |
-| `positions` | portfolio | Existing | Open positions |
-| `trade_plans` | execution | Existing | Trade plan lifecycle |
-| `watchlist` | portfolio | Existing | Watchlist entries |
-| `pipeline_runs` | scheduler | **NEW** | Pipeline run history |
-| `pipeline_stages` | scheduler | **NEW** | Per-stage results |
-| `schedule_config` | scheduler | **NEW** | Cron config + enabled flag |
-| `strategy_approvals` | scheduler | **NEW** | Approved strategy configs |
-| `daily_budgets` | scheduler | **NEW** | Daily budget config + spending |
-| `budget_transactions` | execution | **NEW** | Per-order capital spent |
-| `circuit_breaker_state` | execution | **NEW** | Daily P&L tracking for circuit breaker |
-| `api_keys` | commercial | Existing | API key management |
+| Component | Change | Scope |
+|-----------|--------|-------|
+| `src/dashboard/presentation/api_routes.py` | **NEW file.** JSON REST endpoints wrapping existing query handlers. ~150 lines. | New file |
+| `src/dashboard/presentation/app.py` | **ADD 1 line.** `app.include_router(api_router)` to mount JSON routes alongside existing HTMX routes. | 1 line change |
+| `src/dashboard/infrastructure/sse_bridge.py` | **NO CHANGE.** The SSE bridge already sends JSON payloads. The `_render_partial()` in routes.py added HTML wrapping, but the bridge itself sends `{"type": "...", "payload": {...}}`. React EventSource reads this directly. | No change |
+| `src/dashboard/application/queries.py` | **MINOR CHANGE.** Remove Plotly chart JSON generation from return dicts (gauge_json, donut_json). These were for Plotly.js rendering; React will render its own charts. | ~10 lines removed |
+| All other `src/` modules | **NO CHANGE.** Scoring, signals, portfolio, execution, regime, pipeline, approval -- all untouched. | No change |
+| `commercial/` | **NO CHANGE.** The commercial API is completely separate. | No change |
 
-### DuckDB (Analytics -- No Changes)
+### What Is New in the Frontend
 
-DuckDB remains unchanged. All new v1.2 data is operational (pipeline runs, budgets, approvals) and belongs in SQLite. DuckDB continues to serve analytical queries (OHLCV, financials, screening).
+| Component | Description | Complexity |
+|-----------|-------------|------------|
+| Next.js project setup | App Router, TypeScript, Tailwind CSS, shadcn/ui init | Low |
+| 4 page components | Overview, Signals, Risk, Pipeline (Server Components fetching data) | Medium |
+| ~15 client components | KPI cards, tables, charts, forms, badges | Medium |
+| TradingView chart integration | Candlestick, equity curve, volume histogram | Medium |
+| SSE hook | EventSource connection with typed event dispatch | Low |
+| Design system | Bloomberg dark theme tokens, typography, spacing | Medium |
+| API client | Typed fetch wrapper with error handling | Low |
+
+### External Services
+
+| Service | Integration Pattern | Notes |
+|---------|---------------------|-------|
+| FastAPI backend | HTTP fetch via Next.js rewrites | Same machine, no auth needed (personal dashboard) |
+| SSE event stream | Browser EventSource to `/dashboard/events` | Proxy must not buffer the response (streaming) |
+| TradingView Lightweight Charts | npm package, canvas-based rendering | Client-only, no SSR |
+
+### Internal Boundaries
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| Next.js <-> FastAPI | JSON REST + SSE | Rewrites proxy in dev; reverse proxy (Caddy/nginx) in prod |
+| FastAPI <-> DDD handlers | Direct Python function calls via `ctx` dict | No change from current architecture |
+| DDD handlers <-> Repos | Direct method calls | No change |
+| Bounded contexts <-> each other | SyncEventBus domain events | No change |
 
 ---
 
-## Patterns to Follow
+## Scaling Considerations
 
-### Pattern 1: Orchestrator Service as Pipeline Stage Runner
+This is a single-user personal trading dashboard. "Scaling" means "what if the data grows."
 
-**What:** The `PipelineOrchestratorService` runs stages sequentially, each delegating to an existing DDD handler. It does NOT import domain objects from other contexts -- it passes primitive values between stages via command parameters.
+| Scale | Architecture Adjustments |
+|-------|--------------------------|
+| 1 user, <50 positions | Current architecture is fine. Full page data loads in <100ms from SQLite. |
+| 1 user, 200+ positions | Paginate holdings table. Add virtual scrolling to data tables (TanStack Table supports this). SQLite queries remain fast. |
+| 1 user, 2+ years of history | Equity curve chart needs date-range filtering (don't load 500+ data points). Add query params for date range. |
+| Multiple users (if ever) | Would need auth, per-user context, and database isolation. Out of scope for v1.3. |
 
-**When:** Building the automated pipeline.
+### Scaling Priorities
 
-**Why this matters:** This avoids the "God Orchestrator" anti-pattern identified in v1.1 research. Each stage is independently testable because it uses the same handler interface as the CLI.
+1. **First bottleneck:** Chart rendering with large datasets. Lightweight Charts handles 10K+ candles well, but equity curve with hundreds of trade points might need aggregation. Solution: server-side date-range filtering.
+2. **Second bottleneck:** SSE connection limits. Browsers allow 6 concurrent connections per domain (HTTP/1.1). With only 1 user and 1 SSE connection, this is not a concern.
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Duplicating Business Logic in Next.js API Routes
+
+**What people do:** Rewrite query logic in TypeScript Route Handlers instead of proxying to FastAPI.
+**Why it is wrong:** Creates two sources of truth for data aggregation. When a Python query handler changes, the TypeScript version diverges silently.
+**Do this instead:** Next.js Route Handlers should only proxy to FastAPI or do light BFF transforms (renaming fields, filtering response data). All aggregation stays in Python `QueryHandler` classes.
+
+### Anti-Pattern 2: Using WebSocket Instead of SSE
+
+**What people do:** Replace the working SSE bridge with WebSocket for "bidirectional" communication.
+**Why it is wrong:** The dashboard only needs server-to-client streaming. User actions (approve, run pipeline) are standard POST requests. WebSocket adds complexity (connection management, heartbeats, protocol upgrade) with no benefit for this use case.
+**Do this instead:** Keep SSE for server-to-client events. Use POST requests for client-to-server actions. This is exactly what the existing architecture does.
+
+### Anti-Pattern 3: SSR for Chart Components
+
+**What people do:** Try to server-render TradingView charts or other canvas-based components.
+**Why it is wrong:** Canvas-based chart libraries require browser APIs (`document`, `window`, `ResizeObserver`). Server rendering them is impossible and causes hydration mismatches.
+**Do this instead:** Mark chart components as `"use client"`. Fetch data in a parent Server Component and pass it as props. The chart renders client-side only.
+
+### Anti-Pattern 4: Installing a React Wrapper for Lightweight Charts
+
+**What people do:** Use `lightweight-charts-react-wrapper` or `kaktana-react-lightweight-charts` npm packages.
+**Why it is wrong:** These wrappers are unmaintained (last published 2+ years ago). They may not support Lightweight Charts v5.x and add a dependency risk.
+**Do this instead:** Use `lightweight-charts` directly with `useEffect` + `useRef`. TradingView provides official React tutorials for this exact pattern. It is ~30 lines of code per chart type.
+
+### Anti-Pattern 5: Separate Git Repositories for Frontend and Backend
+
+**What people do:** Create a new repo for the Next.js frontend.
+**Why it is wrong:** Adds deployment coordination overhead, makes it harder to ensure API contract compatibility, and complicates development (switching between repos to trace a data flow).
+**Do this instead:** Keep frontend in the same repo as `dashboard/` directory. Python tooling (mypy, ruff, pytest) is scoped to `src/` and ignores `dashboard/`. Node.js tooling is scoped to `dashboard/`. Each has its own config files.
+
+### Anti-Pattern 6: Response Buffering Breaking SSE Proxy
+
+**What people do:** Use Next.js rewrites for SSE without disabling compression/buffering.
+**Why it is wrong:** Next.js (and nginx) may buffer streamed responses, causing SSE events to arrive in batches instead of real-time.
+**Do this instead:** In development, Next.js rewrites handle SSE fine. In production with nginx, add `proxy_buffering off; X-Accel-Buffering: no;` to the SSE endpoint configuration. Or connect SSE directly to FastAPI (skip the proxy for this one endpoint).
+
+---
+
+## Deployment Strategy
+
+### Development
+
+```bash
+# Terminal 1: Python backend
+cd /home/mqz/workspace/trading
+uvicorn src.dashboard.presentation.app:create_dashboard_app --reload --port 8000
+
+# Terminal 2: Next.js frontend
+cd /home/mqz/workspace/trading/dashboard
+npm run dev  # localhost:3000, proxies /api/* to :8000
+```
+
+Both servers run simultaneously. The developer accesses `localhost:3000` for the React dashboard. All API calls are transparently proxied to `localhost:8000`.
+
+### Production (Single Machine)
+
+Use **Caddy** as reverse proxy (simpler than nginx, automatic HTTPS):
+
+```
+# Caddyfile
+:80 {
+    # Next.js frontend (static + SSR)
+    reverse_proxy /api/dashboard/* localhost:8000
+    reverse_proxy /dashboard/events localhost:8000 {
+        flush_interval -1   # Disable buffering for SSE
+    }
+    reverse_proxy /* localhost:3000
+}
+```
+
+Or use `output: 'standalone'` in `next.config.ts` to build a self-contained Node.js server, then run both processes via `systemd` or `pm2`:
+
+```bash
+# Build Next.js standalone
+cd dashboard && npm run build
+# Run: node dashboard/.next/standalone/server.js (port 3000)
+# Run: uvicorn src.dashboard.presentation.app:create_dashboard_app (port 8000)
+```
+
+### Why Not Docker (For Now)
+
+This is a personal trading system running on a single WSL2 machine. Docker adds indirection without benefit. If deployment moves to a cloud server later, Dockerize both services then. For now, two systemd services are sufficient.
+
+---
+
+## SSE Bridge Modification Detail
+
+The existing SSE bridge sends events in this format:
 
 ```python
-# scheduler/application/handlers.py
-class PipelineRunHandler:
-    def __init__(self, score_handler, signal_handler, regime_handler, ...):
-        # All handlers injected via bootstrap.py
-        self._score_handler = score_handler
-        ...
-
-    async def run_stage_score(self, tickers: list[str]) -> StageResult:
-        results = []
-        for ticker in tickers:
-            result = self._score_handler.handle(ScoreSymbolCommand(symbol=ticker))
-            results.append(result)
-        return StageResult(stage=PipelineStage.SCORE, results=results)
+# Current SSEBridge._on_event output:
+{"type": "OrderFilledEvent", "payload": {"symbol": "AAPL", "quantity": "10", ...}}
 ```
 
-### Pattern 2: SSE as EventBus Consumer
+The current `routes.py` has `_render_partial()` which converts these to HTML for HTMX `sse-swap`. For the React frontend, the raw JSON format is exactly what we need. The React `useSSE` hook parses this JSON directly.
 
-**What:** The SSE endpoint subscribes to the `AsyncEventBus` via an asyncio.Queue bridge. Events flow: domain handler -> bus.publish() -> queue -> SSE yield -> browser.
+**Migration approach:** Keep the existing `/dashboard/events` SSE endpoint as-is. It sends JSON-wrapped events. The HTMX `_render_partial()` layer is in `routes.py` (the old HTMX route handler), not in the SSE bridge. The new React frontend connects to the same SSE endpoint and reads the JSON directly.
 
-**When:** Building real-time dashboard updates.
-
-**Why this matters:** The event bus already exists and events are already defined. SSE just becomes another subscriber, no architectural changes needed.
-
-### Pattern 3: Budget as Pre-Execution Gate
-
-**What:** Budget enforcement happens BEFORE the order reaches the broker adapter, not after. The `SafeExecutionService` wraps `IBrokerAdapter` and rejects orders that exceed budget.
-
-**When:** Building live execution with budget limits.
-
-**Why this matters:** Checking budget after execution is too late -- the money is already deployed. The gate must be synchronous and blocking.
-
-### Pattern 4: Approval Config as Value Object, Not Workflow State
-
-**What:** Strategy approval and daily budget are immutable VOs stored in SQLite. The pipeline reads the latest approved config at the start of each run. There is no complex workflow engine -- the user either approves or does not.
-
-**When:** Building the approval workflow.
-
-**Why this matters:** Trading system approval is simple (approved/not approved) unlike enterprise approval chains (multiple reviewers, escalation). Over-engineering this with a workflow engine adds complexity without value.
+This means both HTMX and React dashboards can run simultaneously during migration -- they share the same SSE stream but interpret it differently.
 
 ---
 
-## Anti-Patterns to Avoid
+## Build Order Recommendation
 
-### Anti-Pattern 1: Scheduler Directly Calling Core/ Functions
+Based on dependency analysis:
 
-**What:** The pipeline scheduler bypasses DDD handlers and calls `core/scoring/fundamental.py` directly "for efficiency."
+1. **Phase 1: Project Setup + Design System** -- Next.js init, Tailwind, shadcn/ui, dark theme tokens, layout (sidebar + header). No API connection yet; use mock data.
+2. **Phase 2: FastAPI JSON API** -- Add `api_routes.py` to Python backend. Test with curl. This is the integration point.
+3. **Phase 3: Overview Page** -- Connect to live API. KPI cards, holdings table, equity curve (TradingView).
+4. **Phase 4: Signals Page** -- Scoring data table, signal cards. TradingView candlestick chart for selected symbol.
+5. **Phase 5: Risk Page** -- Drawdown gauge, sector donut, regime badge.
+6. **Phase 6: Pipeline Page** -- Pipeline runs table, approval form, review queue. POST actions (run, approve, reject).
+7. **Phase 7: SSE Integration** -- Wire useSSE hook to all pages. Real-time updates.
+8. **Phase 8: Cleanup** -- Remove HTMX templates and routes. Remove Plotly dependency from backend.
 
-**Why bad:** Creates a third execution path (CLI -> handlers, API -> handlers, scheduler -> core/) with different behavior. Bugs fixed in handlers don't get fixed in scheduler.
-
-**Instead:** The scheduler MUST call the same DDD handlers as the CLI and API. If performance is an issue, optimize the handlers, not the caller.
-
-### Anti-Pattern 2: WebSocket for Dashboard When SSE Suffices
-
-**What:** Using WebSocket for the dashboard real-time connection because "it's more powerful."
-
-**Why bad:** WebSocket requires connection upgrade, has no auto-reconnect in the browser, requires explicit ping/pong for keepalive, and adds bidirectional complexity when the dashboard only needs server-to-client push.
-
-**Instead:** Use SSE. It auto-reconnects, works over standard HTTP, and HTMX has native SSE support via `hx-sse="connect:/dashboard/sse/events"`.
-
-### Anti-Pattern 3: Shared Database Writes Between Scheduler and Dashboard
-
-**What:** Both the scheduler (writing pipeline results) and the dashboard (writing approval configs) write to the same SQLite tables concurrently.
-
-**Why bad:** SQLite has a single-writer lock. Concurrent writes from scheduler and dashboard will cause "database is locked" errors.
-
-**Instead:** Use WAL mode (`PRAGMA journal_mode=WAL`) for all SQLite databases. The scheduler writes to `pipeline_runs`/`budget_transactions`, and the dashboard writes to `strategy_approvals`/`daily_budgets` -- these are different tables, so WAL mode handles it fine. Only contention arises if both write to the same database file simultaneously, which WAL mode resolves.
-
-### Anti-Pattern 4: Live Trading Without Paper Validation
-
-**What:** Switching to `paper=False` without first validating the automated pipeline works correctly in paper mode.
-
-**Why bad:** Bugs in pipeline orchestration (wrong ticker format, budget calculation error, circuit breaker not triggering) cause real money loss.
-
-**Instead:** The migration path is: manual paper -> automated paper -> automated live. Each transition requires a validation period (minimum 2 weeks of successful automated paper runs before switching to live).
-
----
-
-## Scalability Considerations
-
-| Concern | Current State (v1.1) | v1.2 (100 tickers/day) | Future (500 tickers/day) |
-|---------|---------------------|----------------------|------------------------|
-| Pipeline duration | N/A (manual) | ~15 min (100 tickers, sequential scoring) | ~45 min (need parallel scoring) |
-| SQLite writes | Low frequency (CLI) | Burst during pipeline (~500 writes in 15 min) | WAL mode + connection pooling |
-| Event bus throughput | <10 events/day | ~200 events/day (stages + orders) | In-process queue, no bottleneck |
-| SSE connections | N/A | 1-2 browser tabs | 1-2 browser tabs (personal use) |
-| Alpaca API rate | Manual orders | 3-5 orders/day | 10-15 orders/day (well within Alpaca limits) |
-| Dashboard response time | N/A | <200ms (Jinja2 rendering) | Redis cache for expensive queries |
-
----
-
-## Build Order (Dependency-Driven)
-
-The four v1.2 features have the following dependency chain:
-
-```
-1. scheduler bounded context (domain + infrastructure)
-   Dependencies: existing handlers (all stable from v1.1)
-   Blocks: automated pipeline, approval workflow
-
-2. Strategy/budget approval workflow
-   Dependencies: scheduler domain (approval VOs)
-   Blocks: auto-execution (needs approved budget)
-
-3. Live trading safeguards (budget enforcement, circuit breaker)
-   Dependencies: approval workflow (budget config), existing execution context
-   Blocks: live execution
-
-4. Automated pipeline orchestration
-   Dependencies: scheduler + approval + safeguards all in place
-   Blocks: nothing (this is the integration point)
-
-5. Web dashboard (presentation layer)
-   Dependencies: all of the above (displays their state)
-   Blocks: nothing (purely additive)
-```
-
-**Recommended build order:**
-
-1. **Scheduler bounded context** (LOW-MEDIUM complexity, HIGH value) -- foundation for everything else. Domain entities, VOs, repository interfaces.
-
-2. **Strategy/budget approval** (LOW complexity, HIGH value) -- simple CRUD for approval configs. Enables automated execution.
-
-3. **Pipeline orchestration** (MEDIUM complexity, HIGH value) -- chains existing handlers. Validates the scheduler works with paper trading.
-
-4. **Live trading safeguards** (MEDIUM-HIGH complexity, CRITICAL value) -- budget enforcement, circuit breaker, order monitoring. Must be correct before live money.
-
-5. **Web dashboard** (MEDIUM complexity, HIGH value) -- visualization of all the above. Can be built incrementally (start with portfolio overview, add pages one by one).
-
-**Rationale:** The scheduler and approval workflow are prerequisites for automated execution. Live safeguards must exist before any auto-execution (even paper). The dashboard comes last because it is a read-only view of state managed by the other components -- it does not block any functionality. However, the dashboard approval page is needed for the approval workflow to be usable beyond CLI, so a minimal dashboard with just the approval form could be built alongside phase 2.
-
----
-
-## Bootstrap.py Changes (Composition Root)
-
-The existing `bootstrap.py` returns a dict of handlers. For v1.2, it needs to also wire the scheduler and dashboard components:
-
-```python
-# bootstrap.py (extended for v1.2)
-def bootstrap(
-    db_factory: DBFactory | None = None,
-    market: str = "us",
-    mode: str = "cli",  # "cli" | "scheduler" | "dashboard"
-) -> dict:
-    """Create a fully wired application context.
-
-    mode="cli":       SyncEventBus, no scheduler
-    mode="scheduler": AsyncEventBus, APScheduler, SafeExecutionService
-    mode="dashboard": AsyncEventBus, SSE subscriptions, read-heavy
-    """
-    # ... existing wiring ...
-
-    if mode in ("scheduler", "dashboard"):
-        bus = AsyncEventBus()  # Use async bus for scheduler/dashboard
-
-        # Scheduler-specific wiring
-        pipeline_repo = SqlitePipelineRunRepository(db_factory.sqlite_path("scheduler"))
-        config_repo = SqliteScheduleConfigRepository(db_factory.sqlite_path("scheduler"))
-        budget_repo = SqliteBudgetRepository(db_factory.sqlite_path("scheduler"))
-
-        budget_service = BudgetEnforcementService()
-        circuit_breaker = CircuitBreakerService(loss_threshold=settings.LIVE_CIRCUIT_BREAKER_LOSS)
-        safe_execution = SafeExecutionService(adapter, budget_service, circuit_breaker)
-
-        pipeline_handler = PipelineRunHandler(
-            score_handler=score_handler,
-            signal_handler=signal_handler,
-            regime_handler=regime_handler,
-            portfolio_handler=portfolio_handler,
-            trade_plan_handler=trade_plan_handler,
-            safe_execution=safe_execution,
-            pipeline_repo=pipeline_repo,
-            config_repo=config_repo,
-            budget_repo=budget_repo,
-            bus=bus,
-        )
-
-        # ... return extended context dict ...
-```
+**Rationale:** The Overview page has the most data complexity (multiple repos, equity curve). Building it first validates the entire integration path. The Pipeline page has the most interactivity (forms, mutations). Deferring it to Phase 6 allows the team to establish patterns on simpler pages first.
 
 ---
 
 ## Sources
 
-- Direct codebase analysis of `/home/mqz/workspace/trading/src/` (8 bounded contexts, 116 Python files) -- HIGH confidence
-- Direct codebase analysis of `/home/mqz/workspace/trading/cli/main.py` (existing CLI commands and handler usage) -- HIGH confidence
-- Direct codebase analysis of `/home/mqz/workspace/trading/commercial/api/` (existing FastAPI infrastructure) -- HIGH confidence
-- Direct codebase analysis of `/home/mqz/workspace/trading/src/execution/` (existing broker adapter, trade plan lifecycle) -- HIGH confidence
-- APScheduler documentation: [APScheduler User Guide](https://apscheduler.readthedocs.io/en/3.x/userguide.html) -- HIGH confidence (stable v3.x)
-- Alpaca Python SDK: [Alpaca-py Getting Started](https://alpaca.markets/sdks/python/getting_started.html) -- HIGH confidence (paper=True/False switch verified)
-- FastAPI SSE: [FastAPI SSE Tutorial](https://fastapi.tiangolo.com/tutorial/server-sent-events/) -- HIGH confidence (official docs)
-- sse-starlette: [PyPI sse-starlette](https://pypi.org/project/sse-starlette/) -- MEDIUM confidence (community package, production-used)
-- HTMX + FastAPI: [TestDriven.io HTMX FastAPI](https://testdriven.io/blog/fastapi-htmx/) -- MEDIUM confidence (tutorial, not official docs)
-- [FastHX GitHub](https://github.com/volfpeter/fasthx) -- MEDIUM confidence (server-side rendering library for FastAPI+HTMX)
-- v1.1 Architecture research: `.planning/research/ARCHITECTURE.md` (previous milestone) -- HIGH confidence
-- v1.1 Pitfalls research: `.planning/research/PITFALLS.md` (previous milestone) -- HIGH confidence
-- Project constraints: `.planning/PROJECT.md` -- HIGH confidence
+- [Next.js Rewrites Documentation](https://nextjs.org/docs/app/api-reference/config/next-config-js/rewrites) -- Official, confirmed v16.1.6 (2026-02-27)
+- [TradingView Lightweight Charts React Tutorial](https://tradingview.github.io/lightweight-charts/tutorials/react/simple) -- Official, v5.x
+- [TradingView Lightweight Charts GitHub](https://github.com/tradingview/lightweight-charts) -- 45KB, canvas-based
+- [Next.js Server vs Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components) -- Official
+- [shadcn/ui Data Table](https://ui.shadcn.com/docs/components/radix/data-table) -- TanStack Table based
+- [Next.js + FastAPI Discussion](https://github.com/vercel/next.js/discussions/43724) -- Community patterns
+- [Vinta Next.js FastAPI Template](https://github.com/vintasoftware/nextjs-fastapi-template) -- Reference architecture
+- [Next.js SSE Discussion](https://github.com/vercel/next.js/discussions/48427) -- Known buffering caveats
+
+---
+*Architecture research for: v1.3 Bloomberg Dashboard (Next.js + React)*
+*Researched: 2026-03-14*

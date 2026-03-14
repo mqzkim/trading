@@ -1,215 +1,194 @@
 # Project Research Summary
 
-**Project:** Intrinsic Alpha Trader v1.2 — Production Trading & Dashboard
-**Domain:** Automated trading pipeline, live execution, strategy/budget approval workflow, web dashboard
-**Researched:** 2026-03-13
+**Project:** Intrinsic Alpha Trader -- v1.3 Bloomberg Dashboard
+**Domain:** Bloomberg terminal-style trading dashboard (Next.js + React replacing HTMX + Jinja2)
+**Researched:** 2026-03-14
 **Confidence:** HIGH
 
 ## Executive Summary
 
-This milestone transitions an already-functional v1.1 system (manual CLI-driven scoring, regime detection, signal fusion, paper trading, and a commercial FastAPI REST API) into a production-grade automated trading platform. The core engineering challenge is not building capabilities from scratch — almost every domain handler and data store already exists — but rather wiring them together safely for automated, real-money operation. The system already knows how to score symbols, detect regimes, generate signals, and submit paper orders; v1.2 is about having those steps run daily without a human typing each CLI command, and having them execute real orders with appropriate safeguards.
+This project replaces the existing HTMX+Jinja2 dashboard with a Next.js+React Bloomberg-style trading terminal. The Python/FastAPI backend remains completely unchanged -- the frontend migration is a pure presentation layer swap. The existing query handlers (`OverviewQueryHandler`, `SignalsQueryHandler`, `RiskQueryHandler`, `PipelineQueryHandler`) already return Python dicts; the only backend change is a thin `api_routes.py` file (~150 lines) that wraps these handlers with `JSONResponse` instead of `templates.TemplateResponse`. The SSE bridge (`sse_bridge.py`) already sends JSON payloads and requires zero modification.
 
-The recommended approach across all four research dimensions converges on a single, unified process: a FastAPI application that hosts the commercial REST API, the personal web dashboard, and an embedded APScheduler daemon — all sharing the same DDD handlers, SQLite stores, and async event bus. This in-process architecture eliminates inter-process communication overhead, avoids an entire infrastructure layer (Redis, Celery, message queues), and leverages the `AsyncEventBus` that was built in v1.0 but never had a real consumer. HTMX + Jinja2 (no React, no Node.js) provides the dashboard UI through the same FastAPI process. Only two new pip packages are required: APScheduler and Plotly.
+The recommended stack is Next.js 16 + TradingView Lightweight Charts (45KB) + TanStack Query + Zustand + shadcn/ui + Tailwind CSS v4. This combination delivers a professional financial dashboard at ~150KB client bundle -- smaller than Plotly.js alone (1.2MB), which the existing HTMX dashboard loads from CDN. The key architectural decision is that Next.js acts as a BFF proxy to FastAPI via `next.config.ts` rewrites, never directly accessing DuckDB or SQLite. This avoids the DuckDB file-lock conflicts that already caused bugs in this project (commit `e0c1c06`).
 
-The primary risk is transitioning from paper to live trading without adequate safeguards. Research identified seven critical pitfalls specific to this codebase — including a hardcoded `paper=True` flag that can be toggled without any safety gate, a silent mock-fallback pattern that can mask real order failures with phantom fills, missing cooldown persistence for the drawdown defense, and no state reconciliation between the system's SQLite records and the broker's actual positions. These are not theoretical risks; they are concrete code patterns already in `src/execution/infrastructure/alpaca_adapter.py` and `personal/risk/drawdown.py` that must be corrected before any live execution begins.
+The three highest-risk pitfalls are: (1) TradingView chart memory leaks from missing `chart.remove()` cleanup on page navigation, (2) SSE response buffering in Next.js breaking real-time event delivery, and (3) SSR/hydration mismatches with dynamic financial data. All three are preventable through upfront architectural decisions in Phase 1: use `useLayoutEffect` cleanup for charts, use `next.config.ts` rewrites (not Next.js Route Handlers) for SSE proxying, and split components into Server Components (static layout) vs. Client Components (dynamic data). The dark theme is a foundational dependency -- every subsequent component inherits from the design token system, so building it first eliminates rework.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The v1.2 stack requires only two new pip packages on top of the existing v1.1 installation: `APScheduler>=3.11.2` for cron-based pipeline scheduling, and `plotly>=6.5.0` for interactive financial charts in the web dashboard. Everything else is already installed. FastAPI 0.135.1 includes native SSE support (`from fastapi.sse import EventSourceResponse`) that eliminates the need for `sse-starlette`. Jinja2 3.1.2 is already a FastAPI dependency. HTMX 2.0.x is delivered as a CDN script tag — no npm, no webpack, no Node.js. `alpaca-py 0.43.2` already supports live trading via `TradingClient(paper=False)` and real-time order streaming via `TradingStream`.
+The frontend is an entirely new Next.js 16 project at `dashboard/` (sibling to `src/`, not inside it). No Python changes beyond one new file. All packages are current stable releases with zero version conflicts.
 
 **Core technologies:**
-- **APScheduler 3.11.2:** Daily cron scheduling with SQLite-backed job persistence — use `AsyncIOScheduler` with `SQLAlchemyJobStore`; run in-process alongside FastAPI's event loop. Do NOT use v4.0 alpha (unstable API).
-- **HTMX 2.0.x (CDN):** Hypermedia-driven UI without a JavaScript framework — enables interactive dashboard from Jinja2 templates with zero build toolchain; HTMX SSE extension bridges to FastAPI's native SSE stream.
-- **Plotly 6.5.x:** Generates standalone interactive chart HTML from Python — candlestick, equity curve, sector pie charts; embeds directly in Jinja2 partials; no separate chart server needed.
-- **FastAPI native SSE:** Already available in installed FastAPI 0.135.1 — used for real-time dashboard push of order fills, pipeline stage events, drawdown alerts.
-- **Alpaca TradingStream:** Already in installed `alpaca-py 0.43.2` — subscribes to `wss://api.alpaca.markets/stream` for live order fill events.
+- **Next.js 16.1.x**: App Router, Turbopack default, React Compiler, `proxy.ts`/rewrites for FastAPI proxying. Latest stable, Node.js 22.x compatible.
+- **TradingView Lightweight Charts 5.1.x**: 45KB canvas-based financial charting. Industry standard for trading UIs. Replaces Plotly.js (1.2MB) entirely. Direct `useRef`+`useEffect` integration -- no third-party React wrappers.
+- **TanStack Query 5.90.x + Zustand 5.0.x**: Server state (API caching, refetch) + client state (UI preferences). Replaces Redux with ~60% less code.
+- **shadcn/ui + Tailwind CSS 4.x**: Zero-runtime component library with dark mode via CSS custom properties. Data Table wraps TanStack Table for sortable/filterable grids.
+- **Biome 2.x**: Linting + formatting (Next.js 16 removed `next lint`). Single tool replaces ESLint + Prettier.
+- **Native EventSource API**: SSE client for real-time updates. Zero dependencies -- browser built-in connects to existing FastAPI SSE endpoint.
 
 ### Expected Features
 
-**Must have (table stakes for v1.2):**
-- Daily cron pipeline: data ingest -> regime -> score -> signal -> trade plan, running with market-calendar awareness (skip weekends, NYSE holidays)
-- Market calendar guard on pipeline execution — no orders on holidays, outside trading hours, or on early-close days
-- Strategy/budget approval entity: approve trading rules (score threshold, regime allow-list, max per-trade %) with mandatory expiration date
-- Daily budget cap enforced per pipeline run with spent-vs-remaining tracking
-- Live trading mode guard: explicit `EXECUTION_MODE=live` required (cannot be triggered by credentials alone)
-- Separate API key pairs for paper and live Alpaca accounts (never share keys)
-- Post-order status polling until terminal state (filled, rejected, cancelled)
-- Bracket leg verification after fill (stop-loss and take-profit legs confirmed active)
-- Portfolio reconciliation at pipeline start: compare SQLite position records with Alpaca `get_positions()`
-- Persistent cooldown state for drawdown defense (30-day cooling period survives process restarts)
-- Pipeline run log per execution (stages completed, counts, errors, next scheduled run)
-- Web dashboard: portfolio overview, P&L chart, signal results, risk indicators, approval control panel, pipeline status
-- Kill switch: cancel all open orders + halt pipeline immediately
+**Must have (v1.3.0 -- table stakes):**
+- Dark theme with Bloomberg color palette (amber, cyan, blue, red on black)
+- Data-dense holdings table with color-coded P&L (24-28px rows, monospace numbers)
+- Equity curve with TradingView Lightweight Charts + regime period overlays
+- Scoring heatmap table with gradient coloring (red 0 -> amber 50 -> green 100)
+- Drawdown gauge with 10%/15%/20% tier indicators
+- Pipeline status timeline with stage-by-stage dots
+- Approval panel with budget bar + review queue (approve/reject)
+- SSE event consumption (OrderFilled, DrawdownAlert, RegimeChanged, PipelineCompleted)
+- Navigation sidebar + system status bar (SSE connection, execution mode, last update)
+- LIVE/PAPER mode banner (red/green, matching existing behavior)
 
-**Should have (differentiators):**
-- Alpaca TradingStream WebSocket for real-time fill notifications (replaces polling)
-- Regime-conditional auto-execution ("auto in Bull/Sideways, manual in Bear, halt in Crisis")
-- Drawdown-triggered approval suspension (tier 2+ auto-suspends strategy approval)
-- Dashboard approval form (approve strategy from browser instead of CLI only)
-- Pipeline dry-run mode (full run without order submission for validation)
-- Per-stage retry with exponential backoff (yfinance timeouts do not abort entire pipeline)
-- Equity curve chart with regime overlay
-- Score evolution chart per symbol over 90 days
+**Should have (v1.3.x -- after validation):**
+- Keyboard navigation (arrow keys, 1-4 page switching)
+- Command palette (Cmd+K or `/`)
+- Alert toast system for SSE events
+- Flash/pulse animation on data update
+- System activity feed
 
-**Defer (v2+):**
-- Mobile-responsive dashboard
-- Multi-user dashboard with login (personal tool, single user)
-- React/Next.js frontend (HTMX is sufficient for single-user personal tool)
-- KIS live trading (Korean market; paper trading exists, live is a separate milestone)
-- Multi-broker simultaneous execution
-- Options/derivatives integration
+**Defer (v1.4+):**
+- TradingView candlestick charts (requires new OHLCV endpoint)
+- Multi-panel draggable layout (react-grid-layout)
+- Linked security context (cross-panel symbol selection)
+- Ticker tape header, mini-sparklines (require price feed data)
+
+**Explicitly rejected (anti-features):**
+- Real-time tick-by-tick streaming (daily granularity system, no day trading)
+- Drag-and-drop trade execution (bypasses approval-gated safety)
+- Mobile-responsive design (trading is desktop-only, min-width 1280px)
+- Paper/live mode toggle in UI (dangerous -- stays CLI-only)
 
 ### Architecture Approach
 
-The v1.2 architecture adds one new bounded context (`scheduler`), one new presentation layer (`dashboard`), and significant modifications to two existing contexts (`execution` for live trading + approval workflow, `portfolio` for real-time monitoring). The existing `AsyncEventBus` — built in v1.0 but never used in production — becomes the backbone: the scheduler publishes `PipelineStartedEvent`/`StageCompletedEvent`/`PipelineCompletedEvent`, the execution context publishes `OrderExecutedEvent`/`OrderFailedEvent`, and the dashboard subscribes to all of them for SSE-based real-time updates.
+Two-process architecture: Next.js (port 3000) proxies to FastAPI (port 8000) via `next.config.ts` rewrites. The browser never contacts FastAPI directly (except optionally for SSE). Server Components render static layout (sidebar, headers, column labels); Client Components render dynamic data (P&L, charts, gauges). The existing `dashboard/application/queries.py` handlers are reused without modification -- a new `api_routes.py` wraps them with JSON responses.
 
 **Major components:**
-1. **`scheduler` bounded context (NEW)** — `PipelineOrchestratorService` chains existing DDD handlers (ingest -> regime -> score -> signal -> plan -> budget check -> auto-execute); `APSchedulerAdapter` triggers via cron with SQLite job persistence; `StrategyApproval` and `DailyBudget` value objects define approved execution parameters; pipeline run history persisted in SQLite.
-2. **`execution` context (MODIFIED)** — `SafeExecutionService` wraps `IBrokerAdapter` with pre-execution safety checks (circuit breaker, budget enforcement, position limits); `BudgetEnforcementService` tracks daily capital deployment; `CircuitBreakerService` implements daily loss halt; `AlpacaOrderMonitor` polls order status in background; live mode gated by `EXECUTION_MODE` setting.
-3. **`dashboard` presentation layer (NEW)** — FastAPI routes under `/dashboard/` serving Jinja2 templates; HTMX for partial page updates with zero build toolchain; SSE endpoint `/dashboard/stream` pushes all domain events from `AsyncEventBus` to browser; Plotly.py generates chart fragments embedded in templates.
-4. **`AsyncEventBus` (ACTIVATED)** — existing shared infrastructure, now wired as the real-time backbone: scheduler publishes stage events, execution publishes order events, dashboard subscribes all for live push.
+1. **Next.js App (4 pages)** -- Overview, Signals, Risk, Pipeline. Server Component shell + Client Component data panels.
+2. **FastAPI JSON API (`api_routes.py`)** -- New thin layer (~150 LOC) wrapping existing query handlers with JSONResponse. Coexists with HTMX routes during migration.
+3. **SSE Hook (`useSSE`)** -- React hook consuming `/dashboard/events`. Dispatches typed events to components. Connection lives at root layout level (persists across page navigation).
+4. **TradingView Charts** -- `"use client"` components with `useRef`+`useLayoutEffect`. Equity curve (AreaSeries), drawdown gauge (CSS), sector exposure (SVG/CSS).
+5. **Design System** -- CSS custom properties as single source of truth. Bloomberg dark tokens consumed by all components. shadcn/ui primitives for tables, cards, badges.
 
 ### Critical Pitfalls
 
-1. **One-boolean live trading switch with no safety gate** — `AlpacaExecutionAdapter` currently hardcodes `paper=True`; making it configurable via credentials-present logic is catastrophic. Fix: add explicit `EXECUTION_MODE` enum setting (defaults to `paper`); `paper=False` requires BOTH valid live credentials AND `EXECUTION_MODE=live`; startup banner logs mode unambiguously. Phase: Live Trading (first task).
-
-2. **Silent mock fallback masks real order failures** — `_real_bracket_order()` catches ALL exceptions and returns a mock `OrderResult(status="filled")`, creating phantom positions. In live mode, this means the system believes it holds stocks it never bought. Fix: separate `LiveAlpacaAdapter` that raises on any error in live mode; `OrderResult` must carry `is_mock: bool` flag; pipeline halts if mock result received in live mode. Phase: Live Trading (adapter refactor, before first live order).
-
-3. **Automated pipeline running outside market hours** — no market calendar check exists anywhere in the codebase; orders submitted on holidays either reject or queue as GTC, filling at an unknown price. Fix: use `exchange_calendars` library; schedule by US/Eastern timezone; use `TimeInForce.DAY` for all automated orders; log every skip with reason. Phase: Automated Pipeline (scheduler setup, mandatory first task).
-
-4. **No reconciliation between SQLite state and broker state** — system's portfolio records diverge from Alpaca reality through partial fills, stop-loss triggers, and manual interventions. Drawdown calculations use fictional data. Fix: `ReconciliationService` at pipeline start comparing `position_repo.find_all_open()` with `adapter.get_positions()`; `peak_value` synced from Alpaca at each pipeline run. Phase: Live Trading (post-order flow).
-
-5. **Drawdown cooldown not persisted across restarts** — `cooldown_days_remaining` defaults to 0; the 30-day cooling period after a 20% drawdown is lost on any process restart. Fix: `CooldownState` table in SQLite with `start_date`/`end_date`/`trigger_drawdown_pct`; pipeline checks this at startup before allowing any execution. Phase: Live Trading (risk engine, hard prerequisite).
-
-6. **Strategy approval with no expiration** — open-ended approvals allow stale strategies to execute in changed market conditions. Fix: `valid_until` field mandatory on all approvals; pipeline halts if no valid approval exists; `RegimeChangedEvent` triggers approval suspension. Phase: Strategy Approval (design first).
-
-7. **SQLite concurrent access from dashboard + pipeline** — default journal mode blocks dashboard reads during pipeline writes, causing "database is locked" errors. Fix: enable WAL mode (`PRAGMA journal_mode=WAL`) on all SQLite connections; use read-only connections for dashboard; set `PRAGMA busy_timeout=5000`. Phase: Automated Pipeline (infrastructure setup).
+1. **TradingView chart memory leaks** -- Must call `chart.remove()` in `useLayoutEffect` cleanup. Set `isRemoved` flag to guard child component cleanup. Navigate 20 times, verify flat heap in DevTools.
+2. **SSE buffering through Next.js** -- Use `next.config.ts` rewrites to proxy SSE (transparent HTTP proxy, no buffering). Avoid Next.js Route Handlers for SSE. In production, set `X-Accel-Buffering: no` on nginx/Caddy.
+3. **SSR/hydration mismatch** -- Split into Server Components (static layout) and Client Components (dynamic data). Never SSR financial values that change between render and hydration. Use `Suspense` with skeleton fallbacks.
+4. **DuckDB file lock conflicts** -- Node.js must NEVER directly access DuckDB or SQLite. All data through FastAPI HTTP. No `duckdb` or `better-sqlite3` in `package.json`. Already caused real bugs (commit `e0c1c06`).
+5. **Bundle size explosion from Plotly** -- Do NOT add Plotly.js to the React app. Replace all 3 Plotly charts: equity curve (TradingView LineSeries), drawdown gauge (CSS conic-gradient), sector donut (SVG/CSS). Target total JS under 300KB gzipped.
+6. **Dark theme incomplete** -- CSS custom properties for all colors, explicit TradingView chart options (not CSS), scrollbar styling, form element reset, focus ring visibility. Audit every interactive state.
+7. **Security: subprocess APIs** -- Zero subprocess imports in Next.js codebase. CVE-2025-55182 (React2Shell, CVSS 10/10) compromised 59,000 servers. All backend access through HTTP.
 
 ## Implications for Roadmap
 
-Based on research, the four v1.2 capabilities have clear implementation dependencies that dictate phase order. Safety infrastructure must precede live execution. The pipeline orchestrator must work correctly in paper mode before any live money is at risk. The approval workflow must be designed before the automated pipeline is enabled, because it defines what the pipeline is allowed to do.
+Based on research, 7 phases ordered by dependency chain and risk mitigation.
 
-### Phase 1: Safety Infrastructure and Live Trading Adapter
+### Phase 1: Project Setup + BFF Architecture
+**Rationale:** Every subsequent phase depends on the Next.js project existing, the proxy to FastAPI working, and the SSE architecture decided. Foundational pitfalls (subprocess architecture, DuckDB access, SSE buffering) must be prevented here.
+**Delivers:** Working Next.js 16 project at `dashboard/`, `next.config.ts` rewrites proxying to FastAPI, environment variables configured, Biome initialized, SSE connection verified end-to-end.
+**Addresses:** Navigation sidebar (partial), LIVE/PAPER mode banner (partial).
+**Avoids:** Pitfalls 2 (subprocess architecture), 3 (DuckDB locks), 5 (SSE buffering), security mistakes (key exposure, unauthenticated routes).
 
-**Rationale:** The most dangerous pitfalls (silent mock fallback, one-boolean live switch, missing cooldown persistence, no reconciliation) all live in the execution and portfolio layers. These must be corrected before any automated pipeline is built on top, because the automated pipeline inherits whatever bugs exist in execution. Real money loss is irreversible — safety first.
+### Phase 2: Design System + Dark Theme
+**Rationale:** The Bloomberg aesthetic is the entire point of v1.3. Every component inherits from the design token system. Building components on a light theme then switching creates rework. Dark theme CSS conflicts (Pitfall 7) are easier to fix when no components exist yet.
+**Delivers:** CSS custom properties (Bloomberg color palette), Tailwind v4 configuration, shadcn/ui initialization with dark theme, monospace font for numbers, compact spacing system, skeleton loading components, drawdown gauge (CSS), sector exposure (SVG/CSS).
+**Addresses:** Dark theme, color-coded P&L system, monospace number alignment, compact component boundaries.
+**Avoids:** Pitfall 7 (dark theme gaps), Pitfall 6 (bundle size -- CSS charts replace Plotly).
 
-**Delivers:** Production-safe execution adapter with explicit `EXECUTION_MODE` setting; separate paper/live adapter classes with no mock fallback in live mode; persistent `CooldownState` for drawdown defense; `ReconciliationService` that runs at pipeline startup; SQLite WAL mode enabled across all repositories; separate API key configuration for paper vs live; kill switch implementation.
+### Phase 3: FastAPI JSON API
+**Rationale:** The React pages need data endpoints. The existing query handlers return Python dicts -- wrapping them with JSONResponse is ~150 lines of code. This unlocks all subsequent page work.
+**Delivers:** `api_routes.py` with GET endpoints for overview, signals, risk, pipeline. POST endpoints for pipeline/run and pipeline/approve. Remove Plotly chart JSON from responses (gauge_json, donut_json). Both HTMX and React dashboards operational simultaneously.
+**Addresses:** Backend integration point.
+**Avoids:** Anti-pattern 1 (duplicating business logic in TypeScript).
 
-**Features from FEATURES.md:** Live trading mode guard, separate API key pairs, kill switch, persistent cooldown, post-order status polling, bracket leg verification.
+### Phase 4: Overview Page
+**Rationale:** Overview has the most data complexity (portfolio KPIs, holdings table, equity curve chart). Building it first validates the entire integration path: fetch -> proxy -> query handler -> JSON -> React rendering. The equity curve establishes the TradingView chart pattern reused on other pages.
+**Delivers:** KPI cards (portfolio value, P&L, drawdown, position count), holdings/positions data table with color-coded P&L, equity curve with TradingView AreaSeries + regime overlays.
+**Uses:** TanStack Query for data fetching, shadcn/ui Data Table, TradingView Lightweight Charts.
+**Avoids:** Pitfall 1 (chart memory leaks -- establish correct cleanup pattern), Pitfall 4 (hydration -- establish Server/Client split).
 
-**Pitfalls addressed:** Pitfalls 1, 2, 4, 5 (one-boolean switch, silent fallback, no reconciliation, cooldown not persisted).
+### Phase 5: Signals + Risk + Pipeline Pages
+**Rationale:** These three pages are simpler than Overview and follow established patterns from Phase 4 (table component, chart component, data fetching). Grouping them reduces phase count without increasing complexity. Each page is ~2-4 components reusing the table and card primitives.
+**Delivers:** Scoring heatmap table with gradient colors, signal direction indicators, drawdown gauge with tier markers, sector exposure bars, regime badge, pipeline timeline with status dots, approval panel with budget bar, review queue with approve/reject buttons.
+**Addresses:** All remaining table stakes features.
+**Avoids:** Pitfall 4 (hydration -- same pattern as Phase 4).
 
-**Research flag:** Standard patterns. Well-documented Alpaca API. Existing code already reviewed at line level. No deeper research needed.
+### Phase 6: SSE Integration + Real-Time Updates
+**Rationale:** SSE is deferred until all 4 pages render correctly with static data. Adding real-time updates to broken pages makes debugging harder. The `useSSE` hook connects at root layout level and dispatches to page-specific handlers.
+**Delivers:** `useSSE` hook with typed event dispatch. Holdings update on OrderFilled, drawdown update on DrawdownAlert, regime badge update on RegimeChanged, pipeline status update on PipelineCompleted/PipelineHalted. System status bar with SSE connection indicator and last-update timestamp.
+**Addresses:** Real-time data streaming, system status bar.
+**Avoids:** Pitfall 5 (SSE buffering -- verified in Phase 1, wired here), performance trap (SSE reconnection on page navigation -- single connection at layout level).
 
-### Phase 2: Automated Pipeline Scheduler (Paper Mode)
-
-**Rationale:** Build and validate the pipeline orchestrator in paper mode first. Requires Phase 1 (safe execution adapter) and existing handlers (already built). Market calendar guard is a mandatory first task within this phase. Pipeline must be idempotent and handle stage failures before any live money depends on it.
-
-**Delivers:** `scheduler` bounded context with `PipelineOrchestratorService`; APScheduler integration with SQLite job persistence and `misfire_grace_time=3600`; market calendar check (skip weekends, NYSE holidays); pipeline run log in SQLite; stage-level retry with exponential backoff; regime-aware pipeline gating (Crisis + tier 2+ drawdown blocks plan creation); pipeline dry-run mode; concurrent scoring for universe of 400+ symbols.
-
-**Uses from STACK.md:** APScheduler 3.11.2 with `AsyncIOScheduler` + `SQLAlchemyJobStore`; `exchange_calendars` for NYSE trading day awareness; existing DDD handlers wired as pipeline stages.
-
-**Implements from ARCHITECTURE.md:** `PipelineOrchestratorService`, `APSchedulerAdapter`, `PipelineRun` entity, `ScheduleConfig` value object, `StageCompletedEvent` published to `AsyncEventBus`.
-
-**Pitfalls addressed:** Pitfall 3 (market calendar), Pitfall 7 (SQLite WAL for concurrent dashboard access).
-
-**Research flag:** Standard patterns. APScheduler is well-documented with official guides. Market calendar is a standard integration. No deeper research needed.
-
-### Phase 3: Strategy and Budget Approval Workflow
-
-**Rationale:** The approval workflow gates what the automated pipeline can do — it must be designed before automated execution is enabled, because the approval model determines the execution boundaries. Two-tier model: approve rules (strategy parameters) + approve capital (daily budget). Trades auto-execute within those approved constraints. Must exist before Phase 4 switches to live trading.
-
-**Delivers:** `StrategyApproval` and `DailyBudget` value objects in `scheduler/domain/`; `BudgetEnforcementService` in `execution/domain/`; `ApproveStrategyCommand` and `SetBudgetCommand` with CLI entry points; approval expiration enforcement; regime-change approval suspension wired to existing `RegimeChangedEvent`; approval audit log in SQLite; budget spent-vs-remaining tracking per day; `TradePlanStatus.BUDGET_CHECK` and `AUTO_APPROVED` state extensions.
-
-**Implements from ARCHITECTURE.md:** `StrategyApproval` lifecycle (DRAFT -> APPROVED -> EXPIRED/REVOKED/SUSPENDED), `DailyBudget` with daily reset at market open, budget enforcement before order submission.
-
-**Pitfalls addressed:** Pitfall 6 (bad approval model — expiration, regime-gating, per-trade constraints all required).
-
-**Research flag:** Standard patterns. State machine is straightforward. Main design decision is granularity (approve rules, not individual trades — confirmed correct approach).
-
-### Phase 4: Live Trading Activation
-
-**Rationale:** Only after Phase 1 (safe adapter), Phase 2 (validated automated pipeline in paper mode), and Phase 3 (approval workflow) is it safe to switch to `EXECUTION_MODE=live`. Progressive migration: paper automated first, then live with 25% capital allocation, increase as reliability is demonstrated.
-
-**Delivers:** `EXECUTION_MODE=live` configuration in production; `SafeExecutionService` wrapping live adapter with circuit breaker + budget enforcement; live API key configuration and startup banner; `AlpacaOrderMonitor` background task for real-time order status tracking; `TradingStream` WebSocket subscription for fill events; gradual capital deployment ramp-up (start at 25% max deployment); circuit breaker pattern (3 consecutive failures halts live trading).
-
-**Avoids:** All pitfalls that cause real money loss — Pitfalls 1, 2, 4, 5 resolved in Phase 1; Pitfall 6 resolved in Phase 3; live activation validates them all together.
-
-**Research flag:** Needs careful validation. Start with 25% capital, monitor for 2-4 weeks before increasing. Watch for slippage divergence between paper and live fills. PDT rule check (accounts under $25K: max 3 day trades per 5 business days) must be verified before enabling live with smaller accounts.
-
-### Phase 5: Web Dashboard
-
-**Rationale:** The dashboard is the operational control panel for the automated system. It becomes essential once live trading is active — the operator needs visibility into pipeline status, portfolio state, and risk metrics without running CLI commands. Can be built incrementally but must be complete before leaving live trading unattended.
-
-**Delivers:** FastAPI routes under `/dashboard/` with Jinja2 templates; HTMX 2.0.x for partial updates (no Node.js/React); SSE endpoint consuming `AsyncEventBus` for real-time updates; Plotly.py charts (equity curve, sector allocation, drawdown gauge); approval control panel (view/set strategy approval from browser); pipeline status widget (last run, next run, stage results, counts); portfolio overview with per-position P&L; prominent paper/live mode banner (red for live, green for paper); tiered alert notifications (INFO daily summary, CRITICAL for drawdown tier 2+).
-
-**Uses from STACK.md:** HTMX 2.0.4 (CDN), htmx-ext-sse 2.2.2 (CDN), Plotly 6.5.x, FastAPI native SSE, Jinja2 (already installed), Starlette StaticFiles (already installed).
-
-**Security tasks (from PITFALLS.md):** Restrict `allow_origins=["*"]` in `commercial/api/main.py` to dashboard origin; fail startup if JWT secret key matches dev default; dashboard auth if exposed on network (bind to localhost if personal-only).
-
-**Research flag:** Standard patterns. HTMX + FastAPI is well-documented with multiple tutorials and benchmarks. Plotly.py financial chart documentation is comprehensive. Main risk is SSE event bus wiring under concurrent pipeline runs — verify no event loss.
+### Phase 7: Cleanup + Production Readiness
+**Rationale:** Remove the old HTMX dashboard code and Plotly dependency once the React dashboard is verified functional through daily use. Run the "Looks Done But Isn't" checklist.
+**Delivers:** Remove `src/dashboard/presentation/routes.py` (HTMX routes), `src/dashboard/presentation/templates/` directory, `src/dashboard/presentation/charts.py` (Plotly). Remove Plotly from `pyproject.toml`. Update `.gitignore` with `dashboard/node_modules`, `dashboard/.next`. Production deployment configuration (Caddy or systemd).
+**Addresses:** Technical debt cleanup, bundle size verification (<300KB gzipped).
+**Avoids:** Running two dashboard systems indefinitely.
 
 ### Phase Ordering Rationale
 
-- Safety infrastructure before automation: real money loss is irreversible; executing on buggy code in production cannot be undone
-- Paper automated before live: validates orchestration correctness, stage error handling, and reconciliation service without financial risk
-- Approval workflow before live activation: the approval model defines execution boundaries; build the gate before opening it
-- Dashboard after live activation: valuable for operational visibility but not a safety prerequisite; can be partially built alongside Phase 4
+- **Phases 1-2 before any page work:** The proxy architecture and design system are foundational. Building a page on top of wrong architecture or wrong theme creates costly rework.
+- **Phase 3 (JSON API) is a 1-hour task** but is a separate phase because it touches the Python backend -- different toolchain, different testing. Keep it isolated.
+- **Phase 4 (Overview) before Phase 5 (other pages):** Overview validates the hardest integration path (multiple data sources, chart rendering, table component). Once this works, remaining pages are pattern replication.
+- **Phase 6 (SSE) after all pages:** SSE events fire infrequently (trades, pipeline runs, regime changes). Pages must work with static data first. SSE is an enhancement layer, not a dependency.
+- **Phase 7 (Cleanup) is separate:** Do not delete old code until the new dashboard has been used for real trading for at least a few days.
 
 ### Research Flags
 
-Phases needing deeper research during planning:
-- **Phase 4 (Live Trading Activation):** Progressive capital deployment strategy; paper-to-live slippage comparison methodology; PDT rule interaction with automated trading for accounts under $25K; specific Alpaca live account requirements and verification timeline (may have lead time).
+Phases likely needing deeper research during planning:
+- **Phase 1 (Setup):** SSE proxy architecture decision needs validation -- test both `next.config.ts` rewrites and direct browser-to-FastAPI connection. Confirm Turbopack handles the rewrite correctly.
+- **Phase 4 (Overview):** TradingView Lightweight Charts v5.1 React integration -- the official advanced tutorial covers the pattern, but regime overlay (colored bands) may need custom plugin work.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Safety Infrastructure):** Direct code fixes in known files; code references are specific (file, line number); patterns are clear from pitfalls research.
-- **Phase 2 (Pipeline Scheduler):** APScheduler well-documented with official 3.x user guide; existing handlers already work; market calendar is a well-known integration.
-- **Phase 3 (Approval Workflow):** State machine is simple; persistence patterns match existing SQLite repositories; approval model is design, not research.
-- **Phase 5 (Dashboard):** HTMX + FastAPI pattern is well-documented; Plotly.py has comprehensive financial charting docs; SSE is native to installed FastAPI.
+Phases with standard patterns (skip deep research):
+- **Phase 2 (Design System):** Well-documented -- shadcn/ui dark mode guide + Bloomberg color palette specs are comprehensive.
+- **Phase 3 (JSON API):** Trivial -- wrapping existing Python query handlers with JSONResponse. The handlers already return dicts.
+- **Phase 5 (Signals/Risk/Pipeline):** Pattern replication from Phase 4. No new architectural decisions.
+- **Phase 6 (SSE):** EventSource API is browser-standard. The SSE bridge already works.
+- **Phase 7 (Cleanup):** Deletion only. No new code.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All versions verified against PyPI and installed packages on 2026-03-13. Only 2 new packages (APScheduler, Plotly) both mature and production-proven. HTMX is CDN-only. No version conflicts. |
-| Features | HIGH | Based on direct codebase analysis of existing 20K+ LOC system plus official Alpaca documentation. Existing capabilities clearly identified; v1.2 additions precisely scoped against what is already built. |
-| Architecture | HIGH | Direct codebase analysis confirmed component boundaries, existing event bus, SQLite repository patterns, and Alpaca adapter structure. Architecture patterns are idiomatic extensions of the existing DDD structure. |
-| Pitfalls | HIGH | All 7 critical pitfalls identified from direct line-level analysis of existing source files with specific file paths and line numbers. Alpaca behavior confirmed from official docs. Recovery costs assessed. |
+| Stack | HIGH | All versions verified against npm registry and official docs (2026-03-14). Next.js 16.1.x, TradingView 5.1.x, TanStack Query 5.90.x all current stable. Zero version conflicts. |
+| Features | HIGH | Bloomberg UX patterns well-documented. Existing backend data availability verified from `dashboard/application/queries.py`. Feature dependencies mapped. Anti-features clearly identified. |
+| Architecture | HIGH | Two-process BFF proxy is standard Next.js + external API pattern. Existing codebase analysis confirms query handlers return JSON-serializable dicts. SSE bridge confirmed JSON payload format. |
+| Pitfalls | HIGH | All pitfalls grounded in official docs, CVE advisories, or actual project history (DuckDB lock bug in commit e0c1c06). TradingView memory leak documented in GitHub issue #552. SSE buffering documented in Next.js discussion #48427. |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **`exchange_calendars` vs `pandas_market_calendars`:** Both were mentioned in pitfalls research for NYSE trading day awareness. Confirm which to use during Phase 2 planning. Both cover NYSE; `exchange_calendars` is more widely cited in recent (2025-2026) literature, but check if either is already installed.
-- **Dashboard authentication scope:** Research noted personal dashboard may not need auth if bound to localhost only. Confirm deployment plan (local-only vs. network-accessible, VPN-protected, etc.) before Phase 5 auth decisions. If any network exposure exists, JWT auth is mandatory.
-- **Plotly.py chart generation performance:** Plotly generates standalone HTML/JS fragments. For large OHLCV datasets (400+ symbols, 2 years of daily data), verify DuckDB query time for chart data is acceptable before settling on chart update frequency. If slow, pre-generate charts at pipeline completion and cache.
-- **`AsyncEventBus` under concurrent load:** The event bus was built in v1.0 but never used in production. Verify it handles concurrent publishers (pipeline scheduler + order monitor) and a subscriber (SSE stream) without event loss during high-activity pipeline runs. Add integration test before Phase 4.
-- **Alpaca live account lead time:** Live Alpaca brokerage account requires identity verification and funding. If the account is not already open, verify the timeline (can be same-day, but varies). This may gate Phase 4 start.
+- **OHLCV price data endpoint:** TradingView candlestick charts (deferred to v1.4+) require a new API endpoint querying DuckDB OHLCV tables. Not needed for v1.3.0 but design the data model now.
+- **Production deployment:** The research covers Caddy reverse proxy configuration but does not specify systemd service files, process monitoring, or log aggregation. Address during Phase 7 planning.
+- **Authentication:** The single-user personal dashboard currently has no auth. The security pitfalls research flags unauthenticated POST routes as a risk. Decide on simple API key header or skip for v1.3.0 (localhost-only binding).
+- **Next.js 16 `proxy.ts`:** Research recommends starting with `next.config.ts` rewrites (proven) over `proxy.ts` (new in 16). Validate `proxy.ts` later if conditional logic is needed.
+- **React Compiler impact:** Next.js 16 includes stable React Compiler which auto-memoizes. Verify this does not conflict with TradingView chart `useRef` patterns during Phase 4.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Direct codebase analysis of `/home/mqz/workspace/trading/` — all 7 pitfalls verified against specific files and line numbers: `src/execution/infrastructure/alpaca_adapter.py` (line 44 hardcoded `paper=True`, line 127 mock fallback), `personal/risk/drawdown.py` (`cooldown_days_remaining=0` default), `src/portfolio/domain/aggregates.py` (`peak_value` only updated on property access), `src/portfolio/infrastructure/sqlite_portfolio_repo.py` (no WAL mode), `commercial/api/main.py` (CORS wildcard line 27), `commercial/api/config.py` (JWT default key), `src/settings.py` (no `TRADING_MODE` setting)
-- [APScheduler PyPI](https://pypi.org/project/APScheduler/) v3.11.2, Dec 2025, verified 2026-03-13
-- [APScheduler 3.x User Guide](https://apscheduler.readthedocs.io/en/3.x/userguide.html) — AsyncIOScheduler, SQLAlchemyJobStore, CronTrigger, misfire_grace_time
-- [FastAPI SSE Docs](https://fastapi.tiangolo.com/tutorial/server-sent-events/) — native SSE in 0.135.0+, EventSourceResponse, ServerSentEvent
-- [Alpaca-py PyPI](https://pypi.org/project/alpaca-py/) v0.43.2, Nov 2025, confirmed
-- [Alpaca Trading SDK Docs](https://alpaca.markets/sdks/python/trading.html) — TradingClient paper param, TradingStream WebSocket
-- [Alpaca WebSocket Streaming](https://alpaca.markets/docs/api-references/trading-api/streaming/) — trade_updates events, live/paper endpoints
-- [Paper Trading - Alpaca Docs](https://docs.alpaca.markets/docs/paper-trading) — paper vs. live differences (fills, slippage, dividends)
-- [Alpaca Common API Errors](https://alpaca.markets/learn/how-to-fix-common-trading-api-errors-at-alpaca) — rejection reasons, PDT rule
-- [Plotly.py PyPI](https://pypi.org/project/plotly/) v6.5.2, Jan 2026, verified 2026-03-13
-- [Systemic Failures in Algorithmic Trading (PMC)](https://pmc.ncbi.nlm.nih.gov/articles/PMC8978471/) — academic source on pitfall patterns
+- [Next.js 16 Release Blog](https://nextjs.org/blog/next-16) -- Turbopack stable, React Compiler, proxy.ts
+- [Next.js 16.1 Release Blog](https://nextjs.org/blog/next-16-1) -- Latest patch release
+- [TradingView Lightweight Charts Official Docs](https://tradingview.github.io/lightweight-charts/) -- v5.1, React tutorials
+- [TradingView Lightweight Charts React Advanced Tutorial](https://tradingview.github.io/lightweight-charts/tutorials/react/advanced) -- Cleanup patterns
+- [TradingView Memory Leak Issue #552](https://github.com/tradingview/lightweight-charts/issues/552) -- chart.remove() requirement
+- [DuckDB Concurrency Documentation](https://duckdb.org/docs/stable/connect/concurrency) -- Single-writer model
+- [CVE-2025-55182 React2Shell (Datadog)](https://securitylabs.datadoghq.com/articles/cve-2025-55182-react2shell-remote-code-execution-react-server-components/) -- CVSS 10/10 RCE
+- [Bloomberg UX Color Accessibility](https://www.bloomberg.com/ux/2021/10/14/designing-the-terminal-for-color-accessibility/) -- Color system
+- [shadcn/ui Dark Mode Guide](https://ui.shadcn.com/docs/dark-mode/next) -- next-themes integration
+- [shadcn/ui Data Table](https://ui.shadcn.com/docs/components/radix/data-table) -- TanStack Table integration
+- Project codebase: `src/dashboard/application/queries.py`, `src/dashboard/infrastructure/sse_bridge.py`, `src/dashboard/presentation/routes.py`, `src/dashboard/presentation/charts.py`
+- Project commit `e0c1c06`: DuckDB lock conflict evidence
 
 ### Secondary (MEDIUM confidence)
-- [HTMX + FastAPI Patterns 2025](https://johal.in/htmx-fastapi-patterns-hypermedia-driven-single-page-applications-2025/) — SSR performance benchmarks (~45ms vs ~650ms for React hydration)
-- [Realtime Dashboard: FastAPI, Streamlit, Next.js comparison](https://jaehyeon.me/blog/2025-03-04-realtime-dashboard-3/) — architecture comparison for dashboard technology choice
-- [Human-in-the-Loop Architecture](https://www.agentpatterns.tech/en/architecture/human-in-the-loop-architecture) — two-tier approval model (approve rules, auto-execute within rules)
-- [5 Common Algorithmic Trading Mistakes (Intrinio)](https://intrinio.com/blog/5-common-mistakes-to-avoid-when-using-automated-trading-systems) — domain pitfall validation
-- [Weaponizing Real Time: WebSocket/SSE with FastAPI](https://blog.greeden.me/en/2025/10/28/weaponizing-real-time-websocket-sse-notifications-with-fastapi-connection-management-rooms-reconnection-scale-out-and-observability/) — SSE pattern for dashboard
+- [Next.js SSE Discussion #48427](https://github.com/vercel/next.js/discussions/48427) -- SSE buffering caveats
+- [State of React State Management 2026](https://www.pkgpulse.com/blog/state-of-react-state-management-2026) -- TanStack Query + Zustand dominance
+- [Next.js 16 Proxy Architecture](https://learnwebcraft.com/learn/nextjs/nextjs-16-proxy-ts-changes-everything) -- proxy.ts patterns
+- [Fixing Slow SSE in Next.js](https://medium.com/@oyetoketoby80/fixing-slow-sse-server-sent-events-streaming-in-next-js-and-vercel-99f42fbdb996) -- X-Accel-Buffering fix
 
 ---
-*Research completed: 2026-03-13*
+*Research completed: 2026-03-14*
 *Ready for roadmap: yes*
