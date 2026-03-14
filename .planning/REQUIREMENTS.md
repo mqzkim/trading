@@ -53,8 +53,8 @@ Requirements for Bloomberg Dashboard milestone. Each maps to roadmap phases.
 
 ### Cleanup
 
-- [ ] **CLNP-01**: HTMX/Jinja2 템플릿 코드가 제거된다
-- [ ] **CLNP-02**: Plotly 의존성이 제거된다
+- [x] **CLNP-01**: HTMX/Jinja2 템플릿 코드가 제거된다
+- [x] **CLNP-02**: Plotly 의존성이 제거된다
 
 ## v2 Requirements
 
@@ -114,8 +114,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PIPE-03 | Phase 23 | Complete |
 | PIPE-04 | Phase 23 | Complete |
 | RT-01 | Phase 24 | Complete |
-| CLNP-01 | Phase 25 | Pending |
-| CLNP-02 | Phase 25 | Pending |
+| CLNP-01 | Phase 25 | Complete |
+| CLNP-02 | Phase 25 | Complete |
 
 **Coverage:**
 - v1.3 requirements: 25 total

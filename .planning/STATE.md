@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Bloomberg Dashboard
 status: completed
-stopped_at: Completed 24-01-PLAN.md
-last_updated: "2026-03-14T12:12:46.871Z"
+stopped_at: Completed 25-01-PLAN.md
+last_updated: "2026-03-14T12:38:43.865Z"
 last_activity: 2026-03-14 -- Completed 24-01 SSE integration plan (Phase 24 complete)
 progress:
   total_phases: 5
-  completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  completed_phases: 5
+  total_plans: 9
+  completed_plans: 9
   percent: 100
 ---
 
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 
 ## Current Position
 
-Phase: 24 of 25 (Real-Time & Integration)
-Plan: 1 of 1 in current phase (24-01 complete)
-Status: Phase 24 complete, Phase 25 next
-Last activity: 2026-03-14 -- Completed 24-01 SSE integration plan (Phase 24 complete)
+Phase: 25 of 25 (Cleanup)
+Plan: 1 of 1 in current phase (25-01 complete)
+Status: v1.3 Bloomberg Dashboard milestone COMPLETE
+Last activity: 2026-03-14 -- Completed 25-01 legacy cleanup plan (Phase 25 complete, v1.3 shipped)
 
 Progress: [██████████] 100%
 
@@ -54,6 +54,7 @@ Progress: [██████████] 100%
 | Phase 23 P03 | 3min | 2 tasks | 6 files |
 | 24-real-time-integration | 1/1 | 1min | 1min |
 | Phase 24 P01 | 1min | 2 tasks | 2 files |
+| Phase 25 P01 | 5min | 2 tasks | 22 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,8 @@ Recent decisions affecting current work:
 - [Phase 23-03]: ReviewQueue uses two separate useReviewAction hooks (approve/reject) for independent isPending states
 - [Phase 24-01]: No new npm dependencies -- browser-native EventSource API for SSE
 - [Phase 24-01]: SSEListener placed inside QueryClientProvider (before ThemeProvider) for useQueryClient access
+- [Phase 25]: Removed plotly and jinja2 from direct deps; jinja2 stays as transitive dep of edgartools
+- [Phase 25]: Fixed DDD violation: application/queries.py no longer imports presentation/charts.py
 
 ### Pending Todos
 
@@ -107,6 +110,6 @@ New for v1.3:
 
 ## Session Continuity
 
-Last session: 2026-03-14T12:08:18.039Z
-Stopped at: Completed 24-01-PLAN.md
+Last session: 2026-03-14T12:38:43.862Z
+Stopped at: Completed 25-01-PLAN.md
 Resume file: None
