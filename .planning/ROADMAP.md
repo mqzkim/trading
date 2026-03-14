@@ -121,7 +121,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 21. Foundation | 2/2 | Complete    | 2026-03-14 | - |
-| 22. Design System & Overview Page | v1.3 | 0/2 | Not started | - |
+| 22. Design System & Overview Page | 1/2 | In Progress|  | - |
 | 23. Signals, Risk & Pipeline Pages | v1.3 | 0/3 | Not started | - |
 | 24. Real-Time & Integration | v1.3 | 0/1 | Not started | - |
 | 25. Cleanup | v1.3 | 0/1 | Not started | - |

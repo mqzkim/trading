@@ -15,10 +15,10 @@ Requirements for Bloomberg Dashboard milestone. Each maps to roadmap phases.
 
 ### Design System
 
-- [ ] **DSGN-01**: Bloomberg 다크 테마 색상 토큰 시스템이 적용된다
-- [ ] **DSGN-02**: 모노스페이스 숫자 폰트로 금융 데이터가 정렬 표시된다
-- [ ] **DSGN-03**: 시맨틱 색상이 적용된다 (수익=cyan, 손실=red, 중립=white, 인터랙티브=amber)
-- [ ] **DSGN-04**: shadcn/ui 기반 공통 컴포넌트가 Bloomberg 스타일로 커스터마이징된다
+- [x] **DSGN-01**: Bloomberg 다크 테마 색상 토큰 시스템이 적용된다
+- [x] **DSGN-02**: 모노스페이스 숫자 폰트로 금융 데이터가 정렬 표시된다
+- [x] **DSGN-03**: 시맨틱 색상이 적용된다 (수익=cyan, 손실=red, 중립=white, 인터랙티브=amber)
+- [x] **DSGN-04**: shadcn/ui 기반 공통 컴포넌트가 Bloomberg 스타일로 커스터마이징된다
 
 ### Overview Page
 
@@ -94,10 +94,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SETUP-01 | Phase 21 | Complete |
 | SETUP-02 | Phase 21 | Complete |
 | SETUP-03 | Phase 21 | Complete |
-| DSGN-01 | Phase 22 | Pending |
-| DSGN-02 | Phase 22 | Pending |
-| DSGN-03 | Phase 22 | Pending |
-| DSGN-04 | Phase 22 | Pending |
+| DSGN-01 | Phase 22 | Complete |
+| DSGN-02 | Phase 22 | Complete |
+| DSGN-03 | Phase 22 | Complete |
+| DSGN-04 | Phase 22 | Complete |
 | OVER-01 | Phase 22 | Pending |
 | OVER-02 | Phase 22 | Pending |
 | OVER-03 | Phase 22 | Pending |
