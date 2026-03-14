@@ -22,10 +22,10 @@ Requirements for Bloomberg Dashboard milestone. Each maps to roadmap phases.
 
 ### Overview Page
 
-- [ ] **OVER-01**: KPI 카드 (총 자산, 일간 P&L, 드로다운, 파이프라인 상태)가 표시된다
-- [ ] **OVER-02**: 보유 종목 테이블 (티커, 수량, 가격, P&L, 스탑, 타겟, 스코어)이 표시된다
-- [ ] **OVER-03**: TradingView 에쿼티 커브 차트가 레짐 배경과 함께 표시된다
-- [ ] **OVER-04**: 매매 히스토리 테이블이 표시된다
+- [x] **OVER-01**: KPI 카드 (총 자산, 일간 P&L, 드로다운, 파이프라인 상태)가 표시된다
+- [x] **OVER-02**: 보유 종목 테이블 (티커, 수량, 가격, P&L, 스탑, 타겟, 스코어)이 표시된다
+- [x] **OVER-03**: TradingView 에쿼티 커브 차트가 레짐 배경과 함께 표시된다
+- [x] **OVER-04**: 매매 히스토리 테이블이 표시된다
 
 ### Signals Page
 

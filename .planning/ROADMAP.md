@@ -35,7 +35,7 @@ Delivered: Safety infrastructure, automated pipeline, strategy approval, live tr
 **Milestone Goal:** Replace HTMX+Jinja2 dashboard with a Next.js+React Bloomberg terminal-style professional trading dashboard. TradingView charts, data-dense dark theme, real-time SSE updates, 4 redesigned pages.
 
 - [x] **Phase 21: Foundation** - Next.js project setup, FastAPI JSON API, BFF proxy architecture (completed 2026-03-14)
-- [ ] **Phase 22: Design System & Overview Page** - Bloomberg dark theme tokens, shadcn/ui components, Overview page with KPI cards, holdings table, equity curve chart
+- [x] **Phase 22: Design System & Overview Page** - Bloomberg dark theme tokens, shadcn/ui components, Overview page with KPI cards, holdings table, equity curve chart (completed 2026-03-14)
 - [ ] **Phase 23: Signals, Risk & Pipeline Pages** - Scoring tables, signal cards, drawdown gauge, sector chart, pipeline controls, approval queue
 - [ ] **Phase 24: Real-Time & Integration** - SSE event wiring to React components, live UI updates across all pages
 - [ ] **Phase 25: Cleanup** - Remove HTMX/Jinja2 templates and Plotly dependency
@@ -69,8 +69,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 22-01-PLAN.md -- Design system infrastructure: shadcn/ui init, Bloomberg dark theme tokens, JetBrains Mono font, providers, TypeScript API types, formatters
-- [ ] 22-02-PLAN.md -- Overview page: KPI cards, holdings table, TradingView equity curve chart, trade history table, page assembly
+- [x] 22-01-PLAN.md -- Design system infrastructure: shadcn/ui init, Bloomberg dark theme tokens, JetBrains Mono font, providers, TypeScript API types, formatters
+- [x] 22-02-PLAN.md -- Overview page: KPI cards, holdings table, TradingView equity curve chart, trade history table, page assembly
 
 ### Phase 23: Signals, Risk & Pipeline Pages
 **Goal**: User can view scoring results, review signal recommendations, monitor risk exposure, run the pipeline, and approve/reject trade plans
@@ -121,7 +121,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 21. Foundation | 2/2 | Complete    | 2026-03-14 | - |
-| 22. Design System & Overview Page | 1/2 | In Progress|  | - |
+| 22. Design System & Overview Page | 2/2 | Complete | 2026-03-14 | - |
 | 23. Signals, Risk & Pipeline Pages | v1.3 | 0/3 | Not started | - |
 | 24. Real-Time & Integration | v1.3 | 0/1 | Not started | - |
 | 25. Cleanup | v1.3 | 0/1 | Not started | - |

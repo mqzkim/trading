@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Bloomberg Dashboard
 status: in-progress
-stopped_at: Completed 22-01-PLAN.md
-last_updated: "2026-03-14T10:30:15Z"
-last_activity: 2026-03-14 -- Completed 22-01 Design System Foundation plan
+stopped_at: Completed 22-02-PLAN.md
+last_updated: "2026-03-14T10:44:30Z"
+last_activity: 2026-03-14 -- Completed 22-02 Overview Page plan (Phase 22 complete)
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
-  percent: 30
+  completed_plans: 4
+  percent: 40
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** v1.3 Bloomberg Dashboard -- Phase 22 in progress (Plan 01 complete, Plan 02 next)
+**Current focus:** v1.3 Bloomberg Dashboard -- Phase 22 complete, Phase 23 next
 
 ## Current Position
 
-Phase: 22 of 25 (Design System & Overview Page)
-Plan: 1 of 2 in current phase
-Status: Phase 22 in progress
-Last activity: 2026-03-14 -- Completed 22-01 Design System Foundation plan
+Phase: 22 of 25 (Design System & Overview Page) -- COMPLETE
+Plan: 2 of 2 in current phase (all done)
+Status: Phase 22 complete, ready for Phase 23
+Last activity: 2026-03-14 -- Completed 22-02 Overview Page plan
 
-Progress: [███░░░░░░░] 30%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
@@ -45,8 +45,9 @@ Progress: [███░░░░░░░] 30%
 |-------|-------|-------|----------|
 | 21-foundation | 2/2 | 8min | 4min |
 | Phase 21 P02 | 5min | 2 tasks | 11 files |
-| 22-design-system | 1/2 | 4min | 4min |
+| 22-design-system | 2/2 | 8min | 4min |
 | Phase 22 P01 | 4min | 2 tasks | 16 files |
+| Phase 22 P02 | 4min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ Recent decisions affecting current work:
 - [Phase 22-01]: Biome 2.4.7 requires css.parser.tailwindDirectives: true for Tailwind v4 @custom-variant/@theme/@apply
 - [Phase 22-01]: shadcn/ui base-nova style auto-formatted to project single-quote convention via biome check --write
 - [Phase 22-01]: Keep shadcn radius multiplier approach instead of research's additive approach
+- [Phase 22-02]: TradingView chart uses useLayoutEffect (not useEffect) for synchronous cleanup to prevent memory leaks
+- [Phase 22-02]: Regime histogram overlay uses separate priceScaleId with scaleMargins 0-0 for full-height background
+- [Phase 22-02]: Drawdown 3-tier coloring: profit (<=10%), interactive/amber (<=15%), loss (>15%)
 
 ### Pending Todos
 
@@ -86,6 +90,6 @@ New for v1.3:
 
 ## Session Continuity
 
-Last session: 2026-03-14T10:30:15Z
-Stopped at: Completed 22-01-PLAN.md
+Last session: 2026-03-14T10:44:30Z
+Stopped at: Completed 22-02-PLAN.md (Phase 22 complete)
 Resume file: None
