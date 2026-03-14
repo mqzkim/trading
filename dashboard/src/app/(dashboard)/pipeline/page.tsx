@@ -1,35 +1,77 @@
 'use client';
-import { useEffect, useState } from 'react';
+
+import { ApprovalControls } from '@/components/pipeline/approval-controls';
+import { PipelineHistory } from '@/components/pipeline/pipeline-history';
+import { PipelineRunForm } from '@/components/pipeline/pipeline-run-form';
+import { ReviewQueue } from '@/components/pipeline/review-queue';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { usePipeline } from '@/hooks/use-pipeline';
 
 export default function PipelinePage() {
-  const [data, setData] = useState<Record<string, unknown> | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error } = usePipeline();
 
-  useEffect(() => {
-    fetch('/api/v1/dashboard/pipeline')
-      .then((res) => {
-        if (!res.ok) throw new Error(`Backend error: ${res.status}`);
-        return res.json();
-      })
-      .then(setData)
-      .catch((err) => setError(err.message));
-  }, []);
-
-  if (error) {
+  if (isLoading) {
     return (
-      <div className="p-8 text-red-400">
-        Backend connection failed - Start FastAPI first: {error}
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-40" />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Skeleton className="h-48" />
+          <Skeleton className="h-48" />
+        </div>
+        <Skeleton className="h-64" />
+        <Skeleton className="h-48" />
       </div>
     );
   }
-  if (!data) return <div className="p-8 text-gray-400">Loading...</div>;
+
+  if (error) {
+    return <div className="p-8 text-destructive">Backend connection failed: {error.message}</div>;
+  }
+
+  if (!data) return null;
 
   return (
-    <div>
-      <h1 className="text-xl font-bold mb-4">Pipeline</h1>
-      <pre className="bg-gray-900 p-4 rounded text-sm overflow-auto text-gray-300">
-        {JSON.stringify(data, null, 2)}
-      </pre>
+    <div className="space-y-6">
+      <h1 className="text-xl font-bold">Pipeline</h1>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Run Pipeline</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PipelineRunForm />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Approval</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ApprovalControls approval={data.approval_status} budget={data.daily_budget} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Pipeline History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PipelineHistory runs={data.pipeline_runs} nextScheduled={data.next_scheduled} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Trade Review Queue</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ReviewQueue items={data.review_queue} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
