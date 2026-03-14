@@ -66,12 +66,11 @@ Plans:
   3. Holdings table shows each position with ticker, quantity, price, P&L (color-coded), stop, target, and composite score
   4. TradingView equity curve chart renders with regime background coloring
   5. Trade history table displays past executed trades
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 22-01: TBD
-- [ ] 22-02: TBD
-- [ ] 22-03: TBD
+- [ ] 22-01-PLAN.md -- Design system infrastructure: shadcn/ui init, Bloomberg dark theme tokens, JetBrains Mono font, providers, TypeScript API types, formatters
+- [ ] 22-02-PLAN.md -- Overview page: KPI cards, holdings table, TradingView equity curve chart, trade history table, page assembly
 
 ### Phase 23: Signals, Risk & Pipeline Pages
 **Goal**: User can view scoring results, review signal recommendations, monitor risk exposure, run the pipeline, and approve/reject trade plans
@@ -122,7 +121,7 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 21. Foundation | 2/2 | Complete    | 2026-03-14 | - |
-| 22. Design System & Overview Page | v1.3 | 0/3 | Not started | - |
+| 22. Design System & Overview Page | v1.3 | 0/2 | Not started | - |
 | 23. Signals, Risk & Pipeline Pages | v1.3 | 0/3 | Not started | - |
 | 24. Real-Time & Integration | v1.3 | 0/1 | Not started | - |
 | 25. Cleanup | v1.3 | 0/1 | Not started | - |
