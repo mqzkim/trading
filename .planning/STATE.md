@@ -1,36 +1,36 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Production Trading & Dashboard
-status: executing
-stopped_at: Completed 20-01-PLAN.md (mypy/ruff zero-error cleanup)
-last_updated: "2026-03-14T03:27:15.570Z"
-last_activity: 2026-03-14 -- Completed 20-02 test_api_routes.py rewrite
+milestone: v1.3
+milestone_name: Bloomberg Dashboard
+status: defining_requirements
+stopped_at: ""
+last_updated: "2026-03-14"
+last_activity: 2026-03-14 -- Milestone v1.3 started
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 20
-  completed_plans: 20
-  percent: 90
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-13)
+See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** Every recommendation must be explainable and risk-controlled -- capital preservation and positive expectancy over maximizing returns.
-**Current focus:** Phase 20 -- CI Test Debt Cleanup
+**Current focus:** v1.3 Bloomberg Dashboard -- defining requirements
 
 ## Current Position
 
-Phase: 20 of 20 (CI Test Debt Cleanup) -- ninth of 10 phases
-Plan: 2 of 2 complete
-Status: In Progress
-Last activity: 2026-03-14 -- Completed 20-02 test_api_routes.py rewrite
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-14 — Milestone v1.3 started
 
-Progress: [█████████ ] 90%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 

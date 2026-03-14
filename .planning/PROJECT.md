@@ -28,24 +28,29 @@ Every recommendation must be explainable and risk-controlled — the system prio
 - ✓ Trade plan generation with entry/stop/target/size/reasoning — v1.0
 - ✓ Human approval workflow before order execution — v1.0
 - ✓ Monitoring alerts (stop hit, target reached, drawdown tier change) — v1.0
+- ✓ Daily automated screening → scoring → signal → execution pipeline — v1.2
+- ✓ Strategy/budget approval workflow (human approves strategy + daily budget) — v1.2
+- ✓ Scheduler daemon (APScheduler + market calendar) — v1.2
+- ✓ Alpaca live account integration (paper → live migration) — v1.2
+- ✓ Auto-execution within approved budget/risk limits — v1.2
+- ✓ Real-time order monitoring and error recovery — v1.2
+- ✓ Web Dashboard HTMX (portfolio, scoring, signals, risk, pipeline) — v1.2
+- ✓ Kill switch, cooldown, circuit breaker safety infrastructure — v1.2
+- ✓ SSE real-time event wiring — v1.2
+- ✓ Drawdown defense wiring (3-tier auto-suspension) — v1.2
 
 ### Active
 
-#### Automated Pipeline
-- [ ] Daily automated screening → scoring → signal → execution pipeline
-- [ ] Strategy/budget approval workflow (human approves strategy + daily budget)
-- [ ] Scheduler daemon (cron or persistent process)
-
-#### Live Trading
-- [ ] Alpaca live account integration (paper → live migration)
-- [ ] Auto-execution within approved budget/risk limits
-- [ ] Real-time order monitoring and error recovery
-
-#### Web Dashboard
-- [ ] Portfolio overview (holdings, P&L, allocation)
-- [ ] Scoring/signal results visualization
-- [ ] Trade history and execution log
-- [ ] Risk dashboard (drawdown, sector exposure, position limits)
+#### Bloomberg Dashboard (Next.js)
+- [ ] Next.js + React 프론트엔드 프로젝트 설정
+- [ ] Bloomberg 터미널 스타일 디자인 시스템 (다크 테마, 데이터 밀도)
+- [ ] TradingView 차트 통합 (캔들스틱, 기술적 지표, 실시간)
+- [ ] Overview 페이지 리디자인 (포트폴리오, P&L, 에쿼티 커브)
+- [ ] Signals 페이지 리디자인 (스코어링, 시그널 추천)
+- [ ] Risk 페이지 리디자인 (드로다운, 섹터 노출, 레짐)
+- [ ] Pipeline & Approval 페이지 리디자인 (파이프라인 실행, 승인, 리뷰)
+- [ ] Next.js API Routes로 백엔드 통합 (FastAPI 대시보드 라우트 대체)
+- [ ] 실시간 업데이트 (WebSocket/SSE)
 
 ### Out of Scope
 
@@ -55,15 +60,16 @@ Every recommendation must be explainable and risk-controlled — the system prio
 - Options/derivatives — stock-only
 - Social/sentiment scoring — focus on fundamentals + technicals first
 
-## Current Milestone: v1.2 Production Trading & Dashboard
+## Current Milestone: v1.3 Bloomberg Dashboard
 
-**Goal:** 전체 파이프라인을 자동화하고, 라이브 트레이딩과 웹 대시보드를 통해 실제로 동작하는 프로덕션 시스템을 완성한다. 핵심은 견고함과 positive expectancy.
+**Goal:** 기존 HTMX+Jinja2 대시보드를 React+Next.js로 전면 전환하고, Bloomberg 터미널 스타일의 프로페셔널 트레이딩 대시보드를 구축한다. TradingView 차트, 데이터 밀도 높은 레이아웃, 실시간 업데이트.
 
 **Target features:**
-- 자동 파이프라인 스케줄러 (매일 스크리닝 → 스코어링 → 시그널 → 주문 실행)
-- 전략/일일 예산 승인 워크플로 (사람은 전략만 승인, 실행은 자동)
-- Alpaca 라이브 트레이딩 (소액 실전 매매, 리스크 한도 내 자동 실행)
-- 웹 대시보드 (포트폴리오, P&L, 스코어, 시그널, 매매 히스토리, 리스크 현황)
+- Next.js + React 프론트엔드 (Bloomberg 터미널 다크 테마)
+- TradingView Lightweight Charts (캔들스틱, 기술적 지표)
+- 4개 페이지 리디자인 (Overview, Signals, Risk, Pipeline & Approval)
+- Next.js API Routes로 Python 백엔드 통합
+- WebSocket/SSE 실시간 데이터 스트리밍
 
 ## Context
 
@@ -99,5 +105,9 @@ Legacy core/ path provides working alternatives where DDD path has wiring gaps.
 | core/ wrapper + DDD adapter pattern | Reuse existing scoring/signal math without rewriting | ✓ Good — reduced implementation time significantly |
 | Coarse 4-phase roadmap | Strict dependency chain, each phase standalone | ✓ Good — clean execution, 12 plans in 10 days |
 
+| Next.js + React for dashboard | HTMX+Jinja2 too limited for Bloomberg-style data density and interactions | — Pending |
+| TradingView Lightweight Charts | Professional trading charts with candlestick, indicators, real-time | — Pending |
+| Next.js API Routes (not FastAPI for dashboard) | Single-stack frontend+backend, simpler deployment | — Pending |
+
 ---
-*Last updated: 2026-03-13 after v1.2 milestone start*
+*Last updated: 2026-03-14 after v1.3 milestone start*
