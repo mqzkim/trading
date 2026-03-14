@@ -50,11 +50,11 @@ Delivered: Safety infrastructure, automated pipeline, strategy approval, live tr
   1. Running `npm run dev` in `dashboard/` starts the Next.js app at localhost:3000
   2. Browser requests to `/api/*` on the Next.js dev server are proxied to FastAPI at localhost:8000 and return JSON data
   3. FastAPI serves JSON responses for overview, signals, risk, and pipeline data at `/api/v1/dashboard/*` endpoints
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 21-01: TBD
-- [ ] 21-02: TBD
+- [ ] 21-01-PLAN.md -- FastAPI JSON API endpoints (4 GET + 5 POST + SSE) with unit tests
+- [ ] 21-02-PLAN.md -- Next.js 16 project setup, Biome config, API proxy rewrites, page stubs
 
 ### Phase 22: Design System & Overview Page
 **Goal**: User sees a Bloomberg-style dark dashboard with Overview page showing portfolio KPIs, holdings, equity curve, and trade history
