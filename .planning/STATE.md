@@ -4,8 +4,8 @@ milestone: v1.3
 milestone_name: Bloomberg Dashboard
 status: completed
 stopped_at: Completed 25-01-PLAN.md
-last_updated: "2026-03-14T12:38:43.865Z"
-last_activity: 2026-03-14 -- Completed 24-01 SSE integration plan (Phase 24 complete)
+last_updated: "2026-03-14T12:42:09.706Z"
+last_activity: 2026-03-14 -- Completed 25-01 legacy cleanup plan (Phase 25 complete, v1.3 shipped)
 progress:
   total_phases: 5
   completed_phases: 5
