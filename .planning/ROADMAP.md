@@ -34,7 +34,7 @@ Delivered: Safety infrastructure, automated pipeline, strategy approval, live tr
 
 **Milestone Goal:** Replace HTMX+Jinja2 dashboard with a Next.js+React Bloomberg terminal-style professional trading dashboard. TradingView charts, data-dense dark theme, real-time SSE updates, 4 redesigned pages.
 
-- [ ] **Phase 21: Foundation** - Next.js project setup, FastAPI JSON API, BFF proxy architecture
+- [x] **Phase 21: Foundation** - Next.js project setup, FastAPI JSON API, BFF proxy architecture (completed 2026-03-14)
 - [ ] **Phase 22: Design System & Overview Page** - Bloomberg dark theme tokens, shadcn/ui components, Overview page with KPI cards, holdings table, equity curve chart
 - [ ] **Phase 23: Signals, Risk & Pipeline Pages** - Scoring tables, signal cards, drawdown gauge, sector chart, pipeline controls, approval queue
 - [ ] **Phase 24: Real-Time & Integration** - SSE event wiring to React components, live UI updates across all pages
@@ -121,7 +121,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 21. Foundation | 1/2 | In Progress|  | - |
+| 21. Foundation | 2/2 | Complete   | 2026-03-14 | - |
 | 22. Design System & Overview Page | v1.3 | 0/3 | Not started | - |
 | 23. Signals, Risk & Pipeline Pages | v1.3 | 0/3 | Not started | - |
 | 24. Real-Time & Integration | v1.3 | 0/1 | Not started | - |
