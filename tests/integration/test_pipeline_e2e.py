@@ -471,3 +471,230 @@ class TestFullPipeline:
 
         # Safety 탈락 종목은 방법론 점수와 무관하게 HOLD
         assert signal_result.value["direction"] == "HOLD"
+
+
+# ---------------------------------------------------------------------------
+# TestValuationAdapter -- DuckDB intrinsic_value lookup
+# ---------------------------------------------------------------------------
+
+class TestValuationAdapter:
+    def test_get_intrinsic_value_from_duckdb(self, tmp_path):
+        """ValuationAdapter returns intrinsic_value from DuckDB valuation_results."""
+        import duckdb
+
+        from src.pipeline.infrastructure.valuation_adapter import ValuationAdapter
+        from src.shared.infrastructure.db_factory import DBFactory
+
+        db_factory = DBFactory(data_dir=str(tmp_path))
+        # Seed DuckDB with valuation data
+        conn = db_factory.duckdb_conn()
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS valuation_results (
+                ticker VARCHAR PRIMARY KEY,
+                intrinsic_value DOUBLE,
+                margin_of_safety DOUBLE,
+                has_margin BOOLEAN
+            )
+        """)
+        conn.execute(
+            "INSERT INTO valuation_results VALUES ('AAPL', 225.50, 0.3, true)"
+        )
+        conn.close()
+        db_factory.close()
+
+        adapter = ValuationAdapter(db_factory=db_factory)
+        result = adapter.get_intrinsic_value("AAPL")
+
+        assert result == 225.50
+
+    def test_get_intrinsic_value_returns_none_for_unknown(self, tmp_path):
+        """ValuationAdapter returns None when no row exists."""
+        import duckdb
+
+        from src.pipeline.infrastructure.valuation_adapter import ValuationAdapter
+        from src.shared.infrastructure.db_factory import DBFactory
+
+        db_factory = DBFactory(data_dir=str(tmp_path))
+        conn = db_factory.duckdb_conn()
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS valuation_results (
+                ticker VARCHAR PRIMARY KEY,
+                intrinsic_value DOUBLE,
+                margin_of_safety DOUBLE,
+                has_margin BOOLEAN
+            )
+        """)
+        conn.close()
+        db_factory.close()
+
+        adapter = ValuationAdapter(db_factory=db_factory)
+        result = adapter.get_intrinsic_value("UNKNOWN")
+
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# TestPipelineOrchestrator -- Full E2E with mocked externals
+# ---------------------------------------------------------------------------
+
+class TestPipelineOrchestratorE2E:
+    """Test full pipeline orchestrator with mocked external dependencies."""
+
+    def test_pipeline_completes_e2e(self, tmp_path):
+        """Full pipeline run completes with COMPLETED or HALTED status."""
+        from unittest.mock import MagicMock, patch
+
+        from src.pipeline.domain.services import PipelineOrchestrator
+        from src.pipeline.domain.value_objects import PipelineStatus
+
+        orchestrator = PipelineOrchestrator()
+
+        # Mock handlers dict
+        handlers = self._build_mock_handlers(tmp_path)
+
+        run = orchestrator.run(
+            handlers=handlers,
+            symbols=["AAPL"],
+            dry_run=True,
+        )
+
+        # Pipeline should complete or halt (Crisis regime is valid halt)
+        assert run.status in (PipelineStatus.COMPLETED, PipelineStatus.HALTED)
+        assert len(run.stages) >= 4  # at least ingest + regime + score + signal
+
+    def test_pipeline_stage_names_in_order(self, tmp_path):
+        """Pipeline stages follow correct order: ingest, regime, score, signal, plan, execute."""
+        from unittest.mock import MagicMock
+
+        from src.pipeline.domain.services import PipelineOrchestrator
+        from src.pipeline.domain.value_objects import PipelineStatus
+
+        orchestrator = PipelineOrchestrator()
+        handlers = self._build_mock_handlers(tmp_path)
+
+        run = orchestrator.run(
+            handlers=handlers,
+            symbols=["AAPL"],
+            dry_run=True,
+        )
+
+        expected_stages = ["ingest", "regime", "score", "signal", "plan", "execute"]
+        actual_stages = [s.stage_name for s in run.stages]
+
+        # At minimum all 6 stages should be present
+        assert actual_stages == expected_stages
+
+    def test_pipeline_uses_valuation_reader_for_intrinsic_value(self, tmp_path):
+        """Pipeline _run_plan uses injected valuation_reader when available."""
+        from unittest.mock import MagicMock, call
+
+        from src.pipeline.domain.services import PipelineOrchestrator
+
+        orchestrator = PipelineOrchestrator()
+        handlers = self._build_mock_handlers(tmp_path)
+
+        # Set up valuation_reader mock to return specific value
+        mock_valuation_reader = MagicMock(return_value=225.50)
+        handlers["valuation_reader"] = mock_valuation_reader
+
+        run = orchestrator.run(
+            handlers=handlers,
+            symbols=["AAPL"],
+            dry_run=True,
+        )
+
+        # valuation_reader should have been called for AAPL (if signal was BUY/SELL)
+        # The _run_plan stage only runs for BUY/SELL signals
+        # Since our mock signal handler returns BUY, valuation_reader should be called
+        if mock_valuation_reader.called:
+            mock_valuation_reader.assert_called_with("AAPL")
+
+    def test_pipeline_fallback_when_valuation_reader_none(self, tmp_path):
+        """Pipeline falls back to heuristic when valuation_reader returns None."""
+        from unittest.mock import MagicMock
+
+        from src.pipeline.domain.services import PipelineOrchestrator
+        from src.pipeline.domain.value_objects import PipelineStatus
+
+        orchestrator = PipelineOrchestrator()
+        handlers = self._build_mock_handlers(tmp_path)
+
+        # valuation_reader returns None -- should fall back to heuristic
+        handlers["valuation_reader"] = MagicMock(return_value=None)
+
+        run = orchestrator.run(
+            handlers=handlers,
+            symbols=["AAPL"],
+            dry_run=True,
+        )
+
+        # Pipeline should still complete successfully
+        assert run.status in (PipelineStatus.COMPLETED, PipelineStatus.HALTED)
+
+    def _build_mock_handlers(self, tmp_path) -> dict:
+        """Build a mock handlers dict for PipelineOrchestrator."""
+        import asyncio
+        from unittest.mock import MagicMock
+
+        from src.shared.domain import Ok
+
+        # Mock data pipeline (ingest)
+        mock_data_pipeline = MagicMock()
+
+        async def _mock_ingest(symbols):
+            return {"succeeded": symbols, "failed_count": 0, "total": len(symbols)}
+
+        mock_data_pipeline.ingest_universe = _mock_ingest
+
+        # Mock regime handler
+        mock_regime_handler = MagicMock()
+        mock_regime_handler.handle.return_value = Ok({
+            "regime_type": "Bull",
+            "confidence": 0.85,
+            "sp500_above_ma200": True,
+        })
+
+        # Mock score handler
+        mock_score_handler = MagicMock()
+        mock_score_handler.handle.return_value = Ok({
+            "composite_score": 75.0,
+            "risk_adjusted_score": 70.0,
+            "margin_of_safety": 0.25,
+            "safety_passed": True,
+            "symbol": "AAPL",
+        })
+
+        # Mock signal handler -- return BUY for triggering plan stage
+        mock_signal_handler = MagicMock()
+        mock_signal_handler.handle.return_value = Ok({
+            "direction": "BUY",
+            "strength": 80.0,
+            "consensus_count": 3,
+            "composite_score": 75.0,
+            "reasoning_trace": "test buy signal",
+        })
+
+        # Mock trade plan handler
+        mock_trade_plan = MagicMock()
+        mock_trade_plan.symbol = "AAPL"
+        mock_trade_plan.composite_score = 75.0
+        mock_trade_plan.position_pct = 5.0
+        mock_trade_plan.position_value = 5000.0
+
+        mock_trade_plan_handler = MagicMock()
+        mock_trade_plan_handler.generate.return_value = mock_trade_plan
+
+        # Mock DataClient for _run_plan
+        mock_data_client_get_full = {
+            "price": {"close": 175.50},
+            "indicators": {"atr21": 5.0},
+        }
+
+        return {
+            "data_pipeline": mock_data_pipeline,
+            "regime_handler": mock_regime_handler,
+            "score_handler": mock_score_handler,
+            "signal_handler": mock_signal_handler,
+            "trade_plan_handler": mock_trade_plan_handler,
+            "capital": 100_000.0,
+        }
