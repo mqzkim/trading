@@ -1,328 +1,233 @@
-# Technology Stack -- v1.3 Bloomberg Dashboard
+# Technology Stack -- v1.4 Full Stack Trading Platform
 
-**Project:** Intrinsic Alpha Trader -- Bloomberg-style Dashboard
+**Project:** Intrinsic Alpha Trader v1.4
 **Researched:** 2026-03-14
 **Confidence:** HIGH
-**Scope:** NEW frontend stack for Next.js dashboard replacing HTMX+Jinja2. Python backend remains unchanged.
+**Scope:** Stack additions for technical scoring, sentiment data, commercial API infrastructure, and performance attribution. Python backend only -- Next.js dashboard (v1.3) is unchanged.
 
-## Existing Stack (DO NOT change)
+## Existing Stack (DO NOT CHANGE)
 
-The Python backend is fully operational and stays as-is. The Next.js frontend consumes it.
+Already validated and deployed. Listed here for integration context only.
 
-| Already Have | Version | Relevant to v1.3 |
-|-------------|---------|-------------------|
-| FastAPI | 0.135.1 | Backend API server -- Next.js proxies to this |
-| uvicorn | 0.41.0 | ASGI server hosting the FastAPI app |
-| SSE (sse-starlette) | 2.0+ | Real-time event stream -- Next.js EventSource connects directly |
-| SQLite + DuckDB | stdlib / 1.5.0 | Data stores -- no change, backend reads them |
-| Alpaca TradingStream | alpaca-py 0.43.2 | WebSocket stream for order updates -- feeds SSE bridge |
-| Plotly (server-side) | 6.5.0+ | **Replaced by TradingView Lightweight Charts on frontend** |
-| HTMX + Jinja2 templates | 2.0.x CDN | **Replaced entirely by Next.js + React** |
-| Tailwind CSS (CDN) | via cdn.tailwindcss.com | **Replaced by proper Tailwind v4 build** |
-
-**Key architectural change:** The HTMX dashboard served HTML fragments from FastAPI. The Next.js dashboard serves a standalone React SPA that fetches JSON from the same FastAPI backend via `next.config.ts` rewrites (or `proxy.ts` in Next.js 16). The FastAPI dashboard routes (`/dashboard/*`) that return HTML become JSON API routes, or the existing query handlers are exposed as new JSON endpoints alongside the old HTML ones during migration.
-
----
-
-## New Frontend Stack
-
-### Core Framework
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Next.js | 16.1.x | React meta-framework with App Router | Latest stable (released Oct 2025). Turbopack default for 2-5x faster builds. App Router for layouts, loading states, streaming. `proxy.ts` replaces middleware for cleaner API proxying to FastAPI. React Compiler support (stable) eliminates manual memoization. Node.js 20.9+ required (project runs 22.x). |
-| React | 19.2.x | UI library | Bundled with Next.js 16. View Transitions for page animations. `<Activity>` for background rendering (sidebar state preservation). React Compiler auto-memoizes -- no more `useMemo`/`useCallback` boilerplate. |
-| TypeScript | 5.x | Type safety | Enforced by `create-next-app` default. Catches integration bugs between API response shapes and component props. |
-
-**Why Next.js 16 and not 15:** Next.js 16 ships Turbopack as default (no config), has stable React Compiler support, and the new `proxy.ts` is cleaner for API proxying to FastAPI than `next.config.ts` rewrites. Next.js 15 still works but requires explicit Turbopack opt-in and has experimental React Compiler.
-
-### Charting
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| lightweight-charts | 5.1.x | TradingView candlestick charts | The industry standard for financial web charts. 45KB gzipped -- smallest performant charting library. HTML5 canvas rendering handles large datasets (1000+ candles) without DOM overhead. Built-in candlestick, line, area, histogram series. Plugin system for custom indicators. v5.1.0 added data conflation for very large datasets. Free and open-source (Apache 2.0). |
-
-**Why NOT Plotly.js on the frontend:** Plotly.js is 1.2MB+ minified. `lightweight-charts` is 45KB. For a Bloomberg-style dashboard that renders multiple charts simultaneously, bundle size matters. Plotly's strength is Python-side generation (which we used in HTMX); for a React app, TradingView's library is purpose-built for this use case.
-
-**Why NOT recharts or chart.js:** Neither has proper financial chart support (OHLC candlesticks, time-price axes, crosshair sync). TradingView Lightweight Charts is the only serious option for professional trading UIs.
-
-**React integration pattern (from official docs, v5.1):**
-
-```typescript
-// Direct useRef + useEffect -- NO third-party wrapper needed
-import { createChart, CandlestickSeries } from 'lightweight-charts';
-
-function CandlestickChart({ data }: { data: OHLCData[] }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const chart = createChart(containerRef.current!, {
-      layout: { background: { color: '#1a1a2e' }, textColor: '#e0e0e0' },
-      grid: { vertLines: { color: '#2a2a3e' }, horzLines: { color: '#2a2a3e' } },
-    });
-    const series = chart.addSeries(CandlestickSeries);
-    series.setData(data);
-
-    return () => chart.remove();
-  }, [data]);
-
-  return <div ref={containerRef} style={{ width: '100%', height: '400px' }} />;
-}
-```
-
-**Do NOT use community React wrappers** (`kaktana-react-lightweight-charts`, `lightweight-charts-react-wrapper`). They are unmaintained third-party packages that lag behind v5.x. The official TradingView docs recommend direct `useRef`+`useEffect` integration. It is 20 lines of code.
-
-### State Management
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| @tanstack/react-query | 5.90.x | Server state (API data fetching, caching, refetching) | Handles all FastAPI data fetching with automatic caching, background refetch, stale-while-revalidate. Eliminates custom `useEffect` + `useState` data fetching patterns. ~5M weekly npm downloads. Provides `useQuery` for reads and `useMutation` for writes (trade approvals, pipeline triggers). |
-| zustand | 5.0.x | Client state (UI state, dashboard layout, filter selections) | 2KB bundle. No boilerplate (no providers, no reducers). Perfect for UI-only state: active tab, sidebar collapse, selected ticker, filter preferences. Persists to localStorage for session continuity. |
-
-**Why this combination:** TanStack Query owns server state (what comes from FastAPI). Zustand owns client state (what the user is doing in the UI). This is the dominant pattern in 2026 React apps. They do not overlap.
-
-**Why NOT Redux:** Overkill for a single-user dashboard. Redux requires boilerplate (slices, actions, reducers, middleware). Zustand + TanStack Query achieves the same result with ~60% less code.
-
-**Why NOT React Context alone:** Context triggers full re-renders on any state change. For a data-dense Bloomberg dashboard with multiple panels, this causes visible performance issues. Zustand uses external stores with selective subscriptions.
-
-### Styling & Design System
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Tailwind CSS | 4.x | Utility-first CSS framework | v4 is CSS-first config (no `tailwind.config.js`). 5x faster full builds, 100x faster incremental. Ships with `create-next-app` default. Already familiar from existing HTMX dashboard (was using CDN version). Dark theme via CSS custom properties. |
-| shadcn/ui | latest | Accessible React components (tables, dropdowns, dialogs, tabs) | NOT a dependency -- components are copied into the project source. Built on Radix UI primitives (fully accessible). Styled with Tailwind. Data Table component wraps TanStack Table for sortable/filterable data grids. Dark mode works out of the box via CSS variables. |
-| next-themes | 0.4.x | Dark/light theme management | 2-line setup for dark mode. Prevents flash of wrong theme on load. System preference detection. We default to dark (Bloomberg style) but the toggle is trivial. |
-
-**Bloomberg dark theme approach:** Define CSS custom properties in `globals.css` under `:root` (light) and `.dark` (dark) classes. Tailwind v4 reads these via `@theme`. shadcn/ui components automatically adapt.
-
-```css
-/* Bloomberg-style color tokens */
-.dark {
-  --background: 222.2 84% 4.9%;      /* near-black */
-  --foreground: 210 40% 98%;          /* off-white text */
-  --card: 222.2 84% 6.9%;            /* slightly lighter panels */
-  --muted: 217.2 32.6% 17.5%;        /* disabled/secondary */
-  --accent: 210 40% 45%;             /* Bloomberg blue */
-  --destructive: 0 62.8% 60.6%;      /* red for losses */
-  --success: 142 76% 36%;            /* green for gains */
-}
-```
-
-**Why NOT Material UI / Chakra UI / Ant Design:** All are full component libraries with their own CSS-in-JS runtime. They add 100-300KB+ to the bundle and fight with Tailwind. shadcn/ui is zero-runtime -- it copies source code into your project. You own it, you customize it, no library overhead.
-
-### Data Tables
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| @tanstack/react-table | 8.x | Headless table logic (sorting, filtering, pagination) | Headless -- renders nothing, provides logic only. shadcn/ui Data Table component wraps this. Handles column sorting, faceted filtering, row selection, column visibility for holdings tables, signal lists, scoring heatmaps. |
-
-**This is pulled in by shadcn/ui Data Table**, not installed separately. When you run `npx shadcn@latest add data-table`, it installs `@tanstack/react-table` as a dependency.
-
-### Real-Time Data
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Native EventSource API | Browser built-in | SSE client for real-time updates from FastAPI | No library needed. The browser's `EventSource` API connects to FastAPI's existing `/dashboard/events` SSE endpoint. Wrap in a custom React hook (`useSSE`) that parses events and feeds them to TanStack Query's cache via `queryClient.setQueryData()`. Auto-reconnect is built into the EventSource spec. |
-
-**Why NOT Socket.IO / WebSocket client library:** The existing FastAPI backend uses SSE (Server-Sent Events) via `sse-starlette`. SSE is unidirectional (server to client), which is exactly what we need -- the dashboard receives order updates, regime changes, and pipeline status. The one bidirectional action (approve trade, trigger pipeline) uses regular HTTP POST via TanStack Query `useMutation`. No WebSocket complexity needed.
-
-**SSE integration pattern:**
-
-```typescript
-// hooks/useSSE.ts
-function useSSE(url: string) {
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    const es = new EventSource(url);
-
-    es.addEventListener('order_update', (e) => {
-      const data = JSON.parse(e.data);
-      queryClient.invalidateQueries({ queryKey: ['portfolio'] });
-    });
-
-    es.addEventListener('regime_change', (e) => {
-      const data = JSON.parse(e.data);
-      queryClient.setQueryData(['regime'], data);
-    });
-
-    return () => es.close();
-  }, [url, queryClient]);
-}
-```
-
-### Build & Dev Tooling
-
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| Turbopack | (bundled with Next.js 16) | Dev server & production bundler | Default in Next.js 16 -- no configuration needed. 2-5x faster production builds than Webpack. Up to 10x faster Fast Refresh. File system caching (beta) for even faster subsequent starts. |
-| Biome | 2.x | Linting + formatting (replaces ESLint + Prettier) | Next.js 16 removed the `next lint` command. Biome combines linting and formatting in one tool, is 35x faster than ESLint, and handles TypeScript/JSX natively. One config file, one tool. |
-
-**Why Biome and not ESLint:** Next.js 16 explicitly removed `next lint` and recommends using Biome or ESLint directly. Biome is faster, requires less configuration, and handles both linting and formatting (replacing Prettier too). For a new project, Biome is the cleaner choice.
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Python | 3.12 | Runtime |
+| pandas | >=2.0 | Data manipulation |
+| numpy | >=1.26 | Numerical computation |
+| DuckDB | 1.5.0 | Analytics store |
+| SQLite | (stdlib) | Operational store |
+| yfinance | >=0.2 | Market data (OHLCV, fundamentals) |
+| edgartools | 5.23.0 | SEC EDGAR filings |
+| alpaca-py | 0.43.2 | Broker + market data + news |
+| FastAPI | >=0.104 | Dashboard + commercial API |
+| uvicorn | >=0.24 | ASGI server |
+| Typer + Rich | >=0.9 / >=13.0 | CLI |
+| pydantic / pydantic-settings | >=2.0 | Data validation + config |
+| sse-starlette | >=2.0 | Server-sent events |
+| Next.js 16 + React 19 | v1.3 stack | Bloomberg dashboard |
 
 ---
 
-## Integration Architecture: Next.js <-> FastAPI
+## New Stack Additions by Feature
 
-### API Proxying
+### 1. Technical Scoring -- NO NEW DEPENDENCIES
 
-The Next.js app proxies API requests to the FastAPI backend. Two approaches available in Next.js 16:
+**Recommendation: Keep using pure pandas/numpy. Do NOT add TA-Lib or pandas-ta.**
 
-**Option A: `proxy.ts` (recommended for Next.js 16)**
+| Decision | Rationale |
+|----------|-----------|
+| No TA-Lib | System already has RSI, MACD, MA, ADX, OBV implemented in `core/data/indicators.py` (92 lines of pure pandas/numpy). TA-Lib requires C library compilation (`ta-lib` system package + `TA-Lib` Python wrapper), adding build complexity for zero functional gain. |
+| No pandas-ta | Would add 30+ transitive dependencies for indicators already implemented. The existing implementations use Wilder's smoothing correctly. |
 
-```typescript
-// src/proxy.ts
-import { NextRequest, NextResponse } from 'next/server';
+**What exists:** `core/data/indicators.py` computes all required indicators via `compute_all()`:
+- `ma(close, period)` -- Simple moving average (MA-50, MA-200)
+- `rsi(close, 14)` -- RSI with Wilder's smoothing
+- `macd(close, 12, 26, 9)` -- MACD line + signal + histogram
+- `adx(df, 14)` -- Average Directional Index
+- `obv(df)` -- On-Balance Volume
+- `atr(df, 21)` -- Average True Range (for risk management)
 
-export default function proxy(request: NextRequest) {
-  if (request.nextUrl.pathname.startsWith('/api/')) {
-    const url = new URL(request.nextUrl.pathname, 'http://127.0.0.1:8000');
-    return NextResponse.rewrite(url);
-  }
-}
-```
+**What exists:** `core/scoring/technical.py` already scores these into:
+- `trend_score` (MA position + ADX strength + MACD direction)
+- `momentum_score` (RSI + 12-1 month price momentum)
+- `volume_score` (OBV trend)
+- `technical_score` (40% trend + 40% momentum + 20% volume)
 
-**Option B: `next.config.ts` rewrites (simpler, proven)**
+**v1.4 work is DDD integration, not library replacement.** The scoring logic needs to be wired into the DDD bounded context (`src/scoring/domain/`) and integrated with the composite score pipeline. If supplementary indicators are needed later (Bollinger Bands, Stochastic RSI), they are 5-10 line functions using `pandas.rolling()`.
 
-```typescript
-// next.config.ts
-const nextConfig = {
-  async rewrites() {
-    return [
-      { source: '/api/:path*', destination: 'http://127.0.0.1:8000/api/:path*' },
-      { source: '/dashboard/events', destination: 'http://127.0.0.1:8000/dashboard/events' },
-    ];
-  },
-};
-```
-
-**Recommendation:** Start with Option B (rewrites) because it is simpler and proven. Migrate to `proxy.ts` later if you need conditional logic (e.g., auth header injection).
-
-### SSE Proxying
-
-The SSE endpoint (`/dashboard/events`) must be proxied without buffering. Next.js rewrites handle this correctly for SSE because they are transparent HTTP proxies -- the response streams through without Next.js buffering it.
-
-### Backend Changes Needed
-
-The existing HTMX dashboard routes return HTML. For the Next.js frontend, the same query handlers need JSON endpoints:
-
-| Existing Route | Returns | New Route | Returns |
-|---------------|---------|-----------|---------|
-| `GET /dashboard/` | HTML (overview page) | `GET /api/dashboard/overview` | JSON |
-| `GET /dashboard/signals` | HTML (signals page) | `GET /api/dashboard/signals` | JSON |
-| `GET /dashboard/risk` | HTML (risk page) | `GET /api/dashboard/risk` | JSON |
-| `GET /dashboard/pipeline` | HTML (pipeline page) | `GET /api/dashboard/pipeline` | JSON |
-| `POST /dashboard/pipeline/run` | HTML partial | `POST /api/dashboard/pipeline/run` | JSON |
-| `POST /dashboard/pipeline/approve` | HTML partial | `POST /api/dashboard/pipeline/approve` | JSON |
-| `GET /dashboard/events` (SSE) | SSE stream | `GET /dashboard/events` (SSE) | SSE stream (unchanged) |
-
-The existing `OverviewQueryHandler`, `SignalsQueryHandler`, `RiskQueryHandler`, `PipelineQueryHandler` already produce Python dicts. The new JSON routes just call `handler.handle()` and return `JSONResponse(data)` instead of `templates.TemplateResponse(...)`. Minimal backend change.
+**Confidence:** HIGH -- verified by reading `core/data/indicators.py` and `core/scoring/technical.py`.
 
 ---
 
-## Project Structure
+### 2. Sentiment Data Sources
 
+#### 2a. News Sentiment
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| alpaca-py (existing) | 0.43.2 | News headlines (Benzinga) | Already installed. Includes `alpaca.data.historical.news` and `alpaca.data.live.news` modules (verified in installed package). Free tier: 200 calls/min. 6+ years of historical data. Covers all US equities. Zero new dependencies. |
+| vaderSentiment | 3.3.2 | Headline sentiment scoring | Lexicon-based, no GPU needed, ~339x faster than FinBERT, zero transitive dependencies. Adequate for headline-level sentiment on a daily scoring pipeline. |
+
+**Why vaderSentiment and NOT FinBERT/transformers:**
+- FinBERT requires `torch` (~2GB) + `transformers` (~500MB). Massive dependency footprint.
+- VADER accuracy on financial headlines: ~56%. FinBERT: ~91%. BUT sentiment is ONE of THREE scoring axes at 20% composite weight. A 35% accuracy gap on sentiment reduces overall composite accuracy by ~7%.
+- The system already handles sentiment uncertainty -- `core/scoring/sentiment.py` defaults to neutral (50) when data is insufficient.
+- **Upgrade path:** If accuracy becomes critical, FinBERT can be added to `requirements-ml.txt` as optional without architectural changes.
+
+**Why NOT a paid news API (FMP, Finnhub, Marketaux):**
+- Alpaca already provides Benzinga news with existing API keys.
+- Project constraint: "Free data sources preferred; paid APIs only if free sources insufficient."
+
+**Confidence:** HIGH -- verified `alpaca/data/historical/news.py` and `alpaca/data/models/news.py` exist in installed alpaca-py 0.43.2.
+
+#### 2b. Insider Trades (Form 4)
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| edgartools (existing) | 5.23.0 | SEC Form 3/4/5 insider transactions | Already installed. Parses insider name, relationship, transaction type, shares, price, date. Free, no API key. |
+
+**No new dependency needed.** edgartools parses structured Form 4 data directly from SEC EDGAR.
+
+**Confidence:** HIGH -- edgartools docs confirm Form 3/4/5 support.
+
+#### 2c. Institutional Holdings (13F)
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| edgartools (existing) | 5.23.0 | SEC 13F institutional holdings | Already installed. Parses portfolio holdings with position sizes, values, and quarter-over-quarter changes from 13F filings. |
+
+**No new dependency needed** for raw 13F data.
+
+#### 2d. Ownership Enrichment (Supplementary)
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| finvizfinance | 1.3.0 | Aggregated ownership %, analyst ratings | `ticker_fundament()` returns insider/institutional ownership percentages. `ticker_inside_trader()` returns recent insider trades (backup to SEC). `ticker_outer_ratings()` returns analyst consensus. Fills aggregation gaps that raw SEC filings don't provide. |
+
+**Risk:** finvizfinance is a web scraper -- fragile to FinViz site changes. Use edgartools as primary data source, finvizfinance as supplementary enrichment only. Fail gracefully if scraping fails.
+
+**Confidence:** MEDIUM -- finvizfinance 1.3.0 confirmed on PyPI (Jan 2026 release). Web scraping reliability is inherently uncertain.
+
+---
+
+### 3. Commercial API Infrastructure
+
+#### 3a. Authentication (JWT)
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| PyJWT | >=2.12 | JWT token encode/decode | Already used in `commercial/api/dependencies.py` (imported as `jwt`). Industry standard, lightweight, zero transitive dependencies. Latest: 2.12.0 (released 2026-03-12). |
+
+**Note:** CVE-2026-32597 exists (unknown `crit` header extensions) -- low severity for our use case since we control token issuance and don't use critical headers.
+
+**Status:** Code written but not declared in `pyproject.toml`. Must be added.
+
+**Confidence:** HIGH -- already in codebase, just missing dependency declaration.
+
+#### 3b. Rate Limiting
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| slowapi | >=0.1.9 | Per-user tiered rate limiting | Already used in `commercial/api/middleware/rate_limit.py`. Wraps `limits` library. In-memory storage for single-instance deployment. |
+
+**Maintenance concern:** slowapi 0.1.9 is the latest version and hasn't had updates in 12+ months. However, the library is stable and feature-complete for our use case. If it becomes unmaintained, replacing with direct `limits` library usage is straightforward (slowapi is a thin wrapper).
+
+**Status:** Code written but not declared in `pyproject.toml`. Must be added.
+
+**Confidence:** HIGH -- already in codebase.
+
+#### 3c. Billing
+
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| stripe | >=14.4 | Subscription billing (Checkout + Webhooks) | De facto standard for SaaS billing. Latest: 14.4.1 (released 2026-03-06). Handles subscription lifecycle, invoicing, payment methods. Stripe Checkout = hosted payment page (no PCI scope). |
+
+**Integration pattern:**
+1. **Stripe Checkout** -- redirect users to Stripe-hosted payment page for subscription creation
+2. **Stripe Webhooks** -- receive subscription status changes via `POST /api/v1/webhooks/stripe`
+3. **JWT tier claim** -- update user's JWT `tier` field on subscription change
+4. **Rate limit sync** -- `_user_tier_cache` in `rate_limit.py` already maps tier to limit
+
+**Why NOT `fastapi-payments`:** Direct Stripe SDK is simpler and better documented than the wrapper. `fastapi-payments` abstracts multiple providers -- unnecessary complexity when we only need Stripe.
+
+**Why NOT Paddle/LemonSqueezy:** Stripe has the largest ecosystem, best Python SDK, most documentation. No reason to use alternatives for a new API product.
+
+**Confidence:** HIGH -- Stripe is the industry standard for SaaS billing. Well-documented FastAPI integration patterns.
+
+---
+
+### 4. Performance Attribution -- NO NEW DEPENDENCIES
+
+**Recommendation: Implement Brinson-Fachler model using pure pandas/numpy.**
+
+| Decision | Rationale |
+|----------|-----------|
+| No QuantFAA library | Thin wrapper (~200 LOC) around basic pandas operations. Adding a dependency for straightforward math adds maintenance burden without value. |
+| No brinson_attribution library | Same issue -- thin wrapper, not actively maintained. |
+| No pyfolio | Part of the Zipline ecosystem (quantopian), heavy dependencies (matplotlib, seaborn). We need attribution math, not charting. |
+
+**What to implement (pure pandas):**
+- **4-level P&L decomposition:** Market return, sector allocation, stock selection, timing effect
+- **Brinson-Fachler attribution:** Allocation effect + selection effect + interaction effect vs. benchmark (SPY)
+- **Per-trade attribution:** Entry quality, exit quality, holding period return vs. benchmark
+- **Factor exposure:** Market beta, size, value, momentum via pandas rolling regression
+
+The math is well-established (50+ years of academic literature). Implementation is ~150-200 lines of pandas code with no external library needed.
+
+**Confidence:** HIGH -- Brinson attribution is textbook finance math, easily implemented in pandas.
+
+---
+
+## Dependencies to Add to pyproject.toml
+
+### Core dependencies (add to `[project.dependencies]`)
+
+```toml
+"PyJWT>=2.12",
+"slowapi>=0.1.9",
+"vaderSentiment>=3.3.2",
+"finvizfinance>=1.3",
 ```
-trading/
-  dashboard/                    # NEW: Next.js project root
-    src/
-      app/                      # App Router pages
-        layout.tsx              # Root layout (dark theme, sidebar)
-        page.tsx                # Overview page (redirects to /overview)
-        overview/
-          page.tsx              # Portfolio, P&L, equity curve
-        signals/
-          page.tsx              # Scoring heatmap, signal recommendations
-        risk/
-          page.tsx              # Drawdown, sector exposure, regime
-        pipeline/
-          page.tsx              # Pipeline runs, approval, review
-      components/
-        charts/
-          CandlestickChart.tsx  # TradingView lightweight-charts wrapper
-          EquityCurve.tsx       # Line chart for portfolio equity
-          DrawdownGauge.tsx     # Visual drawdown indicator
-        tables/
-          HoldingsTable.tsx     # shadcn/ui DataTable for positions
-          SignalsTable.tsx      # Scoring + signals data grid
-        layout/
-          Sidebar.tsx           # Navigation sidebar
-          Header.tsx            # Mode banner (LIVE/PAPER), status
-          KPICard.tsx           # Metric card component
-        ui/                     # shadcn/ui generated components
-          button.tsx
-          card.tsx
-          table.tsx
-          tabs.tsx
-          ...
-      hooks/
-        useSSE.ts               # SSE connection to FastAPI
-        useDashboard.ts         # TanStack Query hooks for each page
-      lib/
-        api.ts                  # API client (fetch wrapper)
-        utils.ts                # Formatting (currency, %, dates)
-      stores/
-        ui-store.ts             # Zustand store for UI state
-      types/
-        api.ts                  # TypeScript types matching FastAPI response shapes
-    public/
-      fonts/                    # JetBrains Mono or similar monospace
-    next.config.ts
-    tailwind.css                # Tailwind v4 CSS-first config
-    tsconfig.json
-    package.json
-  src/                          # EXISTING: Python backend (unchanged)
-    dashboard/                  # Existing HTMX dashboard (kept during migration, removed after)
-    ...
+
+### Optional commercial dependencies (add to `[project.optional-dependencies]`)
+
+```toml
+commercial = [
+    "stripe>=14.4",
+]
 ```
+
+### Full new dependencies summary
+
+| Package | Version | Category | Required By | Transitive Deps |
+|---------|---------|----------|-------------|-----------------|
+| PyJWT | >=2.12 | Core | Commercial API (auth) | 0 |
+| slowapi | >=0.1.9 | Core | Commercial API (rate limit) | limits |
+| vaderSentiment | >=3.3.2 | Core | Sentiment scoring | 0 |
+| finvizfinance | >=1.3 | Core | Ownership data enrichment | requests, lxml, beautifulsoup4 (already installed) |
+| stripe | >=14.4 | Optional | Subscription billing | httplib2, typing-extensions (already installed) |
+
+**Total new packages: 4 core + 1 optional.** Minimal footprint. No C extensions. No GPU requirements. No large ML frameworks.
 
 ---
 
 ## Installation
 
 ```bash
-# Create Next.js project inside trading repo
+# Activate existing venv
 cd /home/mqz/workspace/trading
-npx create-next-app@latest dashboard \
-  --typescript \
-  --tailwind \
-  --app \
-  --src-dir \
-  --turbopack \
-  --no-import-alias
+source .venv/bin/activate
 
-# Core dependencies
-cd dashboard
-npm install lightweight-charts @tanstack/react-query zustand next-themes
+# New core dependencies
+pip install "PyJWT>=2.12" "slowapi>=0.1.9" "vaderSentiment>=3.3.2" "finvizfinance>=1.3"
 
-# shadcn/ui initialization (copies components into project)
-npx shadcn@latest init
-# Select: dark theme, zinc color, CSS variables
+# Commercial-only (optional -- only needed for billing)
+pip install "stripe>=14.4"
 
-# Add specific shadcn components
-npx shadcn@latest add button card table tabs badge separator
-npx shadcn@latest add data-table  # pulls in @tanstack/react-table
-
-# Dev tooling
-npm install -D @biomejs/biome
-npx biome init
+# Already installed, no action needed:
+# alpaca-py 0.43.2 (news data), edgartools 5.23.0 (SEC filings)
+# pandas, numpy, fastapi, pydantic (core stack)
 ```
-
-**Total npm packages added to `package.json`:**
-
-| Package | Type | Size (gzipped) |
-|---------|------|----------------|
-| next | core | ~130KB (framework) |
-| react + react-dom | core | ~45KB |
-| lightweight-charts | runtime | ~45KB |
-| @tanstack/react-query | runtime | ~40KB |
-| zustand | runtime | ~2KB |
-| next-themes | runtime | ~2KB |
-| @tanstack/react-table | runtime | ~15KB (via shadcn) |
-| @biomejs/biome | devDep | n/a (dev only) |
-| tailwindcss + postcss | devDep | n/a (build only) |
-
-**Client bundle overhead:** ~150KB gzipped for all runtime deps. This is smaller than Plotly.js alone (1.2MB).
 
 ---
 
@@ -330,38 +235,40 @@ npx biome init
 
 | Category | Recommended | Alternative | Why Not |
 |----------|-------------|-------------|---------|
-| Framework | Next.js 16 | Vite + React | Vite lacks SSR, layouts, file-based routing, proxy built-in. Next.js provides all of these out of the box. For a dashboard that will eventually have SEO needs (commercial product), Next.js is the better foundation. |
-| Framework | Next.js 16 | Next.js 15 | Still works, but 15 requires explicit Turbopack opt-in, has experimental React Compiler, and uses `middleware.ts` instead of cleaner `proxy.ts`. Since this is a new project (not migration), start with 16. |
-| Charts | lightweight-charts 5.1 | Plotly.js | 1.2MB bundle vs 45KB. Plotly excels in Python-side generation (HTMX pattern); lightweight-charts excels in client-side React rendering. Different tools for different architectures. |
-| Charts | lightweight-charts 5.1 | recharts | No OHLC candlestick support. Not designed for financial charts. Fine for generic dashboards, wrong for trading terminals. |
-| Charts | lightweight-charts 5.1 | D3.js | Low-level -- would need to build every chart type from scratch. Lightweight Charts provides financial charts out of the box. |
-| State | TanStack Query + Zustand | Redux Toolkit | RTK requires ~3x more boilerplate (slices, thunks, selectors). TanStack Query handles the server-state part better than RTK Query for simple API consumption. |
-| State | TanStack Query + Zustand | React Context | Context re-renders all consumers on any change. For a dashboard with 10+ data panels, this is a performance problem. Zustand has selective subscriptions. |
-| Styling | Tailwind + shadcn/ui | Material UI (MUI) | MUI adds 200KB+ runtime, has its own CSS-in-JS engine (Emotion), and fights with Tailwind. shadcn/ui is zero-runtime, Tailwind-native. |
-| Styling | Tailwind + shadcn/ui | Chakra UI | Same problem as MUI -- runtime CSS-in-JS, conflicts with Tailwind. Also less actively maintained in 2026. |
-| Tables | @tanstack/react-table (via shadcn) | AG-Grid | AG-Grid Community is 500KB+. Overkill for 4 tables in a personal dashboard. TanStack Table is headless, 15KB, and integrated with shadcn/ui. |
-| Real-time | Native EventSource | Socket.IO | Socket.IO requires a Node.js server component. Our backend is Python+FastAPI using SSE. EventSource API is the native browser client for SSE. Zero additional dependencies. |
-| Real-time | Native EventSource | Custom WebSocket | Would require rewriting the FastAPI SSE infrastructure to WebSocket. SSE is sufficient for server-push (order updates, regime changes). No bidirectional need. |
-| Dark theme | next-themes | CSS prefers-color-scheme only | next-themes prevents flash of wrong theme on page load (injects script before React hydration). Pure CSS approach causes visible theme flash. |
-| Linting | Biome | ESLint + Prettier | Next.js 16 removed `next lint`. Biome is 35x faster, combines linting and formatting, single config. For a new project, Biome is simpler. |
+| Technical indicators | Pure pandas/numpy (existing) | TA-Lib | C library build dependency; all 5 indicators already implemented |
+| Technical indicators | Pure pandas/numpy (existing) | pandas-ta | 30+ transitive deps for 5 functions that already exist |
+| News data source | Alpaca News API (existing) | Finnhub, FMP, Marketaux | Paid APIs; Alpaca already provides Benzinga news free |
+| News sentiment | vaderSentiment (lexicon) | FinBERT (transformer) | 2.5GB deps (torch+transformers) for 20%-weight scoring axis |
+| News sentiment | vaderSentiment | TextBlob | Not designed for financial text; VADER has better financial coverage |
+| Insider data | edgartools (existing) | sec-api (paid) | edgartools is free, already installed |
+| Institutional data | edgartools (existing) | sec-api (paid) | Free and already installed |
+| Ownership enrichment | finvizfinance | OpenBB | OpenBB is a full platform (~100+ deps); overkill for ownership % |
+| JWT auth | PyJWT | python-jose | PyJWT already in codebase; python-jose adds cryptography dep |
+| JWT auth | PyJWT | authlib | Heavier; designed for OAuth providers, not simple JWT encode/decode |
+| Rate limiting | slowapi | Custom middleware | slowapi already in codebase; works correctly |
+| Rate limiting | slowapi | fastapi-limiter | Less mature than slowapi; different API surface |
+| Billing | Stripe | Paddle | Stripe has better Python SDK, larger ecosystem |
+| Billing | Stripe | LemonSqueezy | Newer, smaller ecosystem, less documentation |
+| Billing | Stripe | fastapi-payments | Unnecessary abstraction; direct Stripe SDK is simpler |
+| Attribution | Pure pandas | QuantFAA | Thin wrapper (~200 LOC); DDD requires custom entities |
+| Attribution | Pure pandas | pyfolio | Heavy deps (matplotlib, seaborn); we need math, not charts |
 
 ---
 
 ## What NOT to Add
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| Plotly.js (frontend) | 1.2MB bundle. Wrong tool for client-side React charts. Was correct for HTMX (server-side generation). | lightweight-charts (45KB) |
-| Redux / Redux Toolkit | Boilerplate overhead for a single-user dashboard. No shared state across browser tabs. | Zustand (UI state) + TanStack Query (server state) |
-| Socket.IO / ws | Backend uses SSE, not WebSocket. Adding WebSocket requires rewriting the SSE bridge. | Native EventSource API |
-| Material UI / Chakra UI | CSS-in-JS runtime conflicts with Tailwind. Large bundles. | shadcn/ui (zero runtime, Tailwind-native) |
-| AG-Grid | 500KB+ for a library when we have 4 tables. | @tanstack/react-table via shadcn Data Table |
-| Storybook | Overhead for a personal dashboard. Component library design tool for teams, not solo projects. | Develop components directly in pages |
-| Jest | Next.js 16 recommends Vitest for App Router testing. | Vitest (if frontend tests needed) |
-| Prisma / Drizzle | No database on the frontend. All data comes from FastAPI backend. | FastAPI JSON endpoints via TanStack Query |
-| NextAuth.js | Single-user personal dashboard. Auth is unnecessary. If commercial later, add then. | None -- or simple API key header if needed |
-| Docker (for Next.js) | Single-instance personal deployment. `npm run build && npm start` is sufficient. | Direct Node.js process |
-| Framer Motion | Animation library. Bloomberg terminals are not animated -- they are data-dense and static. | CSS transitions for minimal UI feedback |
+| Package | Why Not | Use Instead |
+|---------|---------|-------------|
+| TA-Lib | C library dependency; all indicators already implemented in 92 LOC | `core/data/indicators.py` (existing) |
+| pandas-ta | 30+ transitive deps for existing functionality | `core/data/indicators.py` (existing) |
+| torch + transformers | 2.5GB for one scoring axis at 20% composite weight | vaderSentiment (339x faster, 0 deps) |
+| OpenBB | Full quant platform; massive dependency tree | finvizfinance (focused, lightweight) |
+| sec-api | Paid service; edgartools covers the same need for free | edgartools (existing) |
+| Redis | Premature for single-instance; in-memory rate limiting is fine | slowapi in-memory (current) |
+| Celery | No async job queue needed; APScheduler already handles scheduling | APScheduler (existing) |
+| SQLAlchemy | DuckDB + SQLite direct access is simpler; no ORM needed | Direct DuckDB/SQLite |
+| pyfolio | Part of Zipline ecosystem; heavy deps for simple attribution math | Pure pandas implementation |
+| Finnhub / FMP (paid) | Violates "free data first" constraint | Alpaca News + edgartools |
 
 ---
 
@@ -369,61 +276,84 @@ npx biome init
 
 | Package | Version | Requires | Compatible With |
 |---------|---------|----------|-----------------|
-| Next.js 16.1.x | latest | Node.js 20.9+ | Node.js 22.x (project) |
-| React 19.2.x | bundled with Next.js 16 | -- | Next.js 16 |
-| TypeScript 5.x | bundled with create-next-app | -- | Next.js 16 |
-| lightweight-charts 5.1.x | latest | -- | Any React (DOM rendering) |
-| @tanstack/react-query 5.90.x | latest | React 18+ | React 19.2 |
-| zustand 5.0.x | latest | React 18+ | React 19.2 |
-| Tailwind CSS 4.x | latest | PostCSS | Next.js 16 (via @tailwindcss/postcss) |
-| next-themes 0.4.x | latest | Next.js 13+ | Next.js 16 |
-| @biomejs/biome 2.x | latest | -- | Any project |
-| shadcn/ui | CLI-based, no version | Tailwind CSS, React | Tailwind v4 + React 19 |
+| PyJWT | 2.12.0 | Python >=3.9 | Python 3.12 |
+| slowapi | 0.1.9 | Python >=3.7 | FastAPI >=0.104 |
+| vaderSentiment | 3.3.2 | Python >=3.x | No conflicts |
+| finvizfinance | 1.3.0 | requests, lxml, bs4 | All already installed |
+| stripe | 14.4.1 | Python >=3.7 | No conflicts |
 
-**No version conflicts identified.** All packages are current stable releases compatible with each other.
+**No version conflicts identified.** All packages are compatible with Python 3.12 and existing dependencies.
 
 ---
 
-## Key Stack Decisions for v1.3
+## Integration Points with Existing Architecture
 
-1. **Next.js 16 over keeping HTMX** -- The HTMX dashboard works but cannot achieve Bloomberg-level data density, synchronized multi-panel layouts, client-side chart interactions (zoom, crosshair, time range selection), or smooth loading states. Next.js provides the component model, routing, and streaming needed for a professional trading UI.
+### Sentiment Scoring Integration
 
-2. **Lightweight Charts over Plotly.js** -- Plotly.js was the right choice for HTMX (generate chart HTML on the server). For a React app, TradingView Lightweight Charts is 26x smaller, renders directly in the browser via canvas, and is the industry standard for financial charting.
+```
+Data Flow:
+alpaca-py News API → news headlines (JSON)
+  → vaderSentiment → sentiment score per headline (-1 to +1)
+  → aggregate by symbol (mean/median of recent N headlines)
+  → normalized to 0-100 scale
+  → feeds into core/scoring/sentiment.py (replace current proxy-based scoring)
 
-3. **TanStack Query + Zustand over Redux** -- Server state (API data) and client state (UI preferences) are separate concerns. TanStack Query handles caching, refetching, and loading states for API calls. Zustand handles which tab is active, sidebar state, and filter selections. Together they replace Redux with less code.
+edgartools Form 4 → insider transactions
+  → net insider buying ratio (shares bought - sold / total)
+  → normalized to 0-100 scale (net buying = bullish)
 
-4. **shadcn/ui over full component library** -- shadcn/ui copies component source code into the project. No library dependency, no version conflicts, full customization control. The Data Table component wraps TanStack Table for sortable/filterable grids. Dark mode via CSS variables matches the Bloomberg aesthetic.
+edgartools 13F → institutional holdings changes
+  → quarter-over-quarter change in institutional ownership
+  → normalized to 0-100 scale (increasing = bullish)
 
-5. **Native EventSource over WebSocket library** -- The existing FastAPI SSE bridge (`SSEBridge` class in `src/dashboard/infrastructure/sse_bridge.py`) already broadcasts domain events. The React frontend connects via the browser's built-in `EventSource` API. Zero additional dependencies on either side.
+finvizfinance → insider/institutional ownership %
+  → enrichment data for sentiment score
+```
 
-6. **Biome over ESLint + Prettier** -- Next.js 16 removed `next lint`. Starting fresh with Biome gives a single fast tool for both linting and formatting.
+### Commercial API Integration
 
-7. **API proxy via `next.config.ts` rewrites** -- The Next.js dev server proxies `/api/*` requests to FastAPI at `http://127.0.0.1:8000`. In production, both run on the same machine. This is simpler than CORS configuration and matches the existing single-process deployment model.
+```
+Data Flow:
+Client → FastAPI (commercial/api/main.py)
+  → JWT auth (PyJWT) via dependencies.py
+  → Rate limiting (slowapi) via middleware/rate_limit.py
+  → DDD handlers (existing) → scoring/regime/signal results
+
+Billing:
+Stripe Checkout → subscription created
+  → Stripe webhook → POST /api/v1/webhooks/stripe
+  → Update user tier in DB
+  → JWT tier claim updated on next token refresh
+  → Rate limit tier applied via _user_tier_cache
+```
 
 ---
 
 ## Sources
 
-- [Next.js 16 Release Blog](https://nextjs.org/blog/next-16) -- Turbopack stable, React Compiler, proxy.ts, React 19.2 (HIGH confidence)
-- [Next.js 16.1 Release Blog](https://nextjs.org/blog/next-16-1) -- Latest patch (HIGH confidence)
-- [Next.js 16 Upgrade Guide](https://nextjs.org/docs/app/guides/upgrading/version-16) -- Breaking changes, Node.js 20.9+ requirement (HIGH confidence)
-- [TradingView Lightweight Charts Official Docs](https://tradingview.github.io/lightweight-charts/) -- v5.1, React integration tutorials (HIGH confidence)
-- [TradingView Lightweight Charts npm](https://www.npmjs.com/package/lightweight-charts) -- v5.1.0, published ~3 months ago (HIGH confidence)
-- [TradingView Lightweight Charts React Basic Tutorial](https://tradingview.github.io/lightweight-charts/tutorials/react/simple) -- useRef+useEffect pattern (HIGH confidence)
-- [TradingView Lightweight Charts React Advanced Tutorial](https://tradingview.github.io/lightweight-charts/tutorials/react/advanced) -- Component-based architecture (HIGH confidence)
-- [@tanstack/react-query npm](https://www.npmjs.com/package/@tanstack/react-query) -- v5.90.21, published ~1 month ago (HIGH confidence)
-- [zustand npm](https://www.npmjs.com/package/zustand) -- v5.0.11, published ~1 month ago (HIGH confidence)
-- [shadcn/ui Dark Mode Next.js Guide](https://ui.shadcn.com/docs/dark-mode/next) -- next-themes integration (HIGH confidence)
-- [shadcn/ui Data Table Component](https://ui.shadcn.com/docs/components/radix/data-table) -- TanStack Table integration (HIGH confidence)
-- [Tailwind CSS v4 Release](https://tailwindcss.com/blog/tailwindcss-v4) -- CSS-first config, performance improvements (HIGH confidence)
-- [next-themes GitHub](https://github.com/pacocoursey/next-themes) -- Flash prevention, system preference (HIGH confidence)
-- [State of React State Management 2026](https://www.pkgpulse.com/blog/state-of-react-state-management-2026) -- TanStack Query + Zustand dominant pattern (MEDIUM confidence)
-- [Next.js 16 Proxy Architecture](https://learnwebcraft.com/learn/nextjs/nextjs-16-proxy-ts-changes-everything) -- proxy.ts patterns (MEDIUM confidence)
-- Direct codebase analysis: `src/dashboard/infrastructure/sse_bridge.py` confirms SSEBridge with asyncio queues (HIGH confidence)
-- Direct codebase analysis: `src/dashboard/presentation/routes.py` confirms HTMX template rendering with query handlers (HIGH confidence)
-- Direct codebase analysis: `src/dashboard/presentation/templates/base.html` confirms Tailwind CDN + HTMX + Plotly.js CDN (HIGH confidence)
+- [EdgarTools documentation - 13F filings](https://edgartools.readthedocs.io/en/latest/13f-filings/) -- Institutional holdings parsing (HIGH confidence)
+- [EdgarTools complete guide (2026)](https://edgartools.readthedocs.io/en/stable/complete-guide/) -- Form 4 insider trades (HIGH confidence)
+- [Alpaca News API documentation](https://docs.alpaca.markets/docs/historical-news-data) -- Historical news data access (HIGH confidence)
+- [Alpaca real-time news streaming](https://docs.alpaca.markets/docs/streaming-real-time-news) -- Live news WebSocket (HIGH confidence)
+- [Alpaca + Benzinga partnership](https://alpaca.markets/blog/alpaca-partners-with-benzinga-to-deliver-real-time-embedded-financial-news/) -- News source confirmation (HIGH confidence)
+- [VADER vs FinBERT accuracy comparison](https://dzone.com/articles/improving-sentiment-score-accuracy-with-finbert-an) -- VADER 56% vs FinBERT 91% (MEDIUM confidence)
+- [FinBERT GitHub](https://github.com/ProsusAI/finBERT) -- FinBERT capabilities reference (HIGH confidence)
+- [vaderSentiment PyPI](https://pypi.org/project/vaderSentiment/) -- Version 3.3.2 (HIGH confidence)
+- [finvizfinance PyPI](https://pypi.org/project/finvizfinance/) -- Version 1.3.0, Jan 2026 (HIGH confidence)
+- [finvizfinance insider documentation](https://finvizfinance.readthedocs.io/en/latest/insider.html) -- Insider data API (HIGH confidence)
+- [PyJWT PyPI](https://pypi.org/project/PyJWT/) -- Version 2.12.0 (HIGH confidence)
+- [PyJWT CVE-2026-32597](https://advisories.gitlab.com/pkg/pypi/pyjwt/CVE-2026-32597/) -- Security advisory (MEDIUM confidence)
+- [slowapi PyPI](https://pypi.org/project/slowapi/) -- Version 0.1.9 (HIGH confidence)
+- [Stripe Python SDK PyPI](https://pypi.org/project/stripe/) -- Version 14.4.1 (HIGH confidence)
+- [FastAPI + Stripe integration guide](https://dev.to/fastapier/building-a-stripe-subscription-backend-with-fastapi-3n3) -- Integration patterns (MEDIUM confidence)
+- [Brinson attribution in Python](https://dataninjago.com/2025/01/19/coding-towards-cfa-36-performance-attribution-with-brinson-model-in-dolphindb-and-python/) -- Implementation reference (MEDIUM confidence)
+- Direct codebase verification: `core/data/indicators.py` -- all 5 indicators implemented (HIGH confidence)
+- Direct codebase verification: `core/scoring/technical.py` -- technical scoring already functional (HIGH confidence)
+- Direct codebase verification: `core/scoring/sentiment.py` -- sentiment scoring stub exists (HIGH confidence)
+- Direct codebase verification: `commercial/api/` -- JWT auth + rate limiting already coded (HIGH confidence)
+- Direct codebase verification: `alpaca/data/historical/news.py` exists in installed package (HIGH confidence)
 
 ---
-*Stack research for: v1.3 Bloomberg Dashboard (Next.js)*
+*Stack research for: v1.4 Full Stack Trading Platform*
 *Researched: 2026-03-14*
-*All versions verified against npm registry + official documentation on 2026-03-14*
+*All versions verified against PyPI and installed packages on 2026-03-14*

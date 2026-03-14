@@ -1,281 +1,222 @@
 # Pitfalls Research
 
-**Domain:** Adding React+Next.js Bloomberg-style dashboard to existing Python trading system
-**System:** Intrinsic Alpha Trader v1.2 -> v1.3 (Bloomberg Dashboard)
+**Domain:** Adding technical scoring, sentiment analysis, commercial API, and performance attribution to existing quantitative trading system
+**System:** Intrinsic Alpha Trader v1.3 -> v1.4 (Full Stack Trading Platform)
 **Researched:** 2026-03-14
-**Confidence:** HIGH (codebase analysis + official TradingView/Next.js docs + CVE advisories + prior v1.2 pitfalls)
+**Confidence:** HIGH (codebase analysis + domain expertise + known tech debt from PROJECT.md)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: TradingView Chart Memory Leaks on Page Navigation
+### Pitfall 1: Lookahead Bias in Technical Indicator Calculations
 
 **What goes wrong:**
-TradingView Lightweight Charts creates canvas-based chart instances that hold GPU and memory resources. When users navigate between dashboard pages (Overview, Signals, Risk, Pipeline), React unmounts and remounts chart components. If `chart.remove()` is not called in the useEffect cleanup, the canvas and all associated data stay in memory. After 10-20 page transitions, the browser tab consumes 500MB+ and starts lagging. The existing system has no charts in React (Plotly is served via Jinja2 `<script>` tags), so this is entirely new territory.
+Technical indicators (RSI, MACD, MA, ADX, OBV) use future data during backtesting or scoring, producing unrealistically good results. The system then makes live trading decisions based on inflated scores. Common forms: using the current bar's close to compute an indicator value that should only use data up to the previous bar; using the full dataset to normalize indicator values (e.g., min-max scaling OBV across the entire time series including future data); rebalancing the composite score using forward-looking regime information.
+
+The existing `TechnicalIndicatorAdapter.compute_technical_subscores()` in `src/scoring/infrastructure/core_scoring_adapter.py` fetches 756 days of price history and calls `indicators.compute_all(df)`. The indicators themselves (in `core/data/indicators.py`) use pandas rolling/ewm functions which are correctly causal. However, the `_compute_obv_change()` method uses a 60-day lookback which is fine for live scoring but could be problematic if this same code path is used during walk-forward backtesting without proper data slicing.
 
 **Why it happens:**
-React's useEffect cleanup order is counterintuitive with parent-child charting components. Hooks run bottom-up during initialization (Series mounts before Chart) but top-down during cleanup (Chart cleans up before Series). If you use a parent `<ChartContainer>` with child `<CandlestickSeries>` components, the parent's cleanup removes the chart first, but the child's cleanup then tries to access a destroyed chart instance, causing errors. Developers remove the cleanup code to "fix" the errors, which introduces the leak.
+The existing fundamental scoring (F-Score, Z-Score) uses point-in-time financial data -- each quarterly filing has a known date, making lookahead bias easy to avoid. Technical indicators are different: they operate on continuous price data where the boundary between "known" and "unknown" shifts with each bar. Developers compute indicators on the full DataFrame and then slice by date, but the indicator values themselves already contain future information (e.g., a 200-day MA computed using today's close when scoring for yesterday).
 
 **How to avoid:**
-1. Store chart ref with `useRef()` and always call `chart.remove()` in `useLayoutEffect` cleanup (not `useEffect` -- layout effects clean up synchronously before DOM mutations)
-2. Set an `isRemoved` flag before calling `chart.remove()` so child components can guard against accessing a destroyed chart
-3. Use the `useImperativeHandle` + `Context.Provider` pattern from TradingView's official advanced React example
-4. Wrap all chart components with `dynamic(() => import('./Chart'), { ssr: false })` since charts are canvas-based and cannot SSR
-
-```typescript
-// Correct cleanup pattern from TradingView docs
-useLayoutEffect(() => {
-  const chart = createChart(containerRef.current!, options);
-  chartApiRef.current = { chart, isRemoved: false };
-  return () => {
-    chartApiRef.current.isRemoved = true;
-    chart.remove();
-  };
-}, []);
-```
+1. **Strict data cutoff in backtesting:** When scoring for date T, the DataFrame must end at T-1 close. Never pass the full history and then pick the row at T.
+2. **Validate with the "walk-forward data fence" test:** For each scoring date, assert that no data point in the indicator computation postdates the scoring date.
+3. **Separate live vs. backtest code paths:** Live scoring uses the full current DataFrame (correct -- today's data IS known). Backtest scoring must truncate the DataFrame to `df[:scoring_date]` BEFORE computing indicators.
+4. **Add a `as_of_date` parameter to `TechnicalIndicatorAdapter.compute_technical_subscores()`** that truncates data before indicator computation.
 
 **Warning signs:**
-- Browser DevTools Memory tab shows monotonically increasing heap after page navigation cycles
-- Canvas element count in DOM grows after each navigation (inspect with `document.querySelectorAll('canvas').length`)
-- `MaxListenersExceededWarning` in Node.js console (SSR-side, if chart code leaks into server)
+- Backtest Sharpe ratio > 2.0 for a long-only equity strategy (suspiciously high)
+- Live performance dramatically worse than backtest (the classic "it worked in backtest" failure)
+- Technical score for a past date changes when new data is appended to the DataFrame
+- Composite scores in the DuckDB scoring store differ from re-computed scores for the same date
 
 **Phase to address:**
-Phase 1 (Project Setup) -- establish the chart wrapper component with correct cleanup from day one. Retrofitting cleanup into existing chart components is error-prone because the parent-child hook ordering bug is subtle.
+Technical Scoring phase -- implement the `as_of_date` cutoff in the adapter before integrating technical scores into the composite pipeline. The backtest engine already has walk-forward logic in `core/backtest/walk_forward.py`; ensure it enforces the data fence.
 
 ---
 
-### Pitfall 2: Next.js API Routes Spawning Python Subprocesses
+### Pitfall 2: Sentiment Score Defaulting to 50 Silently Corrupts Composite Scores
 
 **What goes wrong:**
-The natural instinct is to have Next.js API routes invoke Python scripts via Node.js subprocess APIs to access the existing query handlers (`OverviewQueryHandler`, `SignalsQueryHandler`, etc.). This approach has two catastrophic problems:
-
-1. **Security:** CVE-2025-55182 (React2Shell, CVSS 10/10) demonstrated that prototype pollution in React Server Components can lead to arbitrary command execution on the server. 59,000 Next.js servers were compromised in 48 hours. Any codebase that uses Node.js subprocess APIs expands the attack surface for this class of vulnerability.
-2. **Performance:** Each subprocess call bootstraps the entire Python context -- `bootstrap()` in `src/bootstrap.py` wires 10+ bounded contexts, opens DuckDB connections, initializes repository instances. This adds 2-5 seconds latency per API call. The existing system takes ~3 seconds to bootstrap even for a simple query.
+The current `SentimentScore` value object defaults to 50 (neutral) when data is insufficient. The existing `core/scoring/sentiment.py` function `compute_sentiment_score()` already returns `{"sentiment_score": 50.0, "note": "insufficient data, using neutral"}` when no inputs are available. The composite score formula (`CompositeScore.compute()`) assigns 20% weight to sentiment. If sentiment silently defaults to 50 for most stocks (because real sentiment data sources are expensive or incomplete), the composite score becomes effectively an 80/20 fundamental/technical score with a constant 10-point sentiment contribution (50 * 0.20 = 10). This is mathematically equivalent to a different weight scheme, but the system reports incorrect weights, making the explainability chain lie to the user.
 
 **Why it happens:**
-The existing `create_dashboard_app()` in `src/dashboard/presentation/app.py` creates a FastAPI app with a fully bootstrapped context (`app.state.ctx = ctx`). Query handlers like `OverviewQueryHandler(ctx)` depend on this context dict containing live repository instances. Developers think "I'll just call Python from Node.js to reuse these handlers" instead of treating the FastAPI server as an HTTP API.
+Real sentiment data requires: (1) news sentiment APIs ($50-200/mo for meaningful coverage), (2) insider trading data (SEC Form 4, available via EDGAR but needs parsing), (3) institutional holdings (13F filings, quarterly lag), (4) analyst revision data (expensive -- Bloomberg/Refinitiv tier). The temptation is to build the sentiment scoring interface, hardcode 50 as default, and plan to "add real data later." But the composite score starts using this fake 50 immediately, and nobody notices the distortion because the system "works."
 
 **How to avoid:**
-Keep the existing FastAPI server running as the Python backend. Next.js API routes act as a Backend-for-Frontend (BFF) proxy -- they call the FastAPI endpoints via HTTP (`fetch('http://localhost:8000/dashboard/...')`), transform the response shape for the React frontend, and never use subprocess APIs.
-
-Architecture: `Browser -> Next.js (port 3000, BFF) -> FastAPI (port 8000, Python backend) -> DuckDB/SQLite`
-
-Never: `Browser -> Next.js -> subprocess('python') -> DuckDB/SQLite`
-
-The FastAPI server already has: bootstrapped context, SSE bridge, all 4 query handlers, pipeline/approval POST endpoints.
+1. **Track data availability explicitly:** Add a `confidence` field to `SentimentScore` (HIGH/MEDIUM/LOW/NONE). When confidence is NONE, exclude sentiment from the composite calculation entirely and adjust weights to fundamental+technical only.
+2. **Two-mode composite calculation:** When sentiment data is available, use 40/40/20 weights. When sentiment is missing, use 55/45 fundamental/technical (re-normalized to sum to 1.0).
+3. **Log and surface missing data:** Every time sentiment defaults to 50, emit a domain event (`SentimentDataMissingEvent`) that shows up in the dashboard's data quality panel.
+4. **Do not ship sentiment scoring without at least one real data source.** The simplest free source is analyst target price vs. current price (already implemented in `compute_sentiment_score()` -- requires `analyst_target` and `current_price` from yfinance). Ensure this path is wired before activating sentiment in the composite.
 
 **Warning signs:**
-- Any Node.js subprocess API imports in Next.js codebase
-- API route files containing `export const runtime = 'nodejs'` specifically to enable subprocess calls
-- Python import statements appearing in TypeScript template strings
-- No running FastAPI process required for the dashboard to work
+- More than 50% of scored stocks have sentiment_score = 50.0 exactly
+- `SentimentScore.value` distribution is a spike at 50 instead of a distribution
+- Composite scores for high-quality and low-quality stocks cluster closer together than expected (the constant 10-point sentiment contribution compresses the range)
+- No sentiment data source is actually configured in `.env` but sentiment scoring is "complete"
 
 **Phase to address:**
-Phase 1 (Project Setup) -- define the BFF architecture boundary before any API route is written. This is a foundational decision that affects every subsequent phase.
+Sentiment Scoring phase -- must ship with at least one real data source wired. Pipeline Stabilization phase should add data quality monitoring that catches the "silent 50" pattern.
 
 ---
 
-### Pitfall 3: DuckDB File Lock Conflicts Between Python and Node.js Processes
+### Pitfall 3: DDD Wiring Gaps Compound When Adding New Bounded Contexts
 
 **What goes wrong:**
-DuckDB enforces single-writer, multiple-reader semantics at the OS file level. The existing Python trading system holds a DuckDB connection open for analytics (scoring, signals, regime data). If a Node.js process (directly or via spawned Python subprocess) tries to open the same DuckDB file for writing, it blocks indefinitely or fails with a lock error. **This already happened in this project** -- commit `e0c1c06` fixed "DuckDB lock conflicts and pipeline bugs."
+The PROJECT.md explicitly flags tech debt: "DDD wiring gaps need fixing" and "scoring store mismatch needs resolution." The current system has two parallel code paths: the `core/` legacy path (working) and the `src/` DDD path (partially wired). When adding new features (technical scoring, sentiment scoring, performance attribution), developers face a choice: wire through the incomplete DDD path or add directly to `core/`. Each new feature added to `core/` makes the DDD migration harder. Each new feature added to `src/` without fixing existing wiring gaps encounters broken cross-context communication (the event bus, repository injection, handler dispatch).
+
+The specific store mismatch: scoring uses SQLite (`src/scoring/infrastructure/sqlite_repo.py`) while signals and backtest use DuckDB (`src/signals/infrastructure/duckdb_signal_store.py`, `src/backtest/infrastructure/duckdb_backtest_store.py`). When the composite score includes a new technical score component, that score needs to be stored, queried for signal generation, and available for backtest replay. If technical scores go to SQLite (scoring context) but signals need them from DuckDB (signal context), there is a data access mismatch.
 
 **Why it happens:**
-DuckDB is an embedded database designed for single-process analytics. Unlike PostgreSQL's client-server model, DuckDB locks the file at the OS level. The official DuckDB docs state: "Writing to DuckDB from multiple processes is not supported automatically and is not a primary design goal." Even read-only access from a second process can conflict if the first process is mid-write.
+The adapter pattern (`CoreScoringAdapter`, `TechnicalIndicatorAdapter`, `CoreSignalAdapter`) was a pragmatic choice to ship v1.0-v1.2 quickly by wrapping `core/` functions. This works when the DDD layer is thin -- just VOs and adapters. But v1.4 requires real domain logic in the DDD layer (regime-adjusted weights, sentiment fusion, performance decomposition). At this point, the adapters become bottlenecks: they cannot express the new business rules because the underlying `core/` functions do not support them.
 
 **How to avoid:**
-1. All DuckDB/SQLite access goes through the Python FastAPI server -- never from Node.js directly
-2. Next.js API routes are pure HTTP proxies to FastAPI; they never import DuckDB client libraries
-3. The project's `DBFactory` in `src/shared/infrastructure/db_factory.py` manages all connections within the single Python process
-4. If analytics queries are needed from Node.js (never recommended), export results to JSON files that Next.js can read without database access
+1. **Fix the store mismatch FIRST**, before adding any new feature. Decide: either all analytical stores use DuckDB (recommended -- DuckDB is better for OLAP queries like "show me all stocks with composite > 60 and RSI oversold") or all use SQLite. Unify before adding new table schemas.
+2. **New features go into `src/` DDD path ONLY.** The `core/` directory is frozen for new feature additions. New technical/sentiment logic lives in domain services, not in new `core/` modules.
+3. **Wire one complete vertical slice first:** Pick a simple feature (e.g., technical scoring for a single indicator like RSI), and wire it end-to-end through DDD: domain VO -> domain service -> application handler -> infrastructure adapter -> persistence -> presentation/API. This flushes out all the wiring gaps before adding complexity.
+4. **Fix the event bus:** The `SyncEventBus` in `src/shared/infrastructure/sync_event_bus.py` and `AsyncEventBus` in `src/shared/infrastructure/event_bus.py` need verified cross-context event delivery. Test: scoring context publishes `ScoreUpdatedEvent` -> signals context receives it and recomputes signal.
 
 **Warning signs:**
-- `IOError: Could not set lock on file` errors in Python logs during dashboard usage
-- Dashboard pages showing stale data while pipeline is running
-- `duckdb`, `duckdb-async`, or `better-sqlite3` appearing in `package.json`
-- Intermittent 500 errors on dashboard API routes that correlate with pipeline run times
+- New code added to `core/` directory instead of `src/`
+- Application handlers that bypass domain services and call infrastructure directly
+- Tests that work with in-memory repos but fail with SQLite/DuckDB repos
+- Cross-context queries that import from another context's internal modules instead of going through the event bus
+- Two different score values for the same stock: one from `core/scoring/` and one from `src/scoring/`
 
 **Phase to address:**
-Phase 1 (Project Setup) -- establish the rule that Node.js never directly accesses DuckDB or SQLite. This constraint shapes the entire API route design.
+Pipeline Stabilization phase (FIRST, before any new feature). This phase must unify the store, fix event bus wiring, and validate one vertical slice before Technical Scoring begins.
 
 ---
 
-### Pitfall 4: SSR/Hydration Mismatch with Real-Time Financial Data
+### Pitfall 4: Commercial API Security Hardcoded as Afterthought
 
 **What goes wrong:**
-Next.js server-renders pages with data fetched at request time (e.g., portfolio value = $47,231). By the time the browser hydrates the page (~100-500ms later), the real-time data may have changed (portfolio value = $47,245). React detects the mismatch between server HTML and client HTML, throws a hydration error, and falls back to full client-side rendering. This causes a visible flash of content and console warnings that pollute error monitoring.
+The commercial API (QuantScore, RegimeRadar, SignalFusion) is built with FastAPI, and developers focus on getting the endpoints working first, then "add auth later." By the time auth is added, the system has: (1) no rate limiting, so a single user can exhaust API quota and DuckDB connections; (2) API keys stored in plain text in SQLite; (3) no request logging for billing, making it impossible to charge users accurately; (4) no input validation on ticker symbols, allowing injection attacks via malformed symbols; (5) no response sanitization, leaking internal error traces with Python file paths and DuckDB schema details.
 
 **Why it happens:**
-Financial dashboards show inherently dynamic data: prices, P&L, drawdown percentages, regime status. SSR assumes data is stable between server render and client hydration. The existing HTMX dashboard in `base.html` avoids this entirely because HTMX uses CSR with server-rendered HTML fragments (no hydration step). Migrating to Next.js introduces hydration as a new failure mode that did not exist before.
+The personal trading system has no authentication (single user, localhost). The commercial API requires authentication, authorization, rate limiting, billing, and audit logging -- all of which are infrastructure concerns that do not exist in the current codebase. The natural development flow is: build endpoints -> test manually -> add auth. But auth retrofitting is expensive because it affects every endpoint, every error handler, and every response shape.
 
 **How to avoid:**
-Split components into two strict categories:
-
-1. **SSR-safe (static structure):** Page layout, sidebar navigation, column headers, section titles. These render identically on server and client. Use Server Components.
-2. **Client-only (dynamic data):** Portfolio values, P&L numbers, price tickers, chart canvases, drawdown gauges, regime badges. Use `"use client"` directive and fetch data on mount via `useEffect` or React Query/SWR.
-
-```typescript
-// SSR-safe shell + client-only dynamic data
-export default function OverviewPage() {
-  return (
-    <DashboardLayout>           {/* Server Component -- static structure */}
-      <Suspense fallback={<KpiSkeleton />}>
-        <KpiCards />            {/* Client Component -- fetches on mount */}
-      </Suspense>
-      <EquityChart />           {/* dynamic import, ssr: false */}
-      <HoldingsTable />         {/* Client Component -- fetches on mount */}
-    </DashboardLayout>
-  );
-}
-```
+1. **Auth middleware from day one.** The very first commercial API endpoint must have authentication before the second endpoint is written. Use API key authentication (simplest for B2B API): `X-API-Key` header -> lookup in database -> attach user context to request.
+2. **Rate limiting from day one.** Use `slowapi` (FastAPI-compatible, wraps `limits`) with per-key rate limits. Different tiers get different limits.
+3. **Request logging from day one.** Every API request logged with: timestamp, API key, endpoint, response time, status code. This is the billing audit trail. Use a separate SQLite table or append-only file (not the same DB as trading data).
+4. **Input validation as domain invariant.** The `Symbol` value object in `src/scoring/domain/value_objects.py` already validates tickers (uppercase, max 10 chars). Route the commercial API through the same domain layer -- do not create a parallel validation path.
+5. **Error sanitization.** Never expose Python tracebacks, file paths, or SQL queries in API responses. Use FastAPI exception handlers that map internal errors to generic API error responses with correlation IDs.
 
 **Warning signs:**
-- `Text content does not match server-rendered HTML` errors in browser console
-- Visible flash of different numbers when page loads (price flicker)
-- `suppressHydrationWarning` appearing on data-bearing elements (band-aid, not fix)
-- Server Components importing hooks like `useState`, `useEffect`
+- Commercial API endpoints accessible without an API key (even in dev)
+- No `slowapi` or rate limiting middleware in the FastAPI app
+- API error responses containing Python traceback text
+- No logging table/file for API request audit trail
+- Billing amounts calculated from "number of API keys" rather than actual usage
 
 **Phase to address:**
-Phase 1 (Project Setup) -- define the SSR/CSR boundary as part of the component architecture. The `DashboardLayout` Server Component vs. data-bearing Client Components split must be decided before any page is built.
+Commercial API phase -- but auth/rate-limit/logging middleware must be the FIRST thing built in that phase, before any scoring endpoint. Not the last thing.
 
 ---
 
-### Pitfall 5: SSE Streaming Broken by Next.js Response Buffering
+### Pitfall 5: Performance Attribution Without Accurate Trade Tracking
 
 **What goes wrong:**
-The existing system uses SSE via `sse_starlette` to push domain events (`OrderFilledEvent`, `PipelineCompletedEvent`, `DrawdownAlertEvent`, `RegimeChangedEvent`) from `SSEBridge` in `src/dashboard/infrastructure/sse_bridge.py`. When migrating to Next.js, developers implement an SSE route handler that proxies the Python SSE stream. Next.js buffers the entire response until the handler function completes -- which for SSE is never. The client connects (200 status) but never receives events.
+Performance attribution decomposes P&L into components: what came from stock selection (alpha), what came from sector allocation, what came from market timing (regime), what came from position sizing (risk management). This requires accurate records of: (1) every trade's entry and exit prices with timestamps, (2) the composite score and regime at the time of entry, (3) the position size and why that size was chosen, (4) benchmark returns over the same period. If any of these are missing or approximate, the attribution is garbage.
+
+The current system stores trade plans (`src/execution/infrastructure/sqlite_trade_plan_repo.py`) and has execution tracking, but it may not capture the "scoring context at entry time" -- the composite score, regime classification, and individual factor scores that were active when the trade was opened. Without this, you cannot attribute performance to "good scoring" vs. "good timing" vs. "good sizing."
 
 **Why it happens:**
-Next.js Route Handlers default to buffering responses. SSE requires streaming: the response must be sent immediately and events pushed incrementally. The existing SSE endpoint at `/dashboard/events` works because FastAPI/Starlette has native streaming support via `EventSourceResponse`. Next.js requires explicit `ReadableStream` usage and specific headers to achieve the same behavior.
+Trade execution naturally records price and quantity. But performance attribution needs the "decision context" -- why was this trade made? What scores supported it? What regime was active? This is metadata about the decision, not the execution. Developers build attribution assuming the scores can be recomputed retroactively, but scores change daily (new financial data, new price data, new sentiment), so yesterday's composite score cannot be reliably recomputed today.
 
 **How to avoid:**
-Two options, in order of preference:
-
-**Option A (Recommended): Direct browser-to-FastAPI SSE connection.**
-Skip the Next.js SSE proxy entirely. The browser connects directly to `http://localhost:8000/dashboard/events`. This is the simplest approach with the fewest failure points. Requires CORS configuration on FastAPI to allow the Next.js origin.
-
-**Option B: Next.js SSE proxy with ReadableStream.**
-```typescript
-// app/api/events/route.ts
-export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs'; // SSE does not work in Edge Runtime
-
-export async function GET() {
-  const stream = new ReadableStream({
-    async start(controller) {
-      const res = await fetch(process.env.INTERNAL_API_URL + '/dashboard/events');
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        controller.enqueue(new TextEncoder().encode(decoder.decode(value)));
-      }
-      controller.close();
-    }
-  });
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',  // Prevents nginx buffering
-    },
-  });
-}
-```
+1. **Snapshot decision context at trade entry.** When a trade plan is approved, store: composite_score, fundamental_score, technical_score, sentiment_score, regime_type, strategy_weights, position_size_reason (Kelly fraction, ATR-based stop distance), and benchmark_price (SPY or relevant index).
+2. **Immutable trade event log.** Create an append-only log of `TradeEntryEvent` and `TradeExitEvent` domain events with full context. This log is the source of truth for attribution -- never recompute from current data.
+3. **Benchmark tracking.** Start recording SPY (or chosen benchmark) daily returns from day one. Attribution formulas (Brinson-Fachler, etc.) require benchmark returns over the exact same period as each trade. Missing benchmark data makes sector allocation attribution impossible.
+4. **Design the attribution schema before implementing.** The 4-level P&L decomposition mentioned in PROJECT.md (scoring, regime, sizing, execution) requires specific data at each level. Define the data requirements first, then ensure every upstream component (scoring, regime, sizing, execution) emits the required fields.
 
 **Warning signs:**
-- SSE connection established (200 status) but no events arrive in browser
-- Events arrive all at once when the connection drops instead of incrementally
-- `MaxListenersExceededWarning` on the Node.js server (memory leak from uncleaned event listeners)
-- SSE works in development but breaks in production (nginx buffering, serverless timeout)
+- Trade plan records do not contain the composite score at approval time
+- No benchmark return data stored alongside trade data
+- Attribution calculations use current scores instead of historical scores
+- `self-improver` tries to optimize parameters but cannot explain what drove past performance
+- Attribution sums do not equal total P&L (the residual is large because key components are missing)
 
 **Phase to address:**
-Phase 1 (Project Setup) -- decide SSE architecture (direct vs. proxy). Phase 3 (Page Implementation) -- wire the actual event handling.
+Performance Attribution phase -- but the "snapshot decision context" requirement must be implemented in the Pipeline Stabilization or Technical Scoring phase, because it requires modifying the trade execution pipeline. If you wait until the attribution phase to add context logging, you have no historical data to attribute.
 
 ---
 
-### Pitfall 6: Bundle Size Explosion from Multiple Charting Libraries
+### Pitfall 6: MACD Histogram Normalization Range Mismatch Across Stocks
 
 **What goes wrong:**
-The existing dashboard loads Plotly.js from CDN (`plotly-3.4.0.min.js` -- 3.4 MB uncompressed, ~1 MB gzipped) for equity curves, drawdown gauges, and sector donuts (see `src/dashboard/presentation/charts.py`). The migration instinct is to `npm install plotly.js-dist` and import it alongside TradingView Lightweight Charts. Plotly alone is 1MB+ minified. Combined with TradingView (45KB), React (45KB), and Next.js framework code, the total JS bundle exceeds 1.5MB. Initial page load takes 3+ seconds.
+The current `TechnicalScoringService._score_macd()` normalizes the MACD histogram from a hardcoded range of [-5, +5] to [0, 100]. This range was likely calibrated for US large-cap stocks trading at $50-500. But: (1) a $5 stock has a MACD histogram in the [-0.1, +0.1] range, making all scores cluster around 50 (neutral); (2) a $2000 stock (BRK.A) has histograms in the [-50, +50] range, making all scores extreme (0 or 100); (3) penny stocks and high-volatility names have wildly different ranges. The technical score becomes meaningless for any stock outside the assumed price range.
 
 **Why it happens:**
-The three existing chart types (`build_equity_curve`, `build_drawdown_gauge`, `build_sector_donut`) are built with Plotly because the HTMX dashboard used CDN-loaded Plotly. Porting this to React means bundling Plotly into the JS payload instead of loading from CDN. The CDN approach hid the true cost.
+The MACD histogram is price-denominated (it is the difference between two EMAs of the close price). Unlike RSI (always 0-100) or ADX (typically 0-50), MACD has no natural bounded range. The developer picks a "reasonable" normalization range based on a few test stocks and moves on. This works for a narrow stock universe but breaks silently when the universe expands.
 
 **How to avoid:**
-Replace ALL Plotly charts. Do not add Plotly to `package.json` at all.
-
-| Current (Plotly) | Replacement | Size |
-|-----------------|-------------|------|
-| Equity curve (line chart) | TradingView Lightweight Charts `LineSeries` | 0KB additional (already needed) |
-| Drawdown gauge | Pure CSS radial gauge with `conic-gradient` | 0KB JS |
-| Sector donut | SVG `<circle>` with `stroke-dasharray` or CSS `conic-gradient` | 0KB JS |
-| Candlestick chart | TradingView Lightweight Charts `CandlestickSeries` | 45KB total |
-
-TradingView Lightweight Charts v5 bundle is 35-45KB and supports line, area, histogram, candlestick, and bar series. This covers all charting needs.
+1. **Use percentage-based MACD.** Instead of raw MACD histogram value, use `histogram / close * 100` (percentage of price). This normalizes across price levels. A $5 stock and a $500 stock will have comparable percentage MACD values.
+2. **Alternatively, use z-score normalization.** Compute the MACD histogram's rolling z-score over 252 days: `(current_histogram - mean(histogram_252d)) / std(histogram_252d)`. This normalizes each stock relative to its own history. Map z-score [-2, +2] to [0, 100].
+3. **Test with diverse stocks.** Include in the test suite: a penny stock (<$5), a normal stock ($50-200), a high-price stock (>$1000), a high-volatility stock (TSLA-class), and a low-volatility stock (utility). Verify MACD scores are not all clustered at 50 or at extremes.
 
 **Warning signs:**
-- `plotly.js`, `plotly.js-dist`, or `react-plotly.js` in `package.json`
-- `@next/bundle-analyzer` showing any single chunk > 200KB
-- Lighthouse Performance score < 70 on dashboard pages
-- Multiple charting library imports in the component tree
+- MACD sub-scores are almost always 50.0 for low-price stocks
+- MACD sub-scores are almost always 0.0 or 100.0 for high-price stocks
+- The standard deviation of MACD sub-scores across a 500-stock universe is very small (all scores compressed)
+- Technical composite score has low discriminating power (stocks with very different momentum have similar scores)
 
 **Phase to address:**
-Phase 1 (Project Setup) -- lock down the charting library decision to TradingView-only. Phase 2 (Design System) -- build CSS-based gauge and donut components.
+Technical Scoring phase -- fix the normalization before integrating into the composite. The fix is small (change `_score_macd()` to use percentage MACD) but must be done before any backtest or live scoring uses the result.
 
 ---
 
-### Pitfall 7: Dark Theme CSS Conflicts and Incomplete Styling
+### Pitfall 7: Commercial API Billing Without Idempotent Request Tracking
 
 **What goes wrong:**
-Building a Bloomberg-style dark theme requires every element to use dark colors: tables, inputs, scrollbars, chart tooltips, select dropdowns, focus rings, error messages. Developers set `bg-gray-900 text-white` on the body and assume everything inherits. Then TradingView chart tooltips render with white backgrounds, form inputs have browser-default light styling, scrollbars are white on Windows, and focus rings are invisible against dark backgrounds. The dashboard looks 90% dark with jarring light patches.
+Usage-based billing (e.g., $29/mo for 1000 API calls) requires accurate request counting. Without idempotent request tracking: (1) a client retry (network timeout, 504 gateway error) counts as two requests, overbilling the customer; (2) a server crash during request processing loses the count, underbilling; (3) concurrent requests from the same API key race against the usage counter, producing inconsistent counts; (4) the "requests remaining" endpoint returns stale data, causing clients to hit limits unexpectedly.
 
 **Why it happens:**
-Three layers of styling conflict:
-1. **Browser defaults (user-agent stylesheet):** Light-themed. Form inputs, select dropdowns, scrollbars follow OS theme.
-2. **Tailwind utilities:** Only apply to elements you explicitly style. Missing a single element leaves a light-colored gap.
-3. **TradingView internal styles:** Charts have their own theming API separate from CSS. The `createChart()` options include `layout.background`, `layout.textColor`, etc. CSS classes do not affect canvas-rendered elements.
-
-The existing HTMX dashboard uses `bg-gray-100 text-gray-900` (light theme, see `base.html` line 16). The Bloomberg redesign inverts this entirely. Every component must be re-evaluated.
+Request counting looks trivial: increment a counter per API key per request. But production edge cases break simple counters. The existing system has no multi-user state management -- it is a single-user system. Adding usage tracking is the first multi-user, concurrent-access feature, and it introduces concurrency bugs that the codebase has never encountered.
 
 **How to avoid:**
-1. Define CSS custom properties as the single source of truth for all colors:
-```css
-:root {
-  --bg-primary: #0a0e17;      /* Bloomberg deep navy */
-  --bg-secondary: #111827;
-  --bg-surface: #1a1f2e;
-  --text-primary: #e5e7eb;
-  --text-secondary: #9ca3af;
-  --accent-green: #00c853;     /* Profit */
-  --accent-red: #ff5252;       /* Loss */
-  --border-color: #1f2937;
-}
-```
-2. Configure TradingView chart colors explicitly in chart creation options (not CSS):
-```typescript
-createChart(container, {
-  layout: { background: { color: '#0a0e17' }, textColor: '#e5e7eb' },
-  grid: { vertLines: { color: '#1f2937' }, horzLines: { color: '#1f2937' } },
-});
-```
-3. Style scrollbars: `::-webkit-scrollbar` for Chrome/Edge, `scrollbar-color` for Firefox
-4. Override form element defaults with a CSS reset targeting `input`, `select`, `textarea`, `button`
-5. Test every interactive state: hover, focus, active, disabled -- all must be visible on dark backgrounds
-6. Use color accessibility guidelines from Bloomberg's own terminal design: avoid relying solely on red/green (8% of males are color-blind). Use directional arrows + text labels.
+1. **Atomic usage increment.** Use SQLite's `UPDATE api_usage SET count = count + 1 WHERE api_key = ? AND period = ?` with a unique constraint on (api_key, period). This is atomic at the database level.
+2. **Idempotency keys.** Require clients to send an `Idempotency-Key` header. Store completed request IDs. If a key is seen again, return the cached response without incrementing the usage counter.
+3. **Pre-check rate limit middleware.** Before processing the request, check if the key has remaining quota. Reject with 429 before doing expensive computation (scoring a stock takes 1-3 seconds of DuckDB queries). This prevents wasted compute on over-quota requests.
+4. **Monthly usage reset.** Use a `(api_key, year_month)` composite key for usage tracking. Reset is implicit: new month = new row = zero count.
 
 **Warning signs:**
-- White flashes when hovering over interactive elements
-- Form inputs with light backgrounds inside dark containers
-- Chart tooltips unreadable (light text on light tooltip, or dark text on dark background)
-- Focus rings invisible (default blue on dark blue background)
-- Scrollbars appearing as white bars on Windows
+- Usage counts in the billing dashboard do not match server access logs
+- Customers report being billed for more requests than they made
+- Race condition in load testing: 100 concurrent requests from one key exceed the quota but are all processed
+- No `429 Too Many Requests` response in the API -- over-quota requests just succeed
 
 **Phase to address:**
-Phase 2 (Design System) -- build the complete design token system and dark CSS reset before any page component. Every component must consume tokens, never hardcode hex values.
+Commercial API phase -- billing infrastructure must be designed before endpoints are public. This is business-critical: incorrect billing destroys customer trust immediately.
+
+---
+
+### Pitfall 8: Self-Improver Overfitting to Historical Regime Patterns
+
+**What goes wrong:**
+The self-improver optimizes parameters (indicator weights, scoring thresholds, regime-specific adjustments) based on historical performance. If it optimizes freely, it will find parameters perfectly tuned to past regimes -- e.g., "in the 2022-2023 data, ADX weight should be 0.35 and MACD weight should be 0.05." These parameters are overfitted to that specific market period and fail in new regimes. The system's live performance degrades over time as optimized parameters diverge from current market behavior.
+
+**Why it happens:**
+The system has 5 technical indicator weights, 3 composite strategy weights, regime-specific weight overrides for 4 regimes, scoring thresholds, and potentially more tunable parameters. With so many degrees of freedom and limited data (the system has been running for weeks/months, not decades), any optimization algorithm will find spurious patterns. This is the fundamental overfitting problem in quantitative finance, and it is more dangerous with automated self-improvement because the human sanity check is removed.
+
+**How to avoid:**
+1. **Constrain the parameter space.** Do not allow the self-improver to change more than +/- 20% from the research-validated defaults. The current weights (swing: 40/40/20 fundamental/technical/sentiment) are based on methodology research. The self-improver can adjust to 35/45/20 or 45/35/20, but not to 10/80/10.
+2. **Walk-forward validation mandatory.** Any parameter change proposed by the self-improver must pass walk-forward validation: optimize on months 1-6, validate on months 7-9, test on months 10-12. If out-of-sample performance is worse than defaults, reject the change.
+3. **Minimum sample size.** Do not optimize until the system has executed at least 50 trades across at least 2 distinct market regimes. Optimization on 10 trades in a bull market is meaningless.
+4. **Human approval for parameter changes.** Self-improver proposes changes with evidence. Human approves. This matches the existing "human-in-the-loop" constraint.
+5. **Version-controlled parameters.** Store every parameter change with timestamp, rationale, and out-of-sample metrics. Enable rollback to any previous parameter set.
+
+**Warning signs:**
+- Self-improver proposes extreme weights (e.g., sentiment weight = 0.05 or 0.50)
+- Optimized parameters change dramatically month-over-month
+- Out-of-sample performance is consistently worse than in-sample
+- Self-improver "optimizes" by effectively removing a scoring axis (setting its weight near zero)
+- Parameter changes always improve backtest results but not live results
+
+**Phase to address:**
+Self-Improver phase -- but the constraint infrastructure (parameter bounds, walk-forward validation, human approval workflow) should be designed during the Performance Attribution phase because attribution data feeds the self-improver.
 
 ---
 
@@ -285,83 +226,79 @@ Shortcuts that seem reasonable but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| `suppressHydrationWarning` on data elements | Silences console errors | Hides real bugs; data inconsistency between server/client goes unnoticed | Never for data-bearing elements; only for timestamps/dates |
-| Importing Plotly.js alongside TradingView | Reuse existing Python chart code in React | 1MB+ bundle bloat, two chart APIs to maintain, two theming systems | Never -- replace Plotly entirely with TradingView + CSS |
-| Polling FastAPI every second instead of SSE | Simpler to implement than SSE proxy | Unnecessary server load (4 endpoints x 1 req/sec = 240 req/min), delayed updates, battery drain | Only as fallback when SSE connection fails; use 30-second interval |
-| `any` types for Python API response data | Faster initial TypeScript development | No compile-time safety; refactoring breaks silently; runtime errors in production | Only in prototype phase; replace with Zod schemas before Phase 3 |
-| Single monolithic API route file | Quick to get all endpoints working | Untestable, hard to add per-route middleware, violates separation of concerns | Never -- one route handler per endpoint from the start |
-| Hardcoded `http://localhost:8000` in components | Works immediately in development | Different URLs per environment; breaks in any non-local deployment | Never -- use `NEXT_PUBLIC_API_URL` and `INTERNAL_API_URL` environment variables |
-| `"use client"` on every component | Avoids hydration errors entirely | Defeats SSR benefits; larger client bundle; slower initial page load | Never as a blanket approach; only on components that genuinely need browser APIs |
+| Adding new scores to `core/` instead of `src/` | Avoids DDD wiring issues; code works immediately | Two parallel code paths; DDD migration becomes harder; adapters grow unwieldy | Never for v1.4 -- new features go through `src/` only |
+| Hardcoded MACD/OBV normalization ranges | Quick to implement; works for tested stocks | Silent scoring errors for stocks outside the assumed price/volume range; discriminating power loss | Only for initial prototype; must be replaced with percentage-based or z-score normalization before production use |
+| Sentiment score = 50 when no data source configured | System "works" without paid sentiment APIs | Composite score has a hidden constant bias; explainability chain is dishonest; users trust fake neutral scores | Only if the system explicitly marks sentiment as "not available" and excludes it from composite calculation |
+| Single SQLite DB for both trading data and commercial API billing | Simple setup; one DB to manage | Lock contention between trading pipeline and API request processing; billing audit mixed with trading audit | Never for commercial API -- use separate databases |
+| Skipping API authentication during development | Faster iteration; no auth token management in curl commands | Security shortcuts get shipped; "I'll add auth later" becomes tech debt; someone connects from outside localhost | Never -- even in dev, use a hardcoded dev API key |
+| Computing attribution retroactively from current scores | No need to modify the trade execution pipeline | Attribution results are wrong because scores change daily; cannot accurately attribute past performance | Never -- snapshot decision context at trade entry time |
 
 ## Integration Gotchas
 
-Common mistakes when connecting the Next.js frontend to the existing Python backend.
+Common mistakes when connecting new features to the existing system.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| FastAPI backend from SSR | Calling `localhost:8000` from Server Components -- fails in containerized/production environments where frontend and backend are on different hosts | Use env var `INTERNAL_API_URL` for server-side calls (can be Docker service name), `NEXT_PUBLIC_API_URL` for client-side calls |
-| TradingView Lightweight Charts | Importing at module top level -- breaks SSR because it accesses `window` and `document` | Always use `dynamic(() => import('./Chart'), { ssr: false })` or guard with `typeof window !== 'undefined'` |
-| SSE from Python backend | Proxying SSE through Next.js without streaming headers or `ReadableStream` | Either proxy with `ReadableStream` + correct headers (`X-Accel-Buffering: no`), or connect browser directly to FastAPI SSE endpoint |
-| Alpaca WebSocket for live prices | Opening WebSocket connection in each React component independently | Use a singleton WebSocket manager at the app layout level; share data via React Context; reconnect with exponential backoff |
-| DuckDB analytics data | Trying to query DuckDB from Node.js process (via npm package or subprocess) | All DuckDB access goes through FastAPI HTTP endpoints only; Next.js is a pure frontend/BFF consumer |
-| SQLite operational data | Opening `.db` files from Node.js while Python FastAPI has them open | Same rule: all SQLite access through FastAPI; Node.js never touches `.db` files directly |
-| CORS for direct SSE | Browser blocks direct SSE to FastAPI due to cross-origin (port 3000 -> port 8000) | Add CORS middleware to FastAPI: `allow_origins=["http://localhost:3000"]` for development |
-| Pipeline POST actions | Sending form data (HTMX pattern) instead of JSON from React | Convert all POST endpoints to accept JSON body; the existing `Form(...)` parameters in routes.py need JSON alternatives |
+| Technical indicators from `core/data/indicators.py` | Using raw indicator values (MACD histogram in absolute terms) directly as scores | Normalize to 0-100 using percentage-based or z-score methods in `TechnicalScoringService`; raw values vary by orders of magnitude across stocks |
+| Sentiment data from external APIs (news, filings) | Calling external APIs synchronously during the scoring pipeline | Fetch sentiment data asynchronously in a separate data ingestion step; cache in SQLite/DuckDB; scoring pipeline reads from cache, never from external API directly |
+| Commercial API on the same FastAPI app as the dashboard | Sharing the same `app.state.ctx` bootstrap context between personal dashboard and commercial API | Separate FastAPI applications with separate contexts; commercial API should not access personal portfolio/execution data |
+| Regime-adjusted weights in composite scoring | Having the regime detector and the scoring engine depend on each other circularly (scorer needs regime to set weights; regime detector needs scores to classify) | Regime detection is independent: it uses only market data (VIX, yield curve, breadth). Scoring consumes the regime result. One-directional dependency only. |
+| Performance attribution reading from live scoring database | Attribution queries scanning the same DuckDB tables that the live pipeline is writing to | Attribution reads from snapshot/archive tables, not from the live scoring tables; or run attribution during off-market hours |
+| Self-improver modifying production parameters | Self-improver writes optimized parameters directly to the production config | Self-improver writes proposals to a staging area; human reviews; approved changes are applied via a separate "apply parameters" command |
 
 ## Performance Traps
 
-Patterns that work at small scale but fail as data grows.
+Patterns that work at small scale but fail as the stock universe or feature count grows.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Re-rendering entire data table on every SSE event | Page freezes when multiple events fire rapidly (e.g., during pipeline run -- `PipelineCompletedEvent` + `OrderFilledEvent` + `RegimeChangedEvent` in seconds) | Use `React.memo` on row components; debounce SSE event processing to 100ms; only update rows whose data changed | > 5 SSE events per second |
-| Creating new TradingView chart instance on every data update | Memory grows ~10MB per recreate; browser becomes sluggish after 10 updates | Use `series.update()` or `series.setData()` to update existing chart; never destroy and recreate | > 1 data update per minute |
-| Fetching all holdings + all scores + all signals on every page load | API response grows linearly with portfolio size; 500ms+ response for 50+ holdings | Implement pagination; cache with SWR/React Query (30-second `staleTime`); fetch only visible data | > 50 holdings or > 200 scored symbols |
-| Not virtualizing large scoring/signal tables | Signals page renders 400+ DOM rows (one per scored symbol); scrolling lags; layout paint takes 200ms+ | Use `@tanstack/react-virtual` for tables with > 50 rows | > 100 visible rows |
-| Reconnecting SSE on every page navigation | Unnecessary connection churn; missed events during reconnection gap; server-side listener leak | Keep SSE connection at the root layout level (persists across page navigations within the `DashboardLayout`) | Every page transition |
-| Fetching chart data (OHLCV) for every symbol on Signals page | Each symbol's mini-chart triggers a separate API call; 200 symbols = 200 concurrent requests | Only fetch chart data for visible/expanded rows; use intersection observer for lazy loading | > 20 visible charts |
+| Computing all 5 technical indicators for all stocks sequentially | Pipeline takes 30+ minutes for 500 stocks; each stock fetches 756 days of OHLCV from yfinance (rate limited) | Batch-fetch OHLCV data first, then compute indicators in parallel; cache price data in DuckDB | > 100 stocks in universe |
+| Sentiment API calls per stock during scoring pipeline | Rate limit exhaustion; pipeline hangs or errors; $100/mo+ in API costs | Aggregate sentiment data in a daily background job; scoring pipeline reads from local cache | > 50 stocks with sentiment data |
+| Performance attribution scanning all trades for every report | Attribution query time grows linearly with trade history | Pre-compute monthly/quarterly attribution summaries; store aggregated results; full recomputation only on demand | > 500 historical trades |
+| Commercial API scoring requests hitting DuckDB for each request | DuckDB single-writer lock causes request queuing; response times spike under concurrent load | Cache scoring results in Redis or SQLite with TTL; serve from cache for same-day requests; DuckDB updated only during pipeline runs | > 10 concurrent API requests |
+| Loading full financial history for every stock during backtesting | Memory usage scales with (stocks x history length); 500 stocks x 10 years of daily data = large DataFrame | Use DuckDB's columnar storage for backtest data access; query only needed columns and date ranges; never load full history into pandas at once | > 200 stocks x 5 years |
 
 ## Security Mistakes
 
-Domain-specific security issues for a trading dashboard.
+Domain-specific security issues for a commercial quantitative trading API.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Exposing Alpaca API keys via `NEXT_PUBLIC_` env vars | Key theft via browser DevTools -> unauthorized trades on live account | Keys stay in server-side env vars only (`ALPACA_PAPER_KEY`, `ALPACA_LIVE_KEY`); never prefix with `NEXT_PUBLIC_`; all broker calls through FastAPI |
-| Allowing unauthenticated access to pipeline/approval API routes | Unauthorized user triggers pipeline run, approves trading strategy, or modifies budget | Add authentication middleware to all Next.js API routes, even for single-user deployment (prevents CSRF and network exposure) |
-| Exposing internal FastAPI URL to browser | Attacker bypasses Next.js auth layer and directly accesses Python backend | `INTERNAL_API_URL` for Server Components/API routes only; `NEXT_PUBLIC_API_URL` points to Next.js, not FastAPI |
-| Using Node.js subprocess APIs in API routes | Expands CVE-2025-55182 (React2Shell) attack surface; enables RCE via prototype pollution | Zero subprocess API imports in the codebase; use HTTP calls to FastAPI exclusively |
-| Rendering full API keys/secrets in settings page | Keys visible in DOM, screenshots, screen-sharing sessions | Display only last 4 characters; mask rest with asterisks; never include keys in API responses |
-| Serving dashboard on 0.0.0.0 without auth | Dashboard accessible to anyone on the network (WSL2 shares host network) | Bind to `127.0.0.1` for development; require authentication for any non-localhost binding |
+| API key in URL query parameters instead of headers | API keys leak in access logs, browser history, referrer headers, CDN logs | Require `X-API-Key` header only; reject requests with key in query params; FastAPI middleware to check |
+| No rate limiting per API key tier | A free-tier user sends 10,000 requests/minute; exhausts DuckDB connections; DoS on paying customers | Use `slowapi` with per-key limits: free = 10/min, basic = 60/min, pro = 300/min |
+| Exposing internal score decomposition to free-tier users | Free-tier users get the same response as paid users; no incentive to upgrade | Tier-based response shaping: free tier gets composite score only; paid tier gets sub-scores, regime data, historical trends |
+| Commercial API returns personal trading positions or portfolio data | Data leak; legal liability; user's personal financial data exposed via commercial API | Complete data isolation: commercial API has its own database/tables with only public scoring data; no access to portfolio, execution, or trade plan tables |
+| No input sanitization on ticker symbols in API requests | SQL injection via malformed ticker like `AAPL'; DROP TABLE scores; --` | Already have `Symbol` VO validation (uppercase, max 10 chars); ensure all API inputs go through VO construction before any database query |
+| Missing rate limit on login/API key generation endpoint | Brute force attacks on API key generation or validation endpoint | Rate limit the auth endpoint separately (3/min per IP); use time-constant comparison for key validation |
 
 ## UX Pitfalls
 
-Common user experience mistakes in Bloomberg-style financial dashboards.
+Common user experience mistakes in quantitative scoring APIs and trading dashboards.
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Using red/green only for profit/loss | 8% of males are color-blind; cannot distinguish profit from loss | Red/green + directional arrows (up/down) + position shift + text labels ("PROFIT"/"LOSS"); follow Bloomberg's own accessibility guidelines |
-| Tiny monospace text everywhere to maximize data density | Information-dense but unreadable; eye strain during extended monitoring | Minimum 12px for data cells, 14px for labels; provide 3 density modes (compact/normal/comfortable) via user toggle |
-| Auto-refreshing entire page for real-time updates | Layout shift, scroll position lost, user loses context mid-analysis | SSE for incremental DOM updates; animate number transitions; never full-page reload for data refresh |
-| Modal dialogs for trade approval | Blocks view of portfolio and risk data needed for approval decision | Use inline expansion or side panel; user needs portfolio context visible while approving trades |
-| Loading states showing blank white space in dark theme | Jarring flash of light; user thinks dashboard is broken | Show skeleton screens using dark-themed pulsing animations (e.g., `bg-gray-800 animate-pulse`) matching expected data layout |
-| No visual distinction between paper and live mode | User acts on paper data thinking it is real (or vice versa) | Persistent header banner: red `LIVE TRADING` or green `PAPER TRADING` (the existing HTMX dashboard already has this pattern in `base.html` lines 19-27; preserve it) |
+| Returning composite score without explanation | User gets "72.3" but cannot act on it -- does not know which axis is strong/weak | Always return sub-scores (fundamental, technical, sentiment) alongside composite; include top 3 reasons as text |
+| Sentiment score showing as 50 without indicating data unavailability | User trusts a "neutral sentiment" assessment that is actually "no data" | Distinguish `50 (measured neutral)` from `N/A (no data)`; show confidence level |
+| Performance attribution with too many categories | 15-category attribution is mathematically correct but unusable for decision-making | Start with 4 categories (alpha, sector, timing, sizing); offer drill-down for advanced users |
+| Commercial API error messages that leak internal architecture | User gets `DuckDB connection error: /home/mqz/workspace/trading/data/scores.db` | Generic error messages: `"error": "scoring_unavailable", "retry_after": 60`; log details server-side |
+| Dashboard showing stale scores without freshness indicator | User makes trading decisions based on yesterday's scores thinking they are current | Every score display includes "as of: 2026-03-14 09:30 ET" and staleness warning if > 24h old |
 
 ## "Looks Done But Isn't" Checklist
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **Chart cleanup:** Chart renders correctly -- verify it also calls `chart.remove()` on unmount (navigate between all pages 20 times; DevTools Memory tab should show flat heap)
-- [ ] **SSE reconnection:** SSE events arrive -- verify reconnection after network drop (disconnect WiFi for 5 seconds, reconnect; events should resume within 5 seconds)
-- [ ] **Dark theme completeness:** Dashboard looks dark -- verify form inputs, select dropdowns, date pickers, scrollbars, chart tooltips, error toasts, loading skeletons are ALL dark-themed (screenshot every interactive state on both Chrome and Firefox)
-- [ ] **Mobile responsiveness:** Pages render on desktop -- verify tables do not overflow on 768px width; charts resize; touch targets are minimum 44px
-- [ ] **Error states:** Happy path works -- verify what happens when FastAPI is down (graceful "Backend unavailable" message, not white screen or infinite spinner); when SSE disconnects; when API returns 500
-- [ ] **Loading states:** Data renders after load -- verify skeleton screens appear during initial fetch and during data refetch (SWR revalidation)
-- [ ] **Browser compatibility:** Works in Chrome -- verify Firefox (scrollbar styling differs), Safari (SSE `EventSource` behavior differs), Edge
-- [ ] **Stale data indicator:** Numbers display -- verify "Last updated: 2 min ago" timestamp so user knows if data is stale (especially critical if SSE connection drops silently)
-- [ ] **Pipeline run during dashboard viewing:** Dashboard shows data -- verify dashboard remains functional and responsive while pipeline is actively running (potential DuckDB lock contention)
-- [ ] **Paper/Live mode banner:** Banner exists -- verify it reads from actual execution mode via API, not from a hardcoded value; test with both modes
-- [ ] **Bundle size:** Dashboard loads -- verify total JS payload is under 300KB gzipped (run `npx @next/bundle-analyzer` and check)
+- [ ] **Technical scoring:** Indicators compute correctly -- verify that MACD scores are not all clustered at 50 for low-price stocks or all at extremes for high-price stocks (test with AAPL, F, BRK.A)
+- [ ] **Technical scoring:** Backtesting uses technical scores -- verify no lookahead bias by checking that changing tomorrow's close does not change today's technical score
+- [ ] **Sentiment scoring:** Sentiment API is "integrated" -- verify that actual external data flows in for at least one data source (not all stocks returning 50.0)
+- [ ] **Composite scoring:** Weights sum to 1.0 -- verify that when sentiment is unavailable, the remaining weights are re-normalized (not summing to 0.80)
+- [ ] **Commercial API:** Endpoints return data -- verify authentication is required (test with no API key; should get 401)
+- [ ] **Commercial API:** Rate limiting configured -- verify it actually blocks (send 100 requests in 1 second; count 429 responses)
+- [ ] **Commercial API:** Billing counts are accurate -- verify with a known number of requests that the usage counter matches
+- [ ] **Performance attribution:** Attribution report generated -- verify that component attributions sum to total P&L (residual < 5%)
+- [ ] **Performance attribution:** Decision context captured -- verify trade entry records contain the composite score, regime type, and strategy weights at the time of entry (not today's scores)
+- [ ] **Self-improver:** Parameter optimization works -- verify it respects bounds (proposed weights are within +/- 20% of defaults)
+- [ ] **Store unification:** All scoring data in consistent store -- verify no scoring queries cross between SQLite and DuckDB in the same workflow
+- [ ] **Event bus:** Cross-context events work -- verify that publishing `ScoreUpdatedEvent` from scoring context triggers signal regeneration in signals context
 
 ## Recovery Strategies
 
@@ -369,13 +306,14 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Chart memory leaks shipped | LOW | Add `chart.remove()` to `useLayoutEffect` cleanup; deploy fix; memory recovers on next page load without data loss |
-| Subprocess-based API architecture shipped | HIGH | Rewrite all API routes to HTTP proxy pattern; rebuild error handling; add authentication layer; 3-5 day effort |
-| DuckDB lock conflicts in production | MEDIUM | Add retry logic with exponential backoff to Python query handlers; add read-only fallback mode; ensure WAL mode on SQLite files; schedule pipeline runs during low-dashboard-usage periods |
-| Hydration errors across pages | LOW | Convert affected components to client-only with `dynamic(() => ..., { ssr: false })`; no data migration needed; deploy within hours |
-| SSE not streaming through Next.js | MEDIUM | Switch from Next.js SSE proxy to direct browser-to-FastAPI SSE connection; requires adding CORS to FastAPI; 1-day effort |
-| Bundle size too large (>500KB) | MEDIUM | Remove Plotly dependency; replace with CSS/SVG alternatives; code-split all chart components with dynamic imports; analyze with `@next/bundle-analyzer`; 1-2 day effort |
-| Dark theme incomplete (light patches) | LOW | Audit all components with browser DevTools; add missing CSS custom property references; test on Windows (scrollbars) and Mac; incremental fix over 1-2 days |
+| Lookahead bias in technical scores | HIGH | All historical technical scores must be recomputed with proper data cutoffs; backtest results invalidated and re-run; any live trades made based on biased scores need manual review; 3-5 day effort |
+| Silent sentiment = 50 corruption | MEDIUM | Add confidence field to SentimentScore; recompute composite scores excluding fake sentiment; compare with and without sentiment to assess impact; 1-2 day effort |
+| DDD wiring gaps blocking new features | MEDIUM | Fix one vertical slice end-to-end as a reference implementation; other features follow the same pattern; 2-3 day effort per context |
+| Commercial API shipped without auth | HIGH | Add auth middleware; issue API keys to all existing users; breaking change requiring API key header; user communication needed; 3-5 day effort |
+| Attribution with missing decision context | HIGH | Cannot recover historical context retroactively; must accept that early trades have incomplete attribution; implement context capture going forward; early attribution marked as "partial"; 1 day to implement, months to accumulate data |
+| MACD normalization wrong for diverse stocks | LOW | Change `_score_macd()` to use percentage MACD; recompute all technical scores; 1 day effort |
+| Overfitted self-improver parameters deployed | MEDIUM | Rollback to default parameters; review optimization constraints; add walk-forward validation; 1-2 day effort |
+| Commercial API billing inaccurate | HIGH | Audit all request logs; compare with billing records; issue credits for overbilling; fix counting logic; communicate with affected customers; 2-3 day effort |
 
 ## Pitfall-to-Phase Mapping
 
@@ -383,39 +321,29 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Chart memory leaks (1) | Phase 1: Setup + Phase 2: Chart Components | Navigate between all 4 pages 20 times; DevTools Memory shows flat heap |
-| Subprocess architecture (2) | Phase 1: Setup | Zero subprocess API imports: `grep -r 'child_process\|execSync\|spawn' frontend/` returns nothing |
-| DuckDB lock conflicts (3) | Phase 1: Setup | No `duckdb` or `better-sqlite3` in `package.json`; all data via HTTP to FastAPI |
-| SSR hydration mismatch (4) | Phase 1: Setup + Phase 3: Pages | Zero hydration warnings in browser console across all 4 pages |
-| SSE buffering (5) | Phase 1: Architecture Decision + Phase 3: Pages | SSE events arrive within 1 second of domain event firing on Python side |
-| Bundle size explosion (6) | Phase 1: Setup + Phase 2: Components | `next build` shows no chunk > 200KB; total JS < 300KB gzipped |
-| Dark theme gaps (7) | Phase 2: Design System | Full visual audit: screenshot every component in every state; zero light-colored elements |
-| Security: key exposure | Phase 1: Setup | `grep -r 'NEXT_PUBLIC_ALPACA' .` returns nothing; keys only in server-side env |
-| Security: unauthenticated routes | Phase 1: Setup | All POST routes require authentication; test with unauthenticated requests |
-| SSE reconnection | Phase 3: Pages | Disconnect network 10 seconds; SSE resumes within 5 seconds of reconnection |
-| Large table performance | Phase 3: Pages | Render 200+ row signals table; scroll remains 60fps in Chrome DevTools Performance |
-| Color accessibility | Phase 2: Design System | All profit/loss indicators have non-color differentiators (arrows, labels) |
+| Lookahead bias (1) | Technical Scoring | Backtest with synthetic data: insert a known anomaly at date T+1; verify score at T is unchanged |
+| Silent sentiment = 50 (2) | Sentiment Scoring | Query: `SELECT COUNT(*) FROM scores WHERE sentiment_score = 50.0` should be < 30% of scored stocks (with real data source active) |
+| DDD wiring gaps (3) | Pipeline Stabilization (FIRST) | One vertical slice works end-to-end: CLI command -> application handler -> domain service -> infrastructure repo -> persistence -> query handler -> API response |
+| API security (4) | Commercial API (FIRST task) | All endpoints return 401 without valid API key; 429 after rate limit exceeded; no Python traces in error responses |
+| Attribution without context (5) | Pipeline Stabilization + Technical Scoring | Trade plan records include composite_score, regime_type, strategy_weights fields; verify with `SELECT * FROM trade_plans WHERE composite_score IS NULL` = 0 rows |
+| MACD normalization (6) | Technical Scoring | Standard deviation of MACD sub-scores across 500-stock universe > 15 (not compressed) |
+| Billing accuracy (7) | Commercial API | Load test: 1000 requests with known API key; usage counter = 1000 exactly |
+| Self-improver overfitting (8) | Self-Improver | All proposed parameter changes within +/- 20% of defaults; out-of-sample Sharpe > 0.5 (not zero or negative) |
 
 ## Sources
 
-- [TradingView Lightweight Charts Advanced React Example](https://tradingview.github.io/lightweight-charts/tutorials/react/advanced) -- official cleanup patterns, parent-child hook ordering (HIGH confidence)
-- [TradingView Memory Leak Issue #552](https://github.com/tradingview/lightweight-charts/issues/552) -- chart.remove() requirement (HIGH confidence)
-- [TradingView Lightweight Charts v5 Release](https://www.tradingview.com/blog/en/tradingview-lightweight-charts-version-5-50837/) -- bundle size 35KB, enhanced tree-shaking (HIGH confidence)
-- [DuckDB Concurrency Documentation](https://duckdb.org/docs/stable/connect/concurrency) -- single-writer model, no multi-process write support (HIGH confidence)
-- [Next.js SSE Discussion #48427](https://github.com/vercel/next.js/discussions/48427) -- SSE buffering issues in Route Handlers (HIGH confidence)
-- [Fixing Slow SSE Streaming in Next.js (Jan 2026)](https://medium.com/@oyetoketoby80/fixing-slow-sse-server-sent-events-streaming-in-next-js-and-vercel-99f42fbdb996) -- X-Accel-Buffering header fix (MEDIUM confidence)
-- [CVE-2025-55182 React2Shell Analysis (Datadog)](https://securitylabs.datadoghq.com/articles/cve-2025-55182-react2shell-remote-code-execution-react-server-components/) -- subprocess RCE, CVSS 10/10 (HIGH confidence)
-- [CVE-2025-66478 Next.js RCE Advisory](https://nextjs.org/blog/CVE-2025-66478) -- additional Next.js security vulnerability (HIGH confidence)
-- [Operation PCPcat: 59,000 Next.js Servers Hacked](https://thehgtech.com/articles/operation-pcpcat-nextjs-hack-2025.html) -- real-world exploitation of React2Shell (HIGH confidence)
-- [Next.js Hydration Error Documentation](https://nextjs.org/docs/messages/react-hydration-error) -- official hydration mismatch guide (HIGH confidence)
-- [Next.js Building APIs Guide (Feb 2025)](https://nextjs.org/blog/building-apis-with-nextjs) -- BFF pattern, Route Handler best practices (HIGH confidence)
-- [Bloomberg Terminal Color Accessibility](https://www.bloomberg.com/company/stories/designing-the-terminal-for-color-accessibility/) -- red/green accessibility in financial terminals (HIGH confidence)
-- [Tailwind CSS Dark Mode Documentation](https://tailwindcss.com/docs/dark-mode) -- class-based dark mode configuration (HIGH confidence)
-- Project commit `e0c1c06`: "fix: resolve DuckDB lock conflicts and pipeline bugs" -- real-world evidence of Pitfall 3 in this codebase
-- Project file `src/dashboard/presentation/app.py` -- existing SSE bridge, FastAPI bootstrap pattern
-- Project file `src/dashboard/presentation/charts.py` -- existing Plotly dependency for 3 chart types
-- Project file `src/dashboard/presentation/templates/base.html` -- existing Tailwind CDN, HTMX, light theme, paper/live banner
+- Project file `src/scoring/domain/value_objects.py` -- existing VO definitions, STRATEGY_WEIGHTS, SentimentScore default behavior
+- Project file `src/scoring/domain/services.py` -- TechnicalScoringService with hardcoded MACD normalization [-5, +5]
+- Project file `src/scoring/infrastructure/core_scoring_adapter.py` -- adapter pattern, TechnicalIndicatorAdapter
+- Project file `core/scoring/sentiment.py` -- existing sentiment scoring with 50.0 default
+- Project file `core/data/indicators.py` -- indicator implementations (RSI, MACD, MA, ADX, OBV)
+- Project file `.planning/PROJECT.md` -- tech debt flags: "DDD wiring gaps," "scoring store mismatch"
+- Project file `src/signals/infrastructure/duckdb_signal_store.py` -- DuckDB for signals (vs SQLite for scoring)
+- Marcos Lopez de Prado, "Advances in Financial Machine Learning" (2018) -- lookahead bias, walk-forward validation, overfitting in strategy optimization (HIGH confidence, foundational quant finance text)
+- FastAPI security documentation -- API key authentication patterns (HIGH confidence)
+- Brinson-Fachler attribution model -- standard method for multi-factor performance decomposition (HIGH confidence, widely adopted)
+- DuckDB concurrency model -- single-writer limitation relevant to commercial API scaling (HIGH confidence, from DuckDB docs)
 
 ---
-*Pitfalls research for: Bloomberg Dashboard (Next.js + TradingView) added to existing Python trading system*
+*Pitfalls research for: Technical scoring, sentiment analysis, commercial API, and performance attribution added to existing quantitative trading system*
 *Researched: 2026-03-14*

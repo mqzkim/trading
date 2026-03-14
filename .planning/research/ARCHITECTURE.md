@@ -1,687 +1,567 @@
-# Architecture Research: v1.3 Bloomberg Dashboard (Next.js + React)
+# Architecture Research
 
-**Domain:** Bloomberg-style trading dashboard replacing HTMX+Jinja2 with Next.js+React, integrating with existing Python/FastAPI backend
+**Domain:** Integration of Technical Scoring, Sentiment Scoring, Commercial API, and Performance Attribution into existing DDD trading system
 **Researched:** 2026-03-14
 **Confidence:** HIGH
 
----
-
-## Standard Architecture
-
-### System Overview
+## System Overview (Current + New Features)
 
 ```
-                          v1.3 Target Architecture
- ======================================================================
-
-  Browser (React SPA)
-  +---------------------------------------------------------+
-  | Next.js App (localhost:3000)                             |
-  |                                                         |
-  |  /overview    /signals     /risk      /pipeline         |
-  |  [React]      [React]      [React]    [React]           |
-  |                                                         |
-  |  TradingView     shadcn/ui         Recharts/            |
-  |  Lightweight     Data Tables       Lightweight          |
-  |  Charts                            Charts               |
-  |                                                         |
-  |  EventSource (SSE) ----+                                |
-  +--------------------------|----- |-----------------------+
-                             |      |
-            next.config.js rewrites (proxy)
-              /api/* --> localhost:8000/api/*
-              /dashboard/events --> localhost:8000/dashboard/events
-                             |      |
-  +--------------------------|----- |-----------------------+
-  | FastAPI (localhost:8000)  |      |                      |
-  |                          v      v                       |
-  |  /api/dashboard/*    /dashboard/events (SSE)            |
-  |  [JSON REST]         [SSE stream]                       |
-  |                                                         |
-  |  DashboardQueryHandlers  -->  bootstrap ctx             |
-  |  (overview, signals,         (repos, handlers,          |
-  |   risk, pipeline)             bus, adapters)            |
-  |                                                         |
-  |  Commercial API (/api/v1/*)                             |
-  |  [Unchanged]                                            |
-  +---------------------------------------------------------+
-                             |
-  +--------------------------+------------------------------+
-  |  Data Layer                                             |
-  |  SQLite (operational)    DuckDB (analytics)             |
-  |  Alpaca (broker)         yfinance/EDGAR (data)          |
-  +---------------------------------------------------------+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         PRESENTATION LAYER                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────────┐  │
+│  │ CLI (Typer)   │  │ Dashboard    │  │ Commercial API (FastAPI)     │  │
+│  │ (existing)    │  │ (existing)   │  │ [NEW: auth/billing/rate-limit]│  │
+│  └──────┬───────┘  └──────┬───────┘  └──────────────┬───────────────┘  │
+│         │                 │                          │                   │
+│  Next.js 16 BFF ──────────┘                          │                   │
+├─────────┴────────────────────────────────────────────┴───────────────────┤
+│                        APPLICATION LAYER                                 │
+│  ┌──────────────────────────────────────────────────────────────────┐   │
+│  │                    Bootstrap (Composition Root)                    │   │
+│  │                    SyncEventBus cross-context wiring               │   │
+│  └──────────────────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────────────────┤
+│                       BOUNDED CONTEXTS (DOMAIN)                         │
+│                                                                          │
+│  EXISTING:                                                               │
+│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐          │
+│  │scoring  │ │signals  │ │regime   │ │portfolio│ │execution│          │
+│  │         │ │         │ │         │ │         │ │         │          │
+│  │[MODIFY] │ │         │ │[MODIFY] │ │[MODIFY] │ │         │          │
+│  └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘ └────┬────┘          │
+│       │           │           │           │           │                │
+│  ┌────┴────┐ ┌────┴────┐ ┌────┴────┐ ┌────┴────┐ ┌────┴────┐          │
+│  │approval │ │pipeline │ │dashboard│ │data_    │ │backtest │          │
+│  │         │ │         │ │         │ │ingest   │ │         │          │
+│  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘          │
+│                                                                          │
+│  NEW BOUNDED CONTEXTS:                                                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                   │
+│  │ sentiment    │  │ performance  │  │ commercial   │                   │
+│  │ [NEW]        │  │ [NEW]        │  │ [NEW]        │                   │
+│  │ news/insider │  │ attribution  │  │ auth/billing │                   │
+│  │ /instit/anlst│  │ /pnl decomp  │  │ /rate-limit  │                   │
+│  └──────────────┘  └──────────────┘  └──────────────┘                   │
+│                                                                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                      INFRASTRUCTURE LAYER                                │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                   │
+│  │ SQLite (ops) │  │ DuckDB       │  │ External APIs│                   │
+│  │              │  │ (analytics)  │  │ (yfinance,   │                   │
+│  │              │  │              │  │  EDGAR, etc) │                   │
+│  └──────────────┘  └──────────────┘  └──────────────┘                   │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Component Responsibilities
+## Integration Decision: New vs Modified Contexts
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| Next.js App | UI rendering, client-side interactivity, route management | App Router with pages for each dashboard view |
-| Next.js API Routes | Proxy layer to FastAPI, optional BFF (Backend-for-Frontend) transforms | Route handlers calling FastAPI via `fetch()` |
-| FastAPI Dashboard API | JSON REST endpoints replacing Jinja2 template rendering | New `/api/dashboard/*` routes returning JSON |
-| FastAPI SSE Bridge | Real-time domain event streaming to browser | Existing SSEBridge, unchanged |
-| TradingView Charts | Candlestick charts, equity curves, technical indicators | `lightweight-charts` v5.x with React wrapper |
-| shadcn/ui Components | Data tables, gauges, badges, cards, dark theme | Vendored components with Tailwind CSS |
-| Dashboard Query Handlers | Aggregate data from multiple bounded contexts | Existing `OverviewQueryHandler`, `SignalsQueryHandler`, etc. |
-| Bootstrap Context | Composition root wiring all repos and handlers | Existing `bootstrap.py`, no changes needed |
+### Decision Matrix
 
----
+| Feature Area | New Context? | Rationale |
+|---|---|---|
+| Technical Scoring | **NO** -- Modify `scoring` | Already lives there. `TechnicalScoringService` + `TechnicalScore` VO exist in `scoring/domain/`. Technical scoring is a scoring axis, not an independent domain. |
+| Sentiment Scoring | **YES** -- New `sentiment` context | Current `SentimentScore` VO is a placeholder (value=50). Real sentiment requires external data sources (news APIs, SEC filings, institutional holdings) and its own ingestion pipeline. Separate bounded context because it has distinct data sources, update cadence, and failure modes. Publishes `SentimentScoreUpdatedEvent` consumed by `scoring`. |
+| Commercial API | **YES** -- New `commercial` context | Auth, billing, rate-limiting, and API key management are an entirely separate business domain. Must not pollute the dashboard or personal use paths. Wraps scoring/regime/signals handlers behind auth + rate-limit middleware. |
+| Performance Attribution | **YES** -- New `performance` context | 4-level P&L decomposition (market/sector/stock/timing) is a read-heavy analytics domain. Consumes `PositionClosedEvent` and trade history. Produces attribution reports. Does not affect trading decisions (read-only analysis). |
+| Regime Enhancement | **NO** -- Modify `regime` | VIX/yield curve/HMM additions extend existing `RegimeDetectionService`. Same domain, same responsibilities, richer inputs. |
 
-## Recommended Project Structure
+### Summary: 3 New Contexts + 3 Modified Contexts
 
-The dashboard is a **separate directory at the project root**, not inside `src/` (which is the Python DDD codebase). This keeps the TypeScript/Node.js toolchain completely isolated from the Python toolchain.
+**New:** `sentiment`, `performance`, `commercial`
+**Modified:** `scoring` (technical axis integration), `regime` (HMM enhancement), `portfolio` (attribution data export)
+
+## New Bounded Context Designs
+
+### 1. Sentiment Context (`src/sentiment/`)
 
 ```
-trading/                          # Project root
-├── dashboard/                    # NEW: Next.js frontend
-│   ├── package.json
-│   ├── next.config.ts
-│   ├── tsconfig.json
-│   ├── tailwind.config.ts
-│   ├── postcss.config.js
-│   ├── .env.local                # NEXT_PUBLIC_API_URL=http://localhost:8000
-│   ├── public/
-│   │   └── favicon.ico
-│   └── src/
-│       ├── app/                  # App Router pages
-│       │   ├── layout.tsx        # Root layout (dark theme, sidebar nav)
-│       │   ├── page.tsx          # Overview page (redirect or default)
-│       │   ├── overview/
-│       │   │   └── page.tsx      # Portfolio overview
-│       │   ├── signals/
-│       │   │   └── page.tsx      # Scoring + signal recommendations
-│       │   ├── risk/
-│       │   │   └── page.tsx      # Drawdown, sector exposure, regime
-│       │   └── pipeline/
-│       │       └── page.tsx      # Pipeline runs, approval, review
-│       ├── components/           # Shared React components
-│       │   ├── ui/               # shadcn/ui vendored primitives
-│       │   │   ├── button.tsx
-│       │   │   ├── card.tsx
-│       │   │   ├── data-table.tsx
-│       │   │   ├── badge.tsx
-│       │   │   └── ...
-│       │   ├── layout/           # Layout components
-│       │   │   ├── sidebar.tsx
-│       │   │   ├── header.tsx
-│       │   │   └── mode-banner.tsx
-│       │   ├── charts/           # Chart components
-│       │   │   ├── equity-curve.tsx
-│       │   │   ├── candlestick-chart.tsx
-│       │   │   ├── drawdown-gauge.tsx
-│       │   │   └── sector-donut.tsx
-│       │   ├── overview/         # Page-specific components
-│       │   │   ├── kpi-cards.tsx
-│       │   │   ├── holdings-table.tsx
-│       │   │   └── trade-history.tsx
-│       │   ├── signals/
-│       │   │   ├── scoring-table.tsx
-│       │   │   └── signal-cards.tsx
-│       │   ├── risk/
-│       │   │   ├── risk-metrics.tsx
-│       │   │   └── regime-badge.tsx
-│       │   └── pipeline/
-│       │       ├── pipeline-runs.tsx
-│       │       ├── approval-panel.tsx
-│       │       └── review-queue.tsx
-│       ├── hooks/                # Custom React hooks
-│       │   ├── use-sse.ts        # SSE EventSource hook
-│       │   ├── use-api.ts        # Fetch wrapper with error handling
-│       │   └── use-interval.ts   # Polling fallback
-│       ├── lib/                  # Utilities
-│       │   ├── api-client.ts     # Typed fetch wrapper
-│       │   ├── formatters.ts     # Currency, percentage, date formatting
-│       │   └── constants.ts      # API URLs, refresh intervals
-│       └── types/                # TypeScript types
-│           ├── overview.ts       # OverviewData, Position, TradeHistory
-│           ├── signals.ts        # ScoreRow, SignalData
-│           ├── risk.ts           # RiskMetrics, SectorWeight
-│           └── pipeline.ts       # PipelineRun, ApprovalStatus, ReviewItem
-├── src/                          # Python DDD codebase (UNCHANGED)
-│   ├── dashboard/                # MODIFIED: add JSON API routes
-│   │   ├── presentation/
-│   │   │   ├── api_routes.py     # NEW: JSON REST endpoints
-│   │   │   ├── routes.py         # KEEP: HTMX routes (deprecated, remove later)
-│   │   │   ├── app.py            # MODIFIED: mount api_routes
-│   │   │   └── templates/        # KEEP temporarily, remove after migration
-│   │   ├── application/
-│   │   │   └── queries.py        # UNCHANGED: reuse query handlers
-│   │   └── infrastructure/
-│   │       └── sse_bridge.py     # UNCHANGED: SSE streaming
-│   ├── scoring/                  # UNCHANGED
-│   ├── signals/                  # UNCHANGED
-│   ├── portfolio/                # UNCHANGED
-│   ├── execution/                # UNCHANGED
-│   ├── regime/                   # UNCHANGED
-│   ├── pipeline/                 # UNCHANGED
-│   ├── approval/                 # UNCHANGED
-│   └── bootstrap.py              # UNCHANGED
-├── commercial/                   # UNCHANGED
-├── cli/                          # UNCHANGED
-├── pyproject.toml                # UNCHANGED
-└── .gitignore                    # ADD: dashboard/node_modules, dashboard/.next
+src/sentiment/
+    domain/
+        entities.py         # SentimentAnalysis (per-symbol aggregate)
+        value_objects.py     # NewsSentiment, InsiderActivity, InstitutionalHoldings, AnalystRevisions
+        events.py           # SentimentUpdatedEvent
+        services.py         # SentimentScoringDomainService
+        repositories.py     # ISentimentRepository (ABC)
+        __init__.py
+    application/
+        commands.py          # ComputeSentimentCommand
+        queries.py           # GetSentimentQuery
+        handlers.py          # SentimentHandler
+        __init__.py
+    infrastructure/
+        news_adapter.py      # External news API adapter
+        edgar_insider_adapter.py  # SEC EDGAR insider transactions
+        institutional_adapter.py  # 13F filings adapter
+        sqlite_repo.py       # Persistence
+        __init__.py
+    DOMAIN.md
 ```
 
-### Structure Rationale
+**Domain events emitted:** `SentimentUpdatedEvent(symbol, sentiment_score, sub_scores, timestamp)`
+**Domain events consumed:** None (independent data source)
+**Integration point:** `scoring` context subscribes to `SentimentUpdatedEvent` to replace the hardcoded `SentimentScore(value=50)` default.
 
-- **`dashboard/` at root, not inside `src/`:** The Python `src/` directory has its own package resolution, mypy configuration, and ruff rules. Mixing Node.js files into it would break Python tooling. A sibling directory keeps toolchains isolated while sharing the same Git repo.
-- **Not a Turborepo/monorepo tool:** This project has exactly two units (Python backend, Next.js frontend). Turborepo adds complexity for no benefit at this scale. A simple `package.json` with scripts is sufficient.
-- **`src/dashboard/presentation/api_routes.py` (new):** The existing `queries.py` handlers return Python dicts. Currently these dicts feed Jinja2 templates. The new `api_routes.py` wraps the same handlers but returns JSON via FastAPI's `JSONResponse`. Zero business logic duplication.
-- **`components/ui/` for shadcn:** shadcn/ui components are vendored (copied into project), not installed as a package. This is by design -- you own the code and can customize it freely.
-- **Page-specific component folders:** Each page (`overview/`, `signals/`, `risk/`, `pipeline/`) gets its own component subfolder. This matches the existing 4-page structure and keeps components close to their consumers.
+**Key design decision:** The `SentimentScore` VO stays in `scoring/domain/value_objects.py` (it is a scoring axis). The `sentiment` context produces the _data_ that populates it. This follows the existing pattern where `core/scoring/sentiment.py` computes the score and `ScoreSymbolHandler._get_sentiment()` calls it.
 
----
+### 2. Performance Context (`src/performance/`)
 
-## Architectural Patterns
-
-### Pattern 1: Next.js Rewrites as API Proxy
-
-**What:** `next.config.ts` rewrites forward `/api/*` requests from the Next.js dev server to the FastAPI backend at `localhost:8000`. The browser never contacts FastAPI directly.
-
-**When to use:** Always in development. In production, use the same pattern or a reverse proxy (nginx/Caddy).
-
-**Trade-offs:**
-- Pro: Single origin for the browser (no CORS issues), API keys stay server-side
-- Pro: Can add BFF transforms in Next.js Route Handlers before proxying
-- Con: Adds one network hop in production if not colocated
-- Con: SSE streams through the proxy need special care (no response buffering)
-
-**Configuration:**
-
-```typescript
-// dashboard/next.config.ts
-import type { NextConfig } from 'next';
-
-const FASTAPI_URL = process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
-
-const nextConfig: NextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: '/api/dashboard/:path*',
-        destination: `${FASTAPI_URL}/api/dashboard/:path*`,
-      },
-      {
-        source: '/dashboard/events',
-        destination: `${FASTAPI_URL}/dashboard/events`,
-      },
-    ];
-  },
-};
-
-export default nextConfig;
+```
+src/performance/
+    domain/
+        entities.py          # AttributionReport, TradePerformance
+        value_objects.py     # MarketReturn, SectorReturn, StockAlpha, TimingEffect
+        events.py            # AttributionComputedEvent
+        services.py          # AttributionDomainService (Brinson-Fachler model)
+        repositories.py      # IPerformanceRepository (ABC)
+        __init__.py
+    application/
+        commands.py          # ComputeAttributionCommand
+        queries.py           # GetAttributionQuery, GetPerformanceSummaryQuery
+        handlers.py          # PerformanceHandler
+        __init__.py
+    infrastructure/
+        benchmark_adapter.py  # S&P 500, sector ETF returns
+        sqlite_repo.py
+        __init__.py
+    DOMAIN.md
 ```
 
-### Pattern 2: JSON API Routes Wrapping Existing Query Handlers
+**Domain events emitted:** `AttributionComputedEvent(portfolio_id, period, total_return, attribution_breakdown)`
+**Domain events consumed:** `PositionClosedEvent` (from portfolio), `OrderFilledEvent` (from execution)
+**Integration point:** Read-only analytics. Queries portfolio/position repos for trade history. Does not affect trading logic.
 
-**What:** New FastAPI routes in `api_routes.py` that call the same `OverviewQueryHandler`, `SignalsQueryHandler`, `RiskQueryHandler`, `PipelineQueryHandler` but return JSON instead of HTML templates.
+**Key design decision:** Performance attribution is a _consumer_ of trading data, not a producer of trading decisions. It never writes to scoring, signals, or execution. This keeps it safely decoupled and allows it to be built and tested independently.
 
-**When to use:** For every dashboard data endpoint. The query handlers already aggregate data from multiple bounded contexts -- this pattern reuses them.
+### 3. Commercial Context (`src/commercial/`)
 
-**Trade-offs:**
-- Pro: Zero business logic duplication -- same query handlers, different serialization
-- Pro: The HTMX dashboard can run in parallel during migration (both routes coexist)
-- Con: Must ensure dict shapes are JSON-serializable (they already are)
-
-**Example:**
-
-```python
-# src/dashboard/presentation/api_routes.py
-from fastapi import APIRouter, Request
-from src.dashboard.application.queries import OverviewQueryHandler
-
-api_router = APIRouter(prefix="/api/dashboard")
-
-@api_router.get("/overview")
-def overview_data(request: Request):
-    ctx = request.app.state.ctx
-    handler = OverviewQueryHandler(ctx)
-    data = handler.handle()
-    # Equity curve chart data moves to frontend (React builds the chart)
-    # No more Plotly JSON -- return raw data, let TradingView/Recharts render
-    return data
-
-@api_router.get("/signals")
-def signals_data(request: Request, sort: str = "composite", desc: bool = True):
-    ctx = request.app.state.ctx
-    handler = SignalsQueryHandler(ctx)
-    return handler.handle(sort_by=sort, sort_desc=desc)
-
-@api_router.get("/risk")
-def risk_data(request: Request):
-    ctx = request.app.state.ctx
-    handler = RiskQueryHandler(ctx)
-    data = handler.handle()
-    # Remove Plotly chart JSON -- frontend renders its own charts
-    data.pop("gauge_json", None)
-    data.pop("donut_json", None)
-    return data
-
-@api_router.get("/pipeline")
-def pipeline_data(request: Request):
-    ctx = request.app.state.ctx
-    handler = PipelineQueryHandler(ctx)
-    return handler.handle()
+```
+src/commercial/
+    domain/
+        entities.py          # ApiKey, Subscription, UsageRecord
+        value_objects.py     # ApiTier, RateLimit, BillingPeriod
+        events.py            # SubscriptionCreatedEvent, RateLimitExceededEvent
+        services.py          # AuthDomainService, RateLimitDomainService
+        repositories.py      # IApiKeyRepository, ISubscriptionRepository, IUsageRepository
+        __init__.py
+    application/
+        commands.py          # CreateApiKeyCommand, RecordUsageCommand
+        queries.py           # ValidateApiKeyQuery, GetUsageQuery
+        handlers.py          # AuthHandler, BillingHandler, RateLimitHandler
+        __init__.py
+    infrastructure/
+        sqlite_repo.py       # API keys, subscriptions, usage tracking
+        rate_limiter.py      # Token bucket / sliding window implementation
+        __init__.py
+    presentation/
+        api/
+            router.py        # FastAPI router for /api/v1/{quantscore,regimeradar,signalfusion}
+            middleware.py     # Auth middleware, rate-limit middleware
+            __init__.py
+        __init__.py
+    DOMAIN.md
 ```
 
-### Pattern 3: SSE Hook for Real-Time Updates
+**Domain events emitted:** `RateLimitExceededEvent`, `SubscriptionCreatedEvent`
+**Domain events consumed:** None (independent)
+**Integration point:** The commercial API's presentation layer _calls_ existing application handlers (`ScoreSymbolHandler`, `DetectRegimeHandler`, `GenerateSignalHandler`) through the composition root. It does NOT import domain objects directly from other contexts.
 
-**What:** A React hook that connects to the existing `/dashboard/events` SSE endpoint and dispatches typed events to components.
+**Key design decision:** The commercial context has its own `presentation/api/` because it serves a different audience (external API consumers) with different concerns (auth, billing, rate limits, disclaimers). The personal dashboard and commercial API are separate FastAPI apps mounted on the same process or separate deployments.
 
-**When to use:** For all real-time updates (order fills, pipeline completion, drawdown alerts, regime changes).
+## Modifications to Existing Contexts
 
-**Trade-offs:**
-- Pro: SSE is simpler than WebSocket (one-directional, auto-reconnect via EventSource)
-- Pro: The Python SSEBridge already works -- no backend changes needed
-- Pro: EventSource is supported in all modern browsers
-- Con: SSE is unidirectional (server-to-client only). For client-to-server actions (approve trade, run pipeline), use POST requests.
+### Scoring Context (Modified)
 
-**Example:**
+**What changes:**
+1. `ScoreSymbolHandler._get_sentiment()` currently falls back to `core/scoring/sentiment.py`. Replace with: query `sentiment` context's handler (or subscribe to `SentimentUpdatedEvent` and cache latest value).
+2. `ScoreSymbolHandler._get_technical()` already works with raw indicator values and `TechnicalScoringService`. No domain changes needed -- only infrastructure wiring to ensure indicators are always computed (not just when `core/` fallback runs).
+3. Add `sentiment_client` injection in bootstrap to wire the sentiment context adapter.
 
-```typescript
-// dashboard/src/hooks/use-sse.ts
-import { useEffect, useCallback, useRef } from 'react';
+**Files affected:**
+- `src/scoring/application/handlers.py` -- wire sentiment client
+- `src/bootstrap.py` -- add sentiment context wiring
 
-type SSEEventType =
-  | 'OrderFilledEvent'
-  | 'PipelineCompletedEvent'
-  | 'PipelineHaltedEvent'
-  | 'DrawdownAlertEvent'
-  | 'RegimeChangedEvent';
+### Regime Context (Modified)
 
-type SSEHandler = (payload: Record<string, string>) => void;
+**What changes:**
+1. Add HMM-based regime detection as alternative/ensemble method alongside rule-based.
+2. New infrastructure adapter for HMM model (hmmlearn dependency).
+3. Domain service remains pure -- HMM outputs `RegimeType` + `confidence` same as current.
+4. `RegimeDetectionService.detect()` gains an optional `method` parameter ("rule_based" | "hmm" | "ensemble").
 
-export function useSSE(handlers: Partial<Record<SSEEventType, SSEHandler>>) {
-  const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+**Files affected:**
+- `src/regime/domain/services.py` -- add ensemble method
+- `src/regime/infrastructure/` -- add `hmm_adapter.py`
+- `src/regime/domain/value_objects.py` -- possibly add `DetectionMethod` enum
 
-  useEffect(() => {
-    const eventSource = new EventSource('/dashboard/events');
+### Portfolio Context (Modified)
 
-    const eventTypes: SSEEventType[] = [
-      'OrderFilledEvent',
-      'PipelineCompletedEvent',
-      'PipelineHaltedEvent',
-      'DrawdownAlertEvent',
-      'RegimeChangedEvent',
-    ];
+**What changes:**
+1. Add query methods to expose trade history for performance attribution.
+2. No new domain logic -- just ensure `IPositionRepository` has methods to query closed positions with entry/exit details.
 
-    for (const eventType of eventTypes) {
-      eventSource.addEventListener(eventType, (event) => {
-        const handler = handlersRef.current[eventType];
-        if (handler) {
-          // The SSE bridge sends JSON payload
-          try {
-            const data = JSON.parse(event.data);
-            handler(data);
-          } catch {
-            // Bridge may send HTML (legacy) -- ignore
-          }
-        }
-      });
-    }
-
-    eventSource.onerror = () => {
-      // EventSource auto-reconnects; no manual handling needed
-    };
-
-    return () => eventSource.close();
-  }, []);
-}
-```
-
-### Pattern 4: TradingView Lightweight Charts as Client Components
-
-**What:** Use `lightweight-charts` v5.x directly (no wrapper library) in `"use client"` components. TradingView's official React tutorial shows using `useEffect` + `useRef` to manage the chart lifecycle.
-
-**When to use:** For candlestick charts, equity curves, and any financial chart that needs zoom/pan/crosshair.
-
-**Trade-offs:**
-- Pro: 45KB bundle size, extremely performant canvas-based rendering
-- Pro: Native candlestick, area, histogram, baseline chart types
-- Pro: No wrapper library dependency (wrappers are unmaintained; latest is 2+ years old)
-- Con: Requires manual lifecycle management (create/destroy in useEffect)
-- Con: No SSR -- must be `"use client"` components
-
-**Example:**
-
-```typescript
-// dashboard/src/components/charts/equity-curve.tsx
-'use client';
-
-import { useEffect, useRef } from 'react';
-import { createChart, ColorType, AreaSeries } from 'lightweight-charts';
-
-interface EquityCurveProps {
-  data: { time: string; value: number }[];
-}
-
-export function EquityCurve({ data }: EquityCurveProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current || data.length === 0) return;
-
-    const chart = createChart(containerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: '#1a1a2e' },
-        textColor: '#d1d5db',
-      },
-      grid: {
-        vertLines: { color: '#2d2d44' },
-        horzLines: { color: '#2d2d44' },
-      },
-      width: containerRef.current.clientWidth,
-      height: 350,
-    });
-
-    const series = chart.addSeries(AreaSeries, {
-      lineColor: '#4fc3f7',
-      topColor: 'rgba(79, 195, 247, 0.3)',
-      bottomColor: 'rgba(79, 195, 247, 0.0)',
-    });
-
-    series.setData(data);
-    chart.timeScale().fitContent();
-
-    const resizeObserver = new ResizeObserver(() => {
-      if (containerRef.current) {
-        chart.applyOptions({ width: containerRef.current.clientWidth });
-      }
-    });
-    resizeObserver.observe(containerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-      chart.remove();
-    };
-  }, [data]);
-
-  return <div ref={containerRef} />;
-}
-```
-
----
+**Files affected:**
+- `src/portfolio/domain/repositories.py` -- add `find_closed_positions(start, end)` if missing
+- `src/portfolio/infrastructure/sqlite_position_repo.py` -- implement query
 
 ## Data Flow
 
-### Page Load Flow (Initial Data)
+### Current Pipeline Flow (Unchanged)
 
 ```
-Browser navigates to /overview
-    |
-Next.js App Router renders overview/page.tsx (Server Component)
-    |
-    +--> fetch('/api/dashboard/overview')
-              |
-              +--> next.config.ts rewrite --> FastAPI :8000
-                        |
-                        +--> OverviewQueryHandler(ctx).handle()
-                                  |
-                                  +--> position_repo.find_all_open()     --> SQLite
-                                  +--> score_repo.find_all_latest()      --> SQLite
-                                  +--> trade_plan_repo (direct SQL)      --> SQLite
-                                  +--> regime_repo.find_latest()         --> SQLite
-                                  +--> portfolio_repo.find_by_id()       --> SQLite
-                                  |
-                        <-- JSON response (positions, kpis, equity_curve, ...)
-              |
-    <-- Rendered HTML with hydrated data
-    |
-Client Components hydrate (charts mount, SSE connects)
+DataIngest --> Scoring --> Signals --> Risk/Position --> Execution --> Monitoring
+     |           |          |          |              |
+     v           v          v          v              v
+  DuckDB     SQLite     SQLite     SQLite         Alpaca
 ```
 
-### Real-Time Update Flow (SSE)
+### New Data Flows
 
 ```
-Domain Event fires (e.g., OrderFilledEvent from Alpaca monitor)
-    |
-SyncEventBus.publish(OrderFilledEvent)
-    |
-SSEBridge._on_event() --> serializes to JSON, fans out to asyncio queues
-    |
-EventSourceResponse yields ServerSentEvent
-    |
-    +--> Browser EventSource receives event
-              |
-              +--> useSSE hook dispatches to registered handler
-                        |
-                        +--> Handler calls React state setter
-                                  |
-                                  +--> Component re-renders with new data
-                                  |
-                                  +--> (Optional) Refetch full data from API
+1. SENTIMENT FLOW (new):
+   External APIs (news, EDGAR, 13F)
+       |
+   sentiment/infrastructure/adapters
+       |
+   SentimentScoringDomainService --> SentimentUpdatedEvent
+       |                              |
+   sentiment/sqlite_repo          EventBus
+                                      |
+                                  scoring/ScoreSymbolHandler (replaces hardcoded 50)
+
+2. PERFORMANCE ATTRIBUTION FLOW (new):
+   PositionClosedEvent (from portfolio)
+       |
+   performance/PerformanceHandler
+       |
+   AttributionDomainService (Brinson-Fachler)
+       |
+   performance/sqlite_repo --> Dashboard queries
+
+3. COMMERCIAL API FLOW (new):
+   External HTTP Request
+       |
+   commercial/middleware (auth --> rate-limit --> usage-tracking)
+       |
+   Existing handlers (score_handler, regime_handler, signal_handler)
+       |
+   JSON response + disclaimer
+
+4. REGIME ENHANCEMENT FLOW (modified):
+   DataIngest (VIX, S&P, yield curve, historical returns)
+       |
+   regime/hmm_adapter (fit HMM on returns)
+       |
+   RegimeDetectionService.detect(method="ensemble")
+       |
+   RegimeChangedEvent --> scoring weight adjustment (existing wiring)
 ```
 
-### Action Flow (User Mutations)
+### Event Bus Subscriptions (Updated Bootstrap)
 
-```
-User clicks "Run Pipeline" button
-    |
-React onClick handler
-    |
-    +--> fetch('/api/dashboard/pipeline/run', { method: 'POST', body: ... })
-              |
-              +--> next.config.ts rewrite --> FastAPI :8000
-                        |
-                        +--> RunPipelineHandler.handle(cmd)
-                                  |
-                                  +--> Background thread executes pipeline
-                                  |
-                        <-- JSON { status: "running", ... }
-              |
-    <-- Update UI to show "running" state
-    |
-    ... SSE event (PipelineCompletedEvent) arrives later ...
-    |
-    +--> useSSE handler triggers refetch of pipeline data
+```python
+# EXISTING subscriptions:
+bus.subscribe(RegimeChangedEvent, regime_adjuster.on_regime_changed)
+bus.subscribe(RegimeChangedEvent, approval_handler.suspend_if_regime_invalid)
+bus.subscribe(DrawdownAlertEvent, approval_handler.suspend_for_drawdown)
+
+# NEW subscriptions:
+bus.subscribe(SentimentUpdatedEvent, score_handler.on_sentiment_updated)   # sentiment -> scoring
+bus.subscribe(PositionClosedEvent, performance_handler.on_position_closed) # portfolio -> performance
+bus.subscribe(OrderFilledEvent, performance_handler.on_order_filled)       # execution -> performance
 ```
 
-### Key Data Flows
+## Architectural Patterns
 
-1. **Initial page data:** Server Component `fetch()` -> rewrite -> FastAPI -> Query Handler -> Repos -> JSON response. The existing query handlers return Python dicts that are already JSON-serializable. No transformation needed.
+### Pattern 1: Cross-Context Query via Composition Root
 
-2. **Real-time events:** Domain event -> SyncEventBus -> SSEBridge -> EventSource -> React state update. The SSE bridge must change from sending HTML partials to sending JSON payloads. The `_render_partial()` function in `routes.py` becomes unnecessary for React -- the bridge sends raw event data and the React components re-render themselves.
+**What:** When `performance` context needs trade history from `portfolio`, it does NOT import `portfolio` repositories directly. Instead, `bootstrap.py` injects the portfolio repo _reference_ into `PerformanceHandler` at construction time.
 
-3. **User actions (POST):** React form -> fetch POST -> rewrite -> FastAPI -> Command Handler -> side effects + event publication. The existing HTMX POST handlers return HTML partials; the new JSON API routes return JSON status responses instead.
+**When to use:** Any time a context needs to read data owned by another context.
 
----
+**Trade-offs:** Slightly more wiring in bootstrap, but maintains strict DDD boundary rules. The alternative (shared DB queries) violates context boundaries.
 
-## Integration Points
+**Example:**
+```python
+# In bootstrap.py
+performance_handler = PerformanceHandler(
+    performance_repo=performance_repo,
+    position_reader=position_repo,  # injected from portfolio context
+    benchmark_adapter=benchmark_adapter,
+)
+```
 
-### What Changes in the Python Backend
+### Pattern 2: Commercial API as Facade over Existing Handlers
 
-| Component | Change | Scope |
-|-----------|--------|-------|
-| `src/dashboard/presentation/api_routes.py` | **NEW file.** JSON REST endpoints wrapping existing query handlers. ~150 lines. | New file |
-| `src/dashboard/presentation/app.py` | **ADD 1 line.** `app.include_router(api_router)` to mount JSON routes alongside existing HTMX routes. | 1 line change |
-| `src/dashboard/infrastructure/sse_bridge.py` | **NO CHANGE.** The SSE bridge already sends JSON payloads. The `_render_partial()` in routes.py added HTML wrapping, but the bridge itself sends `{"type": "...", "payload": {...}}`. React EventSource reads this directly. | No change |
-| `src/dashboard/application/queries.py` | **MINOR CHANGE.** Remove Plotly chart JSON generation from return dicts (gauge_json, donut_json). These were for Plotly.js rendering; React will render its own charts. | ~10 lines removed |
-| All other `src/` modules | **NO CHANGE.** Scoring, signals, portfolio, execution, regime, pipeline, approval -- all untouched. | No change |
-| `commercial/` | **NO CHANGE.** The commercial API is completely separate. | No change |
+**What:** The commercial API does not duplicate scoring/signal logic. It calls the same `ScoreSymbolHandler`, `DetectRegimeHandler`, `GenerateSignalHandler` that the personal dashboard uses, but wraps them with auth + rate-limiting + disclaimer middleware.
 
-### What Is New in the Frontend
+**When to use:** Building a public-facing API over internal domain logic.
 
-| Component | Description | Complexity |
-|-----------|-------------|------------|
-| Next.js project setup | App Router, TypeScript, Tailwind CSS, shadcn/ui init | Low |
-| 4 page components | Overview, Signals, Risk, Pipeline (Server Components fetching data) | Medium |
-| ~15 client components | KPI cards, tables, charts, forms, badges | Medium |
-| TradingView chart integration | Candlestick, equity curve, volume histogram | Medium |
-| SSE hook | EventSource connection with typed event dispatch | Low |
-| Design system | Bloomberg dark theme tokens, typography, spacing | Medium |
-| API client | Typed fetch wrapper with error handling | Low |
+**Trade-offs:** Tight coupling to handler signatures -- if handlers change, commercial API needs updating. Mitigated by the fact that handlers return `Result` objects with stable schemas.
 
-### External Services
+**Example:**
+```python
+# commercial/presentation/api/router.py
+@router.get("/v1/quantscore/{symbol}")
+async def get_quantscore(symbol: str, request: Request):
+    # Auth + rate-limit already handled by middleware
+    ctx = request.app.state.ctx
+    handler = ctx["score_handler"]
+    result = handler.handle(ScoreSymbolCommand(symbol=symbol))
+    if isinstance(result, Ok):
+        return {**result.value, "disclaimer": DISCLAIMER_TEXT}
+    raise HTTPException(400, detail=str(result.error))
+```
 
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| FastAPI backend | HTTP fetch via Next.js rewrites | Same machine, no auth needed (personal dashboard) |
-| SSE event stream | Browser EventSource to `/dashboard/events` | Proxy must not buffer the response (streaming) |
-| TradingView Lightweight Charts | npm package, canvas-based rendering | Client-only, no SSR |
+### Pattern 3: Sentiment as Event-Driven Data Supplier
 
-### Internal Boundaries
+**What:** The `sentiment` context runs on its own schedule (e.g., hourly or daily) and publishes `SentimentUpdatedEvent`. The `scoring` context listens and caches the latest sentiment score per symbol. When `ScoreSymbolHandler` runs, it uses cached sentiment instead of the hardcoded default.
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| Next.js <-> FastAPI | JSON REST + SSE | Rewrites proxy in dev; reverse proxy (Caddy/nginx) in prod |
-| FastAPI <-> DDD handlers | Direct Python function calls via `ctx` dict | No change from current architecture |
-| DDD handlers <-> Repos | Direct method calls | No change |
-| Bounded contexts <-> each other | SyncEventBus domain events | No change |
+**When to use:** When two contexts have different update cadences (sentiment: hourly, scoring: on-demand).
 
----
+**Trade-offs:** Eventual consistency -- sentiment data may be stale by minutes/hours. Acceptable for mid-term trading (holding period: weeks to months).
+
+**Example:**
+```python
+# scoring/application/handlers.py
+class ScoreSymbolHandler:
+    def __init__(self, ..., sentiment_cache: dict[str, float] | None = None):
+        self._sentiment_cache = sentiment_cache or {}
+
+    def on_sentiment_updated(self, event: SentimentUpdatedEvent) -> None:
+        self._sentiment_cache[event.symbol] = event.sentiment_score
+
+    def _get_sentiment(self, symbol: str) -> dict:
+        cached = self._sentiment_cache.get(symbol)
+        if cached is not None:
+            return {"sentiment_score": cached}
+        # Fallback to existing core/scoring/sentiment.py
+        ...
+```
+
+## Recommended Project Structure (After Integration)
+
+```
+src/
+├── scoring/            # [MODIFIED] Wire real sentiment + technical indicators
+│   ├── domain/
+│   │   ├── services.py         # CompositeScoringService, TechnicalScoringService (unchanged)
+│   │   ├── value_objects.py    # FundamentalScore, TechnicalScore, SentimentScore (unchanged)
+│   │   └── events.py           # ScoreUpdatedEvent (unchanged)
+│   ├── application/
+│   │   └── handlers.py         # Wire sentiment_cache, sentiment_client
+│   └── infrastructure/
+├── sentiment/          # [NEW] News, insider, institutional, analyst data
+│   ├── domain/
+│   │   ├── value_objects.py    # NewsSentiment, InsiderActivity, etc.
+│   │   ├── services.py         # SentimentScoringDomainService
+│   │   ├── events.py           # SentimentUpdatedEvent
+│   │   └── repositories.py     # ISentimentRepository
+│   ├── application/
+│   │   └── handlers.py         # SentimentHandler
+│   ├── infrastructure/
+│   │   ├── news_adapter.py     # News API integration
+│   │   ├── edgar_insider_adapter.py
+│   │   └── sqlite_repo.py
+│   └── DOMAIN.md
+├── performance/        # [NEW] P&L attribution (read-only analytics)
+│   ├── domain/
+│   │   ├── value_objects.py    # MarketReturn, SectorReturn, StockAlpha, TimingEffect
+│   │   ├── services.py         # AttributionDomainService (Brinson-Fachler)
+│   │   ├── events.py           # AttributionComputedEvent
+│   │   └── repositories.py     # IPerformanceRepository
+│   ├── application/
+│   │   └── handlers.py         # PerformanceHandler
+│   ├── infrastructure/
+│   │   ├── benchmark_adapter.py
+│   │   └── sqlite_repo.py
+│   └── DOMAIN.md
+├── commercial/         # [NEW] Auth, billing, rate-limiting for public API
+│   ├── domain/
+│   │   ├── entities.py         # ApiKey, Subscription, UsageRecord
+│   │   ├── value_objects.py    # ApiTier, RateLimit, BillingPeriod
+│   │   ├── services.py         # AuthDomainService, RateLimitDomainService
+│   │   └── repositories.py
+│   ├── application/
+│   │   └── handlers.py         # AuthHandler, BillingHandler
+│   ├── infrastructure/
+│   │   ├── sqlite_repo.py
+│   │   └── rate_limiter.py     # Token bucket implementation
+│   ├── presentation/
+│   │   └── api/
+│   │       ├── router.py       # /api/v1/quantscore, /api/v1/regimeradar, /api/v1/signalfusion
+│   │       └── middleware.py   # Auth + rate-limit middleware
+│   └── DOMAIN.md
+├── regime/             # [MODIFIED] Add HMM-based detection
+│   ├── domain/
+│   │   └── services.py         # Add ensemble method
+│   └── infrastructure/
+│       └── hmm_adapter.py      # [NEW] hmmlearn integration
+├── portfolio/          # [MODIFIED] Expose closed position queries
+│   └── domain/
+│       └── repositories.py     # Add find_closed_positions()
+├── signals/            # (unchanged)
+├── execution/          # (unchanged)
+├── pipeline/           # (unchanged)
+├── approval/           # (unchanged)
+├── dashboard/          # (unchanged -- queries new contexts via bootstrap)
+├── data_ingest/        # (unchanged)
+├── backtest/           # (unchanged)
+├── shared/             # (unchanged)
+└── bootstrap.py        # [MODIFIED] Wire 3 new contexts + event subscriptions
+```
+
+## Bootstrap Wiring (Key Changes)
+
+```python
+# bootstrap.py additions (pseudocode)
+
+# -- Sentiment context --
+from src.sentiment.infrastructure import SqliteSentimentRepository, NewsAdapter, EdgarInsiderAdapter
+from src.sentiment.application.handlers import SentimentHandler
+
+sentiment_repo = SqliteSentimentRepository(db_path=db_factory.sqlite_path("sentiment"))
+news_adapter = NewsAdapter()
+sentiment_handler = SentimentHandler(
+    sentiment_repo=sentiment_repo,
+    news_adapter=news_adapter,
+)
+
+# -- Performance context --
+from src.performance.infrastructure import SqlitePerformanceRepository, BenchmarkAdapter
+from src.performance.application.handlers import PerformanceHandler
+
+performance_repo = SqlitePerformanceRepository(db_path=db_factory.sqlite_path("performance"))
+performance_handler = PerformanceHandler(
+    performance_repo=performance_repo,
+    position_reader=position_repo,   # cross-context injection
+    benchmark_adapter=BenchmarkAdapter(),
+)
+
+# -- Commercial context --
+from src.commercial.infrastructure import SqliteApiKeyRepository, RateLimiter
+from src.commercial.application.handlers import AuthHandler
+
+api_key_repo = SqliteApiKeyRepository(db_path=db_factory.sqlite_path("commercial"))
+auth_handler = AuthHandler(api_key_repo=api_key_repo)
+
+# -- Event subscriptions --
+from src.sentiment.domain.events import SentimentUpdatedEvent
+bus.subscribe(SentimentUpdatedEvent, score_handler.on_sentiment_updated)
+bus.subscribe(PositionClosedEvent, performance_handler.on_position_closed)
+```
 
 ## Scaling Considerations
 
-This is a single-user personal trading dashboard. "Scaling" means "what if the data grows."
-
 | Scale | Architecture Adjustments |
 |-------|--------------------------|
-| 1 user, <50 positions | Current architecture is fine. Full page data loads in <100ms from SQLite. |
-| 1 user, 200+ positions | Paginate holdings table. Add virtual scrolling to data tables (TanStack Table supports this). SQLite queries remain fast. |
-| 1 user, 2+ years of history | Equity curve chart needs date-range filtering (don't load 500+ data points). Add query params for date range. |
-| Multiple users (if ever) | Would need auth, per-user context, and database isolation. Out of scope for v1.3. |
+| Personal use (1 user) | Current monolith is perfect. SQLite + SyncEventBus. All contexts in single process. |
+| Commercial API (10-100 users) | Add Redis for rate-limiting (replace in-memory token bucket). Keep SQLite for API keys. Consider async event bus for commercial endpoints only. |
+| Commercial API (1K+ users) | Move commercial context to separate process. Add PostgreSQL for commercial data (API keys, usage, billing). Keep personal trading in original monolith. |
 
 ### Scaling Priorities
 
-1. **First bottleneck:** Chart rendering with large datasets. Lightweight Charts handles 10K+ candles well, but equity curve with hundreds of trade points might need aggregation. Solution: server-side date-range filtering.
-2. **Second bottleneck:** SSE connection limits. Browsers allow 6 concurrent connections per domain (HTTP/1.1). With only 1 user and 1 SSE connection, this is not a concern.
-
----
+1. **First bottleneck:** Rate-limiting state. In-memory token bucket does not survive restarts. Move to Redis when commercial API launches. LOW urgency for initial release.
+2. **Second bottleneck:** Concurrent scoring requests from commercial API. Each `ScoreSymbolHandler.handle()` calls yfinance/EDGAR synchronously. Add caching layer (score results valid for 1 hour) to avoid redundant data fetches.
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Duplicating Business Logic in Next.js API Routes
+### Anti-Pattern 1: Sentiment Logic in Scoring Context
 
-**What people do:** Rewrite query logic in TypeScript Route Handlers instead of proxying to FastAPI.
-**Why it is wrong:** Creates two sources of truth for data aggregation. When a Python query handler changes, the TypeScript version diverges silently.
-**Do this instead:** Next.js Route Handlers should only proxy to FastAPI or do light BFF transforms (renaming fields, filtering response data). All aggregation stays in Python `QueryHandler` classes.
+**What people do:** Add news fetching, insider trade parsing, and institutional holdings queries directly into `scoring/infrastructure/`.
+**Why it is wrong:** Scoring becomes a monolith. Sentiment has different failure modes (news API down != scoring broken), different update cadence, and different data sources. Mixing them makes testing and maintenance harder.
+**Do this instead:** Separate `sentiment` context with its own adapters. Publish events. Scoring consumes events.
 
-### Anti-Pattern 2: Using WebSocket Instead of SSE
+### Anti-Pattern 2: Commercial API Duplicating Domain Logic
 
-**What people do:** Replace the working SSE bridge with WebSocket for "bidirectional" communication.
-**Why it is wrong:** The dashboard only needs server-to-client streaming. User actions (approve, run pipeline) are standard POST requests. WebSocket adds complexity (connection management, heartbeats, protocol upgrade) with no benefit for this use case.
-**Do this instead:** Keep SSE for server-to-client events. Use POST requests for client-to-server actions. This is exactly what the existing architecture does.
+**What people do:** Copy-paste scoring/signal logic into commercial API routes to "keep them independent."
+**Why it is wrong:** Two codepaths to maintain. Bugs fixed in one are missed in the other. Commercial and personal scores diverge.
+**Do this instead:** Commercial API is a thin facade over the same handlers. Auth/billing/rate-limiting wraps calls to existing handlers.
 
-### Anti-Pattern 3: SSR for Chart Components
+### Anti-Pattern 3: Performance Attribution Writing Back to Trading Contexts
 
-**What people do:** Try to server-render TradingView charts or other canvas-based components.
-**Why it is wrong:** Canvas-based chart libraries require browser APIs (`document`, `window`, `ResizeObserver`). Server rendering them is impossible and causes hydration mismatches.
-**Do this instead:** Mark chart components as `"use client"`. Fetch data in a parent Server Component and pass it as props. The chart renders client-side only.
+**What people do:** Have the performance context modify scoring weights or signal thresholds based on attribution results.
+**Why it is wrong:** Creates circular dependency (scoring -> performance -> scoring). Makes the system unpredictable.
+**Do this instead:** Performance context is strictly read-only. If attribution results should inform parameter tuning, that is the `self-improver` context's job (future phase), which reads attribution reports and produces config changes through a separate, auditable process.
 
-### Anti-Pattern 4: Installing a React Wrapper for Lightweight Charts
+### Anti-Pattern 4: Sharing SQLite DB Files Across Contexts
 
-**What people do:** Use `lightweight-charts-react-wrapper` or `kaktana-react-lightweight-charts` npm packages.
-**Why it is wrong:** These wrappers are unmaintained (last published 2+ years ago). They may not support Lightweight Charts v5.x and add a dependency risk.
-**Do this instead:** Use `lightweight-charts` directly with `useEffect` + `useRef`. TradingView provides official React tutorials for this exact pattern. It is ~30 lines of code per chart type.
+**What people do:** Put sentiment, performance, and commercial tables in the same SQLite file as scoring.
+**Why it is wrong:** SQLite write locks cause contention. One context's migration breaks another.
+**Do this instead:** Each context gets its own SQLite file via `db_factory.sqlite_path("context_name")`. This follows the existing pattern (scoring.db, signals.db, regime.db, etc.).
 
-### Anti-Pattern 5: Separate Git Repositories for Frontend and Backend
+## Integration Points
 
-**What people do:** Create a new repo for the Next.js frontend.
-**Why it is wrong:** Adds deployment coordination overhead, makes it harder to ensure API contract compatibility, and complicates development (switching between repos to trace a data flow).
-**Do this instead:** Keep frontend in the same repo as `dashboard/` directory. Python tooling (mypy, ruff, pytest) is scoped to `src/` and ignores `dashboard/`. Node.js tooling is scoped to `dashboard/`. Each has its own config files.
+### External Services
 
-### Anti-Pattern 6: Response Buffering Breaking SSE Proxy
+| Service | Context | Integration Pattern | Notes |
+|---------|---------|---------------------|-------|
+| News API (e.g., Finnhub, Alpha Vantage) | sentiment | Infrastructure adapter, daily batch | Free tiers may suffice for daily sentiment |
+| SEC EDGAR (insider trades, 13F) | sentiment | Infrastructure adapter, edgartools library | Already used in data_ingest |
+| S&P 500 / sector ETF data | performance | Infrastructure adapter, benchmark returns | yfinance or existing data pipeline |
+| Stripe/Lemon Squeezy | commercial | Infrastructure adapter, webhook handler | Phase 2 of commercial -- start with manual billing |
 
-**What people do:** Use Next.js rewrites for SSE without disabling compression/buffering.
-**Why it is wrong:** Next.js (and nginx) may buffer streamed responses, causing SSE events to arrive in batches instead of real-time.
-**Do this instead:** In development, Next.js rewrites handle SSE fine. In production with nginx, add `proxy_buffering off; X-Accel-Buffering: no;` to the SSE endpoint configuration. Or connect SSE directly to FastAPI (skip the proxy for this one endpoint).
+### Internal Boundaries (Event-Based Communication)
 
----
+| Boundary | Communication | Direction |
+|----------|---------------|-----------|
+| sentiment -> scoring | `SentimentUpdatedEvent` via EventBus | sentiment publishes, scoring subscribes |
+| portfolio -> performance | `PositionClosedEvent` via EventBus | portfolio publishes, performance subscribes |
+| execution -> performance | `OrderFilledEvent` via EventBus | execution publishes, performance subscribes |
+| scoring -> signals | `ScoreUpdatedEvent` via EventBus | existing (currently logging-only) |
+| regime -> scoring | `RegimeChangedEvent` via EventBus | existing (weight adjustment) |
+| commercial -> scoring/regime/signals | Direct handler call via bootstrap ctx | commercial calls handlers, no events needed |
 
-## Deployment Strategy
+### Cross-Context Query Injection (via Bootstrap)
 
-### Development
+| Consumer | Provider | What Is Injected |
+|----------|----------|------------------|
+| performance | portfolio | `position_repo` (read-only) |
+| commercial | scoring/regime/signals | handler references via ctx dict |
+| dashboard | all contexts | repo + handler references via ctx dict |
 
-```bash
-# Terminal 1: Python backend
-cd /home/mqz/workspace/trading
-uvicorn src.dashboard.presentation.app:create_dashboard_app --reload --port 8000
+## Build Order (Dependency-Aware)
 
-# Terminal 2: Next.js frontend
-cd /home/mqz/workspace/trading/dashboard
-npm run dev  # localhost:3000, proxies /api/* to :8000
-```
+**Phase ordering rationale based on dependencies:**
 
-Both servers run simultaneously. The developer accesses `localhost:3000` for the React dashboard. All API calls are transparently proxied to `localhost:8000`.
+1. **Technical Scoring Integration** (no new context, modifies `scoring`)
+   - Zero external dependencies. Already has `TechnicalScoringService` in domain.
+   - Just needs infrastructure wiring to ensure indicators always flow through DDD path.
+   - Prerequisite for: commercial API (needs complete scoring)
 
-### Production (Single Machine)
+2. **Regime Enhancement** (modifies `regime`)
+   - Adds HMM adapter. Isolated change to regime context.
+   - No downstream dependencies blocked by this.
+   - Prerequisite for: commercial RegimeRadar product
 
-Use **Caddy** as reverse proxy (simpler than nginx, automatic HTTPS):
+3. **Sentiment Context** (new context)
+   - Independent data sources. Can be built in parallel with #1 and #2.
+   - Only dependency: event bus subscription to scoring (simple wiring).
+   - Prerequisite for: commercial QuantScore product (needs all 3 scoring axes real)
 
-```
-# Caddyfile
-:80 {
-    # Next.js frontend (static + SSR)
-    reverse_proxy /api/dashboard/* localhost:8000
-    reverse_proxy /dashboard/events localhost:8000 {
-        flush_interval -1   # Disable buffering for SSE
-    }
-    reverse_proxy /* localhost:3000
-}
-```
+4. **Performance Attribution** (new context)
+   - Depends on: portfolio context having closed position query (minor addition).
+   - Read-only consumer. Does not block anything else.
+   - Can be built in parallel with #3.
 
-Or use `output: 'standalone'` in `next.config.ts` to build a self-contained Node.js server, then run both processes via `systemd` or `pm2`:
+5. **Commercial API** (new context)
+   - Depends on: scoring, regime, signals all working correctly.
+   - Should be last because it is a facade over the other features.
+   - Auth/billing/rate-limiting are independent of trading logic.
 
-```bash
-# Build Next.js standalone
-cd dashboard && npm run build
-# Run: node dashboard/.next/standalone/server.js (port 3000)
-# Run: uvicorn src.dashboard.presentation.app:create_dashboard_app (port 8000)
-```
-
-### Why Not Docker (For Now)
-
-This is a personal trading system running on a single WSL2 machine. Docker adds indirection without benefit. If deployment moves to a cloud server later, Dockerize both services then. For now, two systemd services are sufficient.
-
----
-
-## SSE Bridge Modification Detail
-
-The existing SSE bridge sends events in this format:
-
-```python
-# Current SSEBridge._on_event output:
-{"type": "OrderFilledEvent", "payload": {"symbol": "AAPL", "quantity": "10", ...}}
-```
-
-The current `routes.py` has `_render_partial()` which converts these to HTML for HTMX `sse-swap`. For the React frontend, the raw JSON format is exactly what we need. The React `useSSE` hook parses this JSON directly.
-
-**Migration approach:** Keep the existing `/dashboard/events` SSE endpoint as-is. It sends JSON-wrapped events. The HTMX `_render_partial()` layer is in `routes.py` (the old HTMX route handler), not in the SSE bridge. The new React frontend connects to the same SSE endpoint and reads the JSON directly.
-
-This means both HTMX and React dashboards can run simultaneously during migration -- they share the same SSE stream but interpret it differently.
-
----
-
-## Build Order Recommendation
-
-Based on dependency analysis:
-
-1. **Phase 1: Project Setup + Design System** -- Next.js init, Tailwind, shadcn/ui, dark theme tokens, layout (sidebar + header). No API connection yet; use mock data.
-2. **Phase 2: FastAPI JSON API** -- Add `api_routes.py` to Python backend. Test with curl. This is the integration point.
-3. **Phase 3: Overview Page** -- Connect to live API. KPI cards, holdings table, equity curve (TradingView).
-4. **Phase 4: Signals Page** -- Scoring data table, signal cards. TradingView candlestick chart for selected symbol.
-5. **Phase 5: Risk Page** -- Drawdown gauge, sector donut, regime badge.
-6. **Phase 6: Pipeline Page** -- Pipeline runs table, approval form, review queue. POST actions (run, approve, reject).
-7. **Phase 7: SSE Integration** -- Wire useSSE hook to all pages. Real-time updates.
-8. **Phase 8: Cleanup** -- Remove HTMX templates and routes. Remove Plotly dependency from backend.
-
-**Rationale:** The Overview page has the most data complexity (multiple repos, equity curve). Building it first validates the entire integration path. The Pipeline page has the most interactivity (forms, mutations). Deferring it to Phase 6 allows the team to establish patterns on simpler pages first.
-
----
+**Parallel opportunities:**
+- Technical Scoring (#1) + Regime Enhancement (#2) can be parallel
+- Sentiment (#3) + Performance (#4) can be parallel
+- Commercial (#5) last, after #1-#3 complete
 
 ## Sources
 
-- [Next.js Rewrites Documentation](https://nextjs.org/docs/app/api-reference/config/next-config-js/rewrites) -- Official, confirmed v16.1.6 (2026-02-27)
-- [TradingView Lightweight Charts React Tutorial](https://tradingview.github.io/lightweight-charts/tutorials/react/simple) -- Official, v5.x
-- [TradingView Lightweight Charts GitHub](https://github.com/tradingview/lightweight-charts) -- 45KB, canvas-based
-- [Next.js Server vs Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components) -- Official
-- [shadcn/ui Data Table](https://ui.shadcn.com/docs/components/radix/data-table) -- TanStack Table based
-- [Next.js + FastAPI Discussion](https://github.com/vercel/next.js/discussions/43724) -- Community patterns
-- [Vinta Next.js FastAPI Template](https://github.com/vintasoftware/nextjs-fastapi-template) -- Reference architecture
-- [Next.js SSE Discussion](https://github.com/vercel/next.js/discussions/48427) -- Known buffering caveats
+- Existing codebase analysis (HIGH confidence): `src/scoring/`, `src/regime/`, `src/bootstrap.py`, `src/dashboard/`
+- DDD architecture rules: `.claude/rules/ddd.md`
+- API feasibility study: `docs/api-technical-feasibility.md`
+- Strategy documentation: `docs/strategy-recommendation.md` (via CLAUDE.md summary)
+- Brinson-Fachler performance attribution model: standard financial literature (HIGH confidence)
 
 ---
-*Architecture research for: v1.3 Bloomberg Dashboard (Next.js + React)*
+*Architecture research for: v1.4 Full Stack Trading Platform integration*
 *Researched: 2026-03-14*

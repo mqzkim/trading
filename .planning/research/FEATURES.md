@@ -1,179 +1,193 @@
-# Feature Research: v1.3 Bloomberg Dashboard
+# Feature Landscape: v1.4 Full Stack Trading Platform
 
-**Domain:** Bloomberg terminal-style trading dashboard (React + Next.js)
+**Domain:** Quantitative trading system -- technical scoring, sentiment scoring, commercial REST API, performance attribution, self-improvement
 **Researched:** 2026-03-14
-**Confidence:** HIGH (Bloomberg UX patterns well-documented, existing backend data verified, React ecosystem mature)
+**Confidence:** HIGH (technical/sentiment scoring well-documented in existing research docs; commercial API patterns mature; attribution methodology established)
 
-**Scope:** This document covers ONLY the Bloomberg-style dashboard features for v1.3. The existing HTMX dashboard (v1.2) provides working data endpoints and SSE event infrastructure. v1.3 replaces the presentation layer while reusing backend data queries.
+**Scope:** NEW features only for v1.4. The following already exists and is NOT covered:
+- Fundamental scoring (F/Z/M/G-Score) with composite 0-100
+- Signal generation (BUY/HOLD/SELL) with reasoning traces
+- Risk management (Fractional Kelly 1/4, 3-tier drawdown defense)
+- Alpaca execution with human approval
+- Bloomberg-style React dashboard (Overview, Signals, Risk, Pipeline)
+- Daily automated pipeline with strategy/budget approval
+- Domain VOs: `TechnicalScore`, `TechnicalIndicatorScore`, `SentimentScore` already defined with validation (value_objects.py)
+- Composite score computation already supports 3-axis weights (`fundamental/technical/sentiment`)
 
-**Existing backend data available (verified from `dashboard/application/queries.py`):**
-- Portfolio: positions, market values, P&L, composite scores, stop/target prices
-- Equity curve: cumulative P&L over time with regime period overlays
-- Signals: composite scores, risk-adjusted scores, strategies, BUY/SELL directions, strength
-- Risk: drawdown percentage + level (normal/warning/critical), sector weights, position count/limits, regime
-- Pipeline: run history with stage results, next scheduled time, run/halt status
-- Approval: strategy approval status, daily budget (spent/limit/remaining), review queue
-- SSE events: PipelineCompleted, PipelineHalted, OrderFilled, DrawdownAlert, RegimeChanged
+**Key constraint:** The domain VOs already define the shape of technical (RSI/MACD/MA/ADX/OBV sub-scores) and sentiment scoring. Implementation must fill these existing containers with real calculations, not redesign them.
 
 ---
 
-## Feature Landscape
+## Table Stakes
 
-### Table Stakes (Users Expect These)
+Features users expect from a production quantitative trading system. Missing any of these means the composite score is incomplete (currently technical=placeholder, sentiment=neutral 50).
 
-Features that any Bloomberg-style trading dashboard must have. Missing these and the product feels like a generic admin panel, not a professional trading interface.
+| Feature | Why Expected | Complexity | Dependencies on Existing | Notes |
+|---------|--------------|------------|-------------------------|-------|
+| **RSI scoring (14-period)** | Most basic momentum indicator. Weekly RSI for swing trading detects overbought/oversold conditions | LOW | `TechnicalIndicatorScore` VO exists, needs calculation logic | Score 0-100: RSI < 30 = high score (oversold opportunity), RSI > 70 = low score. Map via inverted sigmoid, not linear |
+| **MACD signal scoring** | Second most common momentum indicator. MACD histogram direction and crossovers signal trend changes | LOW | `TechnicalIndicatorScore` VO exists | Score based on: histogram > 0 and rising = bullish. Crossover recency matters. Use weekly MACD for swing timeframe |
+| **Moving average trend scoring** | Price relative to 50/200-day MA is universal trend confirmation. Golden/death cross is the most watched pattern | LOW | `TechnicalIndicatorScore` VO exists | Score based on: price > 200MA = base points, price > 50MA > 200MA = full points, distance from MA matters |
+| **ADX trend strength scoring** | ADX > 25 confirms a trend exists (any direction). Without trend confirmation, momentum signals are unreliable | LOW | `TechnicalIndicatorScore` VO exists | ADX > 25 = trending (weight momentum signals higher), ADX < 20 = ranging (weight mean-reversion higher) |
+| **OBV volume confirmation** | On-Balance Volume confirms price moves with volume. Divergence between price and OBV warns of reversals | LOW | `TechnicalIndicatorScore` VO exists | Score OBV trend direction + slope. Rising OBV + rising price = strong confirmation |
+| **Technical composite (5-indicator weighted)** | The existing `TechnicalScore.value` is a placeholder. Must aggregate 5 sub-scores with configurable weights | LOW | `TechnicalScore` VO with sub_scores property exists | Default weights: RSI 20%, MACD 25%, MA 25%, ADX 15%, OBV 15%. Weights already storable in `TechnicalScore.weights` |
+| **News sentiment scoring** | Market-moving news shifts stock prices. NLP sentiment from financial news is a validated alpha signal | MEDIUM | `SentimentScore` VO exists (value only, needs sub-components) | Use Finnhub or Alpha Vantage news sentiment API. Aggregate daily sentiment with decay (recent news weighted more). Score 0-100 where 50 = neutral |
+| **Analyst revision scoring** | Earnings estimate revisions (FY1/FY2) are among the strongest documented alpha signals. Upward revisions = bullish | MEDIUM | `SentimentScore` VO exists | Use FMP or EODHD analyst estimates. Score: upgrades/revisions up = high, downgrades = low. Revision breadth matters (% of analysts revising) |
+| **Insider transaction scoring** | Insider buying clusters predict positive returns (academically validated). Selling is less informative (insiders sell for many reasons) | MEDIUM | `SentimentScore` VO exists | Use SEC Form 4 data via FMP/EODHD. Score: cluster buying (3+ insiders in 30 days) = high signal. Ignore routine selling |
+| **Institutional holdings change** | 13F filing changes show "smart money" positioning. Increasing institutional ownership = confidence signal | LOW | `SentimentScore` VO exists | Quarterly data from 13F filings. Score: increasing institutional ownership % = positive. Rate of change matters more than absolute level |
+| **Sentiment composite (4-factor weighted)** | The existing `SentimentScore.value` defaults to 50 (neutral). Must aggregate sub-scores into a real composite | LOW | `SentimentScore` VO exists | Default weights: analyst revisions 35%, insider activity 25%, news sentiment 25%, institutional changes 15%. Analyst revisions are the strongest documented signal |
+| **API key authentication** | Any commercial API needs auth. API keys are the standard for data APIs (simpler than OAuth for B2D products) | LOW | FastAPI already in stack | Use HTTP header `X-API-Key`. Store hashed keys in SQLite. Include key in all request logging |
+| **Rate limiting per tier** | Without rate limiting, one user can overwhelm the system. Tiered limits (Free/Starter/Pro) are standard SaaS | MEDIUM | FastAPI + slowapi or custom middleware | Token bucket algorithm. Limits: Free 5 req/day, Starter 100 req/day, Pro unlimited. Return `429 Too Many Requests` with `Retry-After` header |
+| **QuantScore API endpoint** | Core commercial product. GET /api/v1/score/{symbol} returns composite score + sub-scores. Already computed internally | LOW | Scoring engine already produces all data | Wrap existing `CompositeScore` computation as REST endpoint. Add caching (Redis or in-memory TTL). Include `updated_at` timestamp |
+| **RegimeRadar API endpoint** | Market regime detection as an API. Unique differentiator (few competitors offer this). Already computed internally | LOW | Regime detection engine already exists | Wrap existing regime detection as REST endpoint. Return: regime label, confidence, probabilities, strategy affinity. Cache aggressively (regime changes infrequently) |
+| **SignalFusion API endpoint** | Multi-strategy consensus signal as API. Combines existing signal generation | LOW | Signal generation for all strategies exists | Wrap existing signal consensus as REST endpoint. Return: per-strategy signals + consensus agreement count. Never use "buy/sell" -- use "bullish/bearish/neutral" |
+| **API disclaimer/legal notice** | Commercial financial data APIs require disclaimers. "Not investment advice" is legally necessary | LOW | None | Every API response includes `disclaimer` field. Docs page with full legal text. Terms of Service required before API key issuance |
+| **Trade P&L tracking** | Cannot do performance attribution without recording actual trade outcomes: entry price, exit price, holding period, fees | LOW | Execution engine already records order fills | Extend trade record with: realized P&L, holding period, slippage (fill vs. signal price), commission. Store in DuckDB for analytics |
+| **Basic performance metrics** | Sharpe ratio, win rate, profit factor, max drawdown -- the minimum metrics any trader tracks | MEDIUM | Trade history in execution records | Compute: Sharpe (annualized), Sortino, win rate, average win/loss ratio, profit factor, max drawdown, Calmar ratio. Rolling and cumulative windows |
 
-| Feature | Why Expected | Complexity | Backend Dependency | Notes |
-|---------|--------------|------------|-------------------|-------|
-| Dark theme with high-contrast data | Bloomberg = black background with bright data. Light themes signal "consumer app," not "trading terminal" | LOW | None (CSS only) | Use amber (#FB8B1E), cyan (#4AF6C3), blue (#0068FF), red (#FF433D) on black (#000000). Monospace fonts for all numerical data |
-| Data-dense table views | Professionals need 20-50 rows visible at once without scrolling. The existing HTMX dashboard wastes too much whitespace | MEDIUM | Existing position/score/signal data | Compact row height (24-28px), minimal padding, no card wrappers around tables. AG Grid or TanStack Table |
-| Color-coded P&L and price changes | Green = profit/up, Red = loss/down is universal in finance. Amber = neutral/unchanged | LOW | Existing P&L data | Apply to: position P&L, score changes, signal direction, drawdown levels. Include brightness variation for magnitude |
-| Real-time data streaming | The existing SSE bridge already pushes events. The React frontend must consume and render them without full page reload | MEDIUM | Existing SSE endpoint at `/dashboard/events` | Use EventSource API or React hook. Update specific components on event type (OrderFilled -> holdings, DrawdownAlert -> gauge) |
-| Navigation sidebar with page switching | Users expect instant page switching without full reloads. Bloomberg has four core panels; we have four pages | LOW | None | Tab-based or sidebar navigation. Active page highlighted. Consider keyboard shortcuts (1-4 for pages) |
-| Holdings/positions table with live P&L | Core of any portfolio view. Must show: symbol, qty, entry, current, P&L ($), P&L (%), stop, target, score | MEDIUM | `OverviewQueryHandler.handle()` provides positions with all fields | Sort by any column. Color-code P&L. Flash/highlight on update via SSE |
-| Equity curve chart | Time-series chart showing portfolio value over time. Already exists in HTMX with Plotly | MEDIUM | `_build_equity_curve()` returns dates + values | Replace Plotly with TradingView Lightweight Charts for consistent trading look. Overlay regime periods as colored bands |
-| Drawdown gauge with tier indicators | Visual gauge showing current drawdown with 10%/15%/20% tier markers. Already exists in HTMX | LOW | `RiskQueryHandler` provides drawdown_pct and drawdown_level | Color transitions: green (0-10%), yellow (10-15%), red (15-20%), flashing red (>20%) |
-| Sector exposure visualization | Donut or treemap showing portfolio allocation by sector with 25% limit line | LOW | `RiskQueryHandler` provides sector_weights | Existing Plotly donut works; convert to a more compact bar chart for data density |
-| Pipeline run status and history | Show recent pipeline runs with stage-by-stage status. Already exists in HTMX | LOW | `PipelineQueryHandler` provides pipeline_runs with stages | Compact timeline view instead of table. Status dots per stage |
-| Scoring heatmap table | Table of all scored symbols with color-coded composite/risk-adjusted scores | MEDIUM | `SignalsQueryHandler` provides scores with composite, risk_adjusted, strategy, signal | True heatmap coloring: gradient from red (0) through amber (50) to green (100). Sortable columns |
-| Approval status panel | Show active strategy approval parameters, suspension state, daily budget usage | LOW | `PipelineQueryHandler` provides approval_status + daily_budget | Compact card with key/value pairs. Budget bar with spent/remaining |
-| Review queue with approve/reject actions | List pending trade reviews with one-click approve/reject. Already exists in HTMX | LOW | Existing `/review/approve` and `/review/reject` POST endpoints | Inline action buttons. Flash confirmation on action |
-| Responsive layout (desktop-first) | Must work on 1920x1080 minimum. Bloomberg runs on dedicated monitors; our dashboard runs in a browser | MEDIUM | None | Desktop-first design. Min-width 1280px. No mobile layout needed (trading is desktop-only) |
+---
 
-### Differentiators (Competitive Advantage)
+## Differentiators
 
-Features that elevate the dashboard from "dark-themed admin panel" to "feels like a real terminal." Not required for launch but significantly increase perceived quality.
+Features that set this system apart. Not expected in every quant system, but significantly increase value.
 
-| Feature | Value Proposition | Complexity | Backend Dependency | Notes |
-|---------|-------------------|------------|-------------------|-------|
-| Command palette (Bloomberg-style) | Bloomberg's command bar is its most iconic feature. Type ticker or function name, autocomplete shows options. Replaces mouse navigation | HIGH | None (frontend routing + data lookup) | Trigger with `/` or `Cmd+K`. Commands: navigate pages, search symbols, trigger pipeline run, toggle approval. Autocomplete with fuzzy matching |
-| Multi-panel workspace layout | Bloomberg Launchpad lets users arrange components freely. Draggable, resizable panels let users build their own layouts | HIGH | None (layout management is frontend-only) | Use react-grid-layout. Save layout to localStorage. Preset layouts: "Overview," "Analysis," "Risk Monitor," "Pipeline Control" |
-| Linked security context | Clicking a symbol in any table sets the "active security" across all panels. Chart, score details, and signal data all update to show that symbol | HIGH | Need per-symbol detail endpoints or client-side filtering | Bloomberg calls this "security groups." Reduces clicks dramatically. Color-coded context indicator |
-| Keyboard navigation | Bloomberg is keyboard-first. Arrow keys navigate tables, Enter opens detail, Esc closes, number keys switch pages | MEDIUM | None | Tab between panels, arrow keys within tables, Enter to drill down, Esc to go back. Show keyboard shortcut hints |
-| TradingView candlestick charts | Professional-grade financial charts with OHLCV candles, volume bars, and technical indicator overlays | HIGH | Need OHLCV price data endpoint (not currently in dashboard queries) | TradingView Lightweight Charts library. Requires adding a price data API route that queries DuckDB OHLCV tables |
-| Ticker tape header | Scrolling horizontal bar showing key symbols with last price and daily change. Bloomberg and CNBC use this pattern | MEDIUM | Need real-time or recent price data for watched symbols | Configurable symbol list. Color-coded changes. Click to set active security |
-| Flash/pulse animation on data update | When a price or P&L value changes via SSE, briefly flash the cell background (green for increase, red for decrease) | MEDIUM | Existing SSE events | 300ms CSS transition. Professional terminals use this for visual attention. Must not be distracting -- subtle pulse, not blinking |
-| System status bar | Bottom bar showing: connection status (SSE connected/disconnected), market status (open/closed/pre-market), execution mode (LIVE/PAPER), last data update timestamp | LOW | Existing execution_mode + SSE connection state | Bloomberg always shows system status. Builds trust that data is current |
-| Alert/notification toast system | Pop-up notifications for critical events: order filled, drawdown tier change, regime change, pipeline completion | MEDIUM | Existing SSE events (OrderFilled, DrawdownAlert, RegimeChanged, PipelineCompleted) | Stack in bottom-right. Auto-dismiss after 5s. Color-coded by severity. Sound for critical (drawdown tier 2+) |
-| Mini-sparklines in tables | Tiny inline charts (30px tall) showing 30-day price trend next to each symbol in holdings/scoring tables | MEDIUM | Need historical price data per symbol | High data density pattern. Bloomberg shows these inline. Can use TradingView Lightweight Charts micro mode |
+| Feature | Value Proposition | Complexity | Dependencies on Existing | Notes |
+|---------|-------------------|------------|-------------------------|-------|
+| **Regime-adjusted technical weights** | Technical indicator weights shift based on market regime. ADX matters more in trending regimes; RSI matters more in ranging regimes. Most systems use fixed weights | MEDIUM | Regime detection + technical scoring both exist | In "Low-Vol Bull": increase MACD/MA weights (trend signals). In "Low-Vol Range": increase RSI weights (mean-reversion). Regime detection already outputs regime label |
+| **Sentiment score with sub-component transparency** | Expand `SentimentScore` VO to expose sub-components (like `TechnicalScore` already does). Most APIs return an opaque sentiment number; showing breakdowns builds trust and explainability | MEDIUM | `SentimentScore` VO needs new fields | Add: `analyst_score`, `insider_score`, `news_score`, `institutional_score` sub-fields. Matches `TechnicalScore`'s pattern with sub_scores. Maintains explainability principle |
+| **4-level performance attribution** | Decompose returns into portfolio/strategy/trade/skill levels. Most retail systems stop at portfolio-level Sharpe. Skill-level attribution (was the regime call correct? was position sizing optimal?) is institutional-grade | HIGH | Trade history + regime records + scoring records | Level 1: alpha vs beta. Level 2: per-strategy Sharpe/hit-rate. Level 3: per-trade P&L with timing analysis. Level 4: regime accuracy, signal IC, sizing efficiency |
+| **Walk-forward parameter optimization** | Automatically re-optimize scoring weights, Kelly parameters, and indicator settings using rolling out-of-sample validation. Prevents overfitting while adapting to market changes | HIGH | Backtest engine exists, performance metrics needed | Rolling window: train on 12 months, validate on 3 months, step forward 3 months. Target: maximize out-of-sample Sharpe. Constrain parameter ranges to prevent extreme values |
+| **Automated diagnostic flags** | System detects when a skill in the chain is degrading: "Signal IC dropped below 0.03", "Regime accuracy < 55%", "Position sizing efficiency < 70%". Self-monitoring before self-improvement | MEDIUM | Performance attribution provides the metrics | Thresholds from research: IC < 0.03 = signal drift, regime accuracy < 55% = retrain needed, sizing efficiency < 70% = recalibrate Kelly. Generate human-readable diagnostic reports |
+| **Commercial API usage analytics** | Track per-user API usage, popular endpoints, error rates, latency percentiles. Standard SaaS ops feature but most MVP APIs skip it | MEDIUM | API middleware logging | Log: endpoint, user, timestamp, latency, status code. Dashboard: daily active users, top endpoints, error rate, p95 latency. Use DuckDB for analytics queries |
+| **Tiered response detail** | Free tier gets composite score only. Starter gets sub-scores. Pro gets full detail + historical scores. Differentiates tiers by data richness, not just rate limits | LOW | API auth already identifies tier | Use response serialization that strips fields based on tier. More valuable than rate limit differentiation because users upgrade for data, not for more requests |
+| **Webhook notifications** | Pro-tier users get POST webhooks when regime changes or when a symbol's score crosses a threshold. Push beats polling | MEDIUM | Regime change events already exist in event bus | Register webhook URL per user. On regime change or score threshold cross, POST to registered URLs. Retry with exponential backoff. Webhook signature verification for security |
+| **Self-improvement recommendation engine** | Goes beyond diagnostics: recommends specific parameter changes with expected impact. "Reduce Dual Momentum lookback from 12 to 9 months (WFE improves from 48% to 56%)" | HIGH | Walk-forward optimization + diagnostic flags | Bayesian optimization (Optuna) over parameter space. Rank recommendations by expected improvement. Require human approval before applying changes (human-in-the-loop for parameter changes too) |
+| **Fama-French factor decomposition** | Decompose returns into market, size, value, momentum, profitability factors. Tells the user WHERE their alpha comes from. Most retail tools cannot do this | MEDIUM | Trade history + market factor data | Use Kenneth French data library (free, daily updated). Regress portfolio returns against 5-factor model. Report: "62% of your return came from momentum factor, 23% from quality" |
 
-### Anti-Features (Commonly Requested, Often Problematic)
+---
 
-Features that seem desirable but create problems for this specific project -- a personal trading system with daily granularity, not a high-frequency trading desk.
+## Anti-Features
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Real-time tick-by-tick streaming | "Bloomberg does real-time" | This system operates on daily granularity for mid-term holding. Sub-second updates add complexity (WebSocket server, price feed subscription, client-side throttling) with zero value for 2-week+ hold periods. The system explicitly forbids day trading | Poll every 60 seconds during market hours. Use SSE for domain events (order fills, alerts) which are infrequent |
-| Drag-and-drop trade execution | "Click to buy/sell from the dashboard" | The system's core value is deliberate, approval-gated execution. One-click trading bypasses the human-in-the-loop safety constraint. Bloomberg requires confirmation dialogs for orders too | Keep trade execution through the pipeline: generate trade plan -> review queue -> approve/reject. Dashboard is for monitoring and approval, not direct order entry |
-| Multiple watchlists with custom categories | "Bloomberg has unlimited watchlists" | Adds significant state management (CRUD for lists, symbol assignment, persistence). The scoring universe is already defined by the pipeline. Adding user-managed lists creates a parallel, unscored tracking system | Single "watchlist" derived from: (1) current positions, (2) active signals, (3) pipeline universe. No user-managed lists -- the system decides what to watch based on scores |
-| Chat/messaging system | "Bloomberg Terminal has IB (Instant Bloomberg)" | This is a personal system for one user. No one to chat with. Adding messaging is pure complexity | System log/activity feed showing recent events, decisions, and reasoning traces |
-| Mobile-responsive design | "I want to check on my phone" | Bloomberg Terminal is desktop-only for a reason: data density requires screen real estate. Phone screens cannot display the information density needed. Adding responsive breakpoints doubles CSS complexity | Desktop-only (min-width 1280px). For mobile monitoring, use simple push notifications for critical alerts (drawdown, order fills) via a separate lightweight endpoint |
-| Custom indicator builder | "Let me define my own technical indicators" | The system uses validated, research-backed indicators (F-Score, Z-Score, M-Score, G-Score). Custom indicators bypass the "verified methodologies only" constraint and add untested signals | Expose existing indicator weights as configurable parameters. The which-indicators decision is made at strategy level, not dashboard level |
-| AI/LLM chat overlay | "Ask AI about my portfolio" | Adds LLM integration complexity, cost, and latency. The system already generates reasoning traces and explanations in the scoring/signal pipeline. An AI overlay is a separate product | Display existing reasoning traces prominently: score breakdowns, signal explanations, risk warnings. Make the system's existing intelligence visible, not hidden behind a chat |
-| Paper/live mode toggle in dashboard | "Switch between paper and live from the UI" | Extremely dangerous. Accidental mode switches could execute real trades. The existing system requires explicit CLI configuration with confirmation | Show current mode prominently (red LIVE banner, green PAPER banner). Mode switching stays in CLI/config only. Dashboard is read-heavy, not config-heavy |
+Features to explicitly NOT build. Commonly requested but problematic for this specific system.
+
+| Anti-Feature | Why Requested | Why Avoid | What to Do Instead |
+|--------------|---------------|-----------|-------------------|
+| **Real-time sentiment streaming** | "News moves markets in seconds" | This is a daily-granularity swing/position system. Intraday sentiment processing adds massive complexity (NLP pipeline, streaming infra, sub-second response) with zero value for 2-week+ holding periods. Day trading is explicitly forbidden | Batch sentiment scoring once daily during pipeline run. Aggregate 24h of news into a single score. Sufficient for swing timeframe |
+| **Social media sentiment (Twitter/Reddit)** | "WSB and FinTwit move stocks" | Social media sentiment is extremely noisy, manipulation-prone (pump-and-dump), and has near-zero predictive power for swing/position timeframes. Academic evidence is weak outside of very short horizons. Data APIs are expensive and unreliable | Stick to validated sentiment signals: analyst revisions (strongest documented alpha), insider trades (academically validated), institutional holdings (13F data). These have decades of evidence |
+| **Custom technical indicators** | "Let me add Ichimoku Cloud / SuperTrend / custom formulas" | The system uses 5 validated indicators (RSI/MACD/MA/ADX/OBV) with explainability. Custom indicators bypass the "verified methodologies only" constraint. Each new indicator adds maintenance burden and testing requirements | Expose indicator weights as configurable parameters. The set of indicators is fixed; their relative importance is tunable |
+| **ML-based sentiment model** | "Train a transformer on financial news" | Training and maintaining a custom NLP model is a separate product-scale effort. Pre-trained financial sentiment APIs (Finnhub, Alpha Vantage) exist and are good enough. Custom models require labeled data, GPU compute, and ongoing retraining | Use pre-built sentiment APIs (Finnhub news sentiment, FMP analyst data). Aggregate their scores. Let them handle the NLP complexity |
+| **Full-auto self-improvement** | "Let the system change its own parameters without approval" | Violates the human-in-the-loop principle. Unattended parameter changes can cause regime-mismatched strategies or oversized positions. Self-improving systems without human gates are a known cause of catastrophic losses | Self-improver generates RECOMMENDATIONS with evidence. Human reviews and approves parameter changes. Changes are logged with rollback capability. Minimum 50 trades before any parameter change recommendation |
+| **Billing/payment integration** | "Stripe integration for API subscriptions" | Premature. Build the product first, validate demand, then add billing. Stripe integration is 2+ weeks of work (webhooks, failed payments, plan changes, invoicing) that delivers zero value until there are paying users | Manual API key provisioning for early users. Accept payment via Stripe Payment Links (no integration needed). Build proper billing when there are 10+ paying customers |
+| **GraphQL API** | "GraphQL is more flexible than REST" | QuantScore/RegimeRadar/SignalFusion are simple, well-defined endpoints. GraphQL adds schema complexity, N+1 query risks, and caching difficulty. REST with OpenAPI auto-docs (FastAPI's strength) is better for this use case | FastAPI REST with auto-generated OpenAPI/Swagger docs. If complex queries emerge later, add specific REST endpoints rather than GraphQL |
+| **Multi-currency / multi-market scoring** | "Score Japanese and European stocks too" | The scoring engine is calibrated for US market data (SEC filings, US fundamental formats, US-centric analyst coverage). Each market has different accounting standards, filing schedules, and data availability. Multi-market is a v2.0 effort | US market only for v1.4. Data adapters for EODHD/FMP already support US data well. Multi-market expansion requires per-market scoring calibration |
+| **Portfolio-level optimization** | "Optimize my entire portfolio allocation using Modern Portfolio Theory" | Position sizing already uses Fractional Kelly 1/4. Adding Markowitz/HRP portfolio optimization is a separate feature that conflicts with the per-stock scoring + sizing approach. It is a different investment philosophy | Keep per-stock scoring + Kelly sizing. If portfolio-level risk analysis is needed, use sector limits (25% cap) and position limits (8% cap) which already exist |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[Dark Theme + Design System]
+[OHLCV Price History in DuckDB] (already exists)
     |
-    +--requires--> [Data-Dense Tables]
-    |                  |
-    |                  +--requires--> [Color-Coded P&L]
-    |                  +--requires--> [Scoring Heatmap]
-    |                  +--enhances--> [Flash Animation on Update]
+    +--enables--> [RSI Calculation]
+    +--enables--> [MACD Calculation]
+    +--enables--> [Moving Average Calculation]
+    +--enables--> [ADX Calculation]
+    +--enables--> [OBV Calculation]
+                      |
+                      +--all feed into--> [Technical Composite Score]
+                                              |
+                                              +--feeds--> [Composite Score (3-axis)]
+
+[Data API Keys (EODHD/FMP)] (already configured)
     |
-    +--requires--> [Navigation Sidebar]
-    |                  +--enhances--> [Keyboard Navigation (1-4 page switch)]
+    +--enables--> [Analyst Revision Data Fetch]
+    +--enables--> [Insider Transaction Data Fetch]
+    +--enables--> [Institutional Holdings Data Fetch]
+
+[News Sentiment API (Finnhub/Alpha Vantage)]
     |
-    +--requires--> [Real-Time SSE Consumption]
-                       |
-                       +--enables--> [Flash Animation on Update]
-                       +--enables--> [Alert Toast System]
-                       +--enables--> [Pipeline Status Updates]
+    +--enables--> [News Sentiment Scoring]
+                      |
+                      +--all feed into--> [Sentiment Composite Score]
+                                              |
+                                              +--feeds--> [Composite Score (3-axis)]
 
-[Holdings Table]
-    +--requires--> [Data-Dense Tables]
-    +--requires--> [Color-Coded P&L]
-    +--enhances--> [Mini-Sparklines]
+[Composite Score (3-axis: fundamental + technical + sentiment)]
+    +--enables--> [QuantScore API]
+    +--enables--> [Improved Signal Generation] (scores now reflect real technical+sentiment)
 
-[Equity Curve Chart]
-    +--requires--> [TradingView Lightweight Charts]
-    +--enhances--> [Regime Period Overlays]
+[Regime Detection] (already exists)
+    +--enables--> [RegimeRadar API]
+    +--enables--> [Regime-Adjusted Technical Weights]
 
-[TradingView Candlestick Charts]
-    +--requires--> [OHLCV Price Data Endpoint] (NEW backend work)
-    +--requires--> [TradingView Lightweight Charts]
-    +--enhances--> [Linked Security Context]
+[Signal Generation] (already exists)
+    +--enables--> [SignalFusion API]
 
-[Command Palette]
-    +--requires--> [Navigation Sidebar] (needs page routing)
-    +--enhances--> [Keyboard Navigation]
-    +--enhances--> [Linked Security Context]
+[FastAPI Server Setup]
+    +--requires--> [API Key Authentication]
+    +--requires--> [Rate Limiting]
+    +--enables--> [QuantScore API]
+    +--enables--> [RegimeRadar API]
+    +--enables--> [SignalFusion API]
 
-[Multi-Panel Layout]
-    +--requires--> [react-grid-layout]
-    +--requires--> all individual panels/widgets exist first
-    +--enhances--> [Linked Security Context]
-
-[Linked Security Context]
-    +--requires--> [Holdings Table] + [Scoring Table] + at least one chart
-    +--conflicts--> [building it too early before panels exist]
-
-[Ticker Tape Header]
-    +--requires--> price data for symbols (same as sparklines)
-    +--enhances--> [Linked Security Context] (click symbol to select)
+[Trade P&L Tracking]
+    +--requires--> [Execution records] (already exist)
+    +--enables--> [Basic Performance Metrics]
+                      |
+                      +--enables--> [4-Level Performance Attribution]
+                                        |
+                                        +--enables--> [Automated Diagnostic Flags]
+                                                          |
+                                                          +--enables--> [Self-Improvement Recommendations]
+                                                                            |
+                                                                            +--enables--> [Walk-Forward Optimization]
 ```
 
 ### Dependency Notes
 
-- **Dark Theme must come first:** Every subsequent component inherits the design system. Building components on a light theme then switching creates rework.
-- **Data-Dense Tables are foundational:** Holdings, scoring, pipeline history, review queue all need the same table component. Build one table primitive, reuse everywhere.
-- **SSE consumption enables reactive features:** Flash animations, toasts, and live status updates all depend on the React SSE hook. Build this early.
-- **TradingView Charts require OHLCV data endpoint:** The existing backend queries return derived data (scores, signals, P&L) but NOT raw OHLCV price history. A new API route querying DuckDB's OHLCV tables is needed for candlestick charts.
-- **Command palette and multi-panel layout are late-stage:** These require all individual components to exist first. They orchestrate existing components, they don't create new data views.
-- **Linked security context conflicts with building it too early:** You need at least 3 panels that can show per-symbol data before linking them adds value.
+- **Technical scoring is independent of sentiment scoring:** Both can be built in parallel. Both feed into the existing composite score computation.
+- **Technical scoring needs ONLY OHLCV data:** Already in DuckDB. No new data source needed. This is the lowest-friction feature.
+- **Sentiment scoring needs external API data:** Analyst revisions and insider trades require FMP or EODHD API calls (already configured). News sentiment needs a new API (Finnhub free tier: 60 req/min, sufficient).
+- **Commercial API wraps existing computation:** QuantScore/RegimeRadar/SignalFusion endpoints are thin REST wrappers around existing scoring/regime/signal engines. Low implementation cost.
+- **Performance attribution is a pipeline:** Trade tracking -> metrics -> attribution -> diagnostics -> self-improvement. Each step depends on the previous one. Cannot skip steps.
+- **Self-improvement is the LAST feature:** It requires all other features to produce data for analysis. Building it too early means no data to learn from.
 
 ---
 
-## MVP Definition
+## MVP Recommendation
 
-### Launch With (v1.3.0)
+### Phase 1 Priority: Technical + Sentiment Scoring
 
-Minimum viable Bloomberg-style dashboard -- replaces HTMX with React while looking and feeling professional.
+Build first because the existing composite score has placeholder technical and neutral sentiment values. Every downstream feature (signals, API scores) improves when these become real.
 
-- [ ] **Design system + dark theme** -- Bloomberg color palette, monospace number fonts, compact spacing. This is the foundation everything else inherits
-- [ ] **Holdings/positions table** -- Data-dense table with symbol, qty, entry, current, P&L ($ and %), stop, target, composite score. Color-coded P&L. Sortable columns
-- [ ] **Equity curve with TradingView Lightweight Charts** -- Replace Plotly. Line chart with regime period colored bands overlay
-- [ ] **Scoring heatmap table** -- All scored symbols with gradient-colored composite/risk-adjusted scores. Sortable. Signal direction indicator
-- [ ] **Drawdown gauge + risk summary** -- Current drawdown with tier markers (10/15/20%). Sector exposure bars. Position count indicator
-- [ ] **Pipeline status + run history** -- Compact timeline of recent runs. Stage-by-stage status dots. Next scheduled run
-- [ ] **Approval + review queue** -- Current approval parameters. Budget bar. Pending reviews with approve/reject buttons
-- [ ] **SSE event consumption** -- React hook consuming `/dashboard/events`. Updates holdings on OrderFilled, drawdown on DrawdownAlert, regime on RegimeChanged, pipeline on PipelineCompleted
-- [ ] **Navigation + system status bar** -- Sidebar with 4 pages. Bottom bar with SSE connection status, execution mode badge, last update timestamp
-- [ ] **LIVE/PAPER mode banner** -- Prominent red/green banner matching existing behavior
+1. **Technical scoring (5 indicators)** -- LOW complexity, no new dependencies, fills existing VOs
+2. **Sentiment scoring (4 factors)** -- MEDIUM complexity, needs API data fetching, fills existing VO
+3. **Regime-adjusted technical weights** -- MEDIUM complexity, connects two existing systems
 
-### Add After Validation (v1.3.x)
+### Phase 2 Priority: Commercial API
 
-Features to add once the core dashboard is working and actively used for daily trading.
+Build second because the scoring engine now produces complete scores worth selling.
 
-- [ ] **Keyboard navigation** -- Arrow keys in tables, 1-4 for page switching, Enter to drill down. Add after using the dashboard daily reveals friction points
-- [ ] **Command palette** -- `/` or `Cmd+K` to open. Search symbols, navigate pages, trigger actions. Add after page structure is stable
-- [ ] **Alert toast system** -- Pop-up notifications for SSE events. Add after daily use reveals which events actually need attention vs. are noise
-- [ ] **Flash animation on data update** -- Cell pulse on value change. Add after SSE consumption is proven reliable
-- [ ] **System activity feed** -- Chronological log of pipeline events, order fills, approval changes. Add after event volume is understood
+4. **FastAPI server + auth + rate limiting** -- MEDIUM complexity, standard infrastructure
+5. **QuantScore endpoint** -- LOW complexity, wraps existing scoring
+6. **RegimeRadar endpoint** -- LOW complexity, wraps existing regime detection
+7. **SignalFusion endpoint** -- LOW complexity, wraps existing signal generation
 
-### Future Consideration (v1.4+)
+### Phase 3 Priority: Performance Attribution + Self-Improvement
 
-Features to defer until the dashboard has been used in production for at least 2 weeks.
+Build last because it requires trade history to accumulate first.
 
-- [ ] **TradingView candlestick charts** -- Requires new OHLCV data endpoint. Defer because the system operates on daily signals, not chart-based discretionary trading. Candlesticks are "nice to look at" but not decision-making tools in this system
-- [ ] **Multi-panel workspace layout** -- Draggable/resizable panels with react-grid-layout. Defer because single-user doesn't need customization urgently; fixed layouts work fine
-- [ ] **Linked security context** -- Click symbol to update all panels. Defer until multiple per-symbol views exist (chart + detail + signals)
-- [ ] **Ticker tape header** -- Scrolling price ticker. Defer because it requires real-time price feed for symbols, which is out of scope for daily-granularity system
-- [ ] **Mini-sparklines** -- Inline 30-day price charts. Defer because it requires per-symbol historical price API
+8. **Trade P&L tracking** -- LOW complexity, extends existing execution records
+9. **Performance metrics** -- MEDIUM complexity, standard financial math
+10. **4-level attribution** -- HIGH complexity, core differentiator
+11. **Diagnostic flags + self-improvement recommendations** -- HIGH complexity, requires attribution data
+
+### Defer
+
+- **Walk-forward optimization** -- Needs 6+ months of trade data to be meaningful. Build when data exists.
+- **Fama-French decomposition** -- Requires factor data integration. Nice-to-have after basic attribution works.
+- **Webhook notifications** -- Defer until commercial API has paying users who request it.
+- **Billing/Stripe integration** -- Defer until 10+ users. Use manual key provisioning initially.
 
 ---
 
@@ -181,99 +195,58 @@ Features to defer until the dashboard has been used in production for at least 2
 
 | Feature | User Value | Implementation Cost | Priority | Phase |
 |---------|------------|---------------------|----------|-------|
-| Dark theme + design system | HIGH | LOW | P1 | v1.3.0 |
-| Holdings/positions table | HIGH | MEDIUM | P1 | v1.3.0 |
-| Equity curve (TradingView) | HIGH | MEDIUM | P1 | v1.3.0 |
-| Scoring heatmap table | HIGH | MEDIUM | P1 | v1.3.0 |
-| Drawdown gauge + risk summary | HIGH | LOW | P1 | v1.3.0 |
-| Pipeline status + history | MEDIUM | LOW | P1 | v1.3.0 |
-| Approval + review queue | MEDIUM | LOW | P1 | v1.3.0 |
-| SSE event consumption | HIGH | MEDIUM | P1 | v1.3.0 |
-| Navigation + status bar | MEDIUM | LOW | P1 | v1.3.0 |
-| LIVE/PAPER mode banner | HIGH | LOW | P1 | v1.3.0 |
-| Keyboard navigation | MEDIUM | MEDIUM | P2 | v1.3.x |
-| Command palette | MEDIUM | HIGH | P2 | v1.3.x |
-| Alert toast system | MEDIUM | MEDIUM | P2 | v1.3.x |
-| Flash animation | LOW | MEDIUM | P2 | v1.3.x |
-| Activity feed | LOW | MEDIUM | P2 | v1.3.x |
-| Candlestick charts | MEDIUM | HIGH | P3 | v1.4+ |
-| Multi-panel layout | LOW | HIGH | P3 | v1.4+ |
-| Linked security context | MEDIUM | HIGH | P3 | v1.4+ |
-| Ticker tape header | LOW | HIGH | P3 | v1.4+ |
-| Mini-sparklines | LOW | MEDIUM | P3 | v1.4+ |
+| RSI scoring | HIGH | LOW | P1 | Technical |
+| MACD scoring | HIGH | LOW | P1 | Technical |
+| MA trend scoring | HIGH | LOW | P1 | Technical |
+| ADX trend strength | HIGH | LOW | P1 | Technical |
+| OBV volume confirm | MEDIUM | LOW | P1 | Technical |
+| Technical composite | HIGH | LOW | P1 | Technical |
+| News sentiment | MEDIUM | MEDIUM | P1 | Sentiment |
+| Analyst revisions | HIGH | MEDIUM | P1 | Sentiment |
+| Insider transactions | MEDIUM | MEDIUM | P1 | Sentiment |
+| Institutional holdings | LOW | LOW | P1 | Sentiment |
+| Sentiment composite | HIGH | LOW | P1 | Sentiment |
+| Regime-adjusted weights | MEDIUM | MEDIUM | P1 | Technical |
+| API key auth | HIGH | LOW | P2 | Commercial |
+| Rate limiting | HIGH | MEDIUM | P2 | Commercial |
+| QuantScore API | HIGH | LOW | P2 | Commercial |
+| RegimeRadar API | HIGH | LOW | P2 | Commercial |
+| SignalFusion API | HIGH | LOW | P2 | Commercial |
+| API disclaimer | HIGH | LOW | P2 | Commercial |
+| Tiered response detail | MEDIUM | LOW | P2 | Commercial |
+| Usage analytics | MEDIUM | MEDIUM | P2 | Commercial |
+| Trade P&L tracking | HIGH | LOW | P3 | Attribution |
+| Performance metrics | HIGH | MEDIUM | P3 | Attribution |
+| 4-level attribution | HIGH | HIGH | P3 | Attribution |
+| Diagnostic flags | MEDIUM | MEDIUM | P3 | Attribution |
+| Self-improvement recs | MEDIUM | HIGH | P3 | Attribution |
+| Sentiment sub-component VO | MEDIUM | MEDIUM | P1 | Sentiment |
+| Walk-forward optimization | MEDIUM | HIGH | P4 | Future |
+| Fama-French decomposition | LOW | MEDIUM | P4 | Future |
+| Webhook notifications | LOW | MEDIUM | P4 | Future |
 
 **Priority key:**
-- P1: Must have for v1.3.0 launch -- these replace existing HTMX functionality with Bloomberg styling
-- P2: Should have -- add once core dashboard is stable and daily usage reveals needs
-- P3: Nice to have -- these require new backend work or are premature for single-user system
-
----
-
-## Competitor Feature Analysis
-
-| Feature | Bloomberg Terminal | TradingView | Existing HTMX Dashboard | Our v1.3 Approach |
-|---------|-------------------|-------------|------------------------|-------------------|
-| Theme | Black + amber/orange, ultra-dense | Dark + light toggle, modern | Light (Tailwind default), spacious | Black + amber/cyan/blue, dense like Bloomberg |
-| Data tables | Monospace, 50+ rows visible, column resize | Not table-focused (chart-first) | Standard HTML tables, 10-15 rows | TanStack Table or AG Grid, 30+ rows, monospace numbers |
-| Charts | Proprietary, integrated with data | Best-in-class candlestick + indicators | Plotly equity curve only | TradingView Lightweight Charts for equity + future candlestick |
-| Real-time | Sub-second tick data | Sub-second tick data | SSE domain events (infrequent) | SSE domain events (keep existing pattern, sufficient for daily system) |
-| Navigation | Command line + keyboard + 4 panels | Tab bar + sidebar | Sidebar with 4 pages | Sidebar with 4 pages + future command palette |
-| Layout | Launchpad: fully customizable panels | Fixed layouts with chart focus | Fixed single-column | Fixed grid layout (v1.3) -> customizable panels (v1.4) |
-| Keyboard | Keyboard-first with color-coded keys | Some keyboard shortcuts | None | Incremental: page switching first, then full keyboard nav |
-| Alerts | Integrated alert + messaging system | Chart-based alerts, email/push | SSE partial updates | Toast notifications from SSE events |
-| Watchlist | Multiple custom watchlists | Multiple watchlists with columns | No explicit watchlist | Derived from positions + signals (no user-managed lists) |
-| Approval workflow | N/A (execution platform) | N/A (charting platform) | HTMX forms with partial swap | React forms with optimistic updates |
-| Risk visualization | Comprehensive risk analytics | Basic portfolio metrics | Drawdown gauge + sector donut | Drawdown gauge + sector bars + position limits + regime badge |
-
----
-
-## Bloomberg-Specific Design Patterns to Implement
-
-### Pattern 1: Information Density Hierarchy
-
-Bloomberg uses three density levels within a single screen:
-1. **Header metrics** (largest) -- 3-5 KPI numbers in large font at top (portfolio value, P&L, drawdown)
-2. **Primary data table** (medium) -- The main working table with 20-40 rows of detail
-3. **Secondary panels** (compact) -- Supporting information in smaller panels around the main table
-
-Apply this to each page: Overview = KPI cards + Holdings table + Equity chart. Signals = Score summary + Heatmap table + Signal cards.
-
-### Pattern 2: Semantic Color System
-
-Bloomberg's colors are not decorative -- every color carries meaning:
-- **Amber (#FB8B1E)**: Default text color, neutral information, labels
-- **White (#FFFFFF)**: High-emphasis data (current values, primary numbers)
-- **Cyan (#4AF6C3)**: Positive/up indicators (profit, buy signals, increasing scores)
-- **Red (#FF433D)**: Negative/down indicators (loss, sell signals, decreasing scores, warnings)
-- **Blue (#0068FF)**: Interactive elements (links, buttons, selected states)
-- **Gray (#666666)**: De-emphasized information (timestamps, secondary labels)
-
-Never use color for decoration only. Every color must mean something.
-
-### Pattern 3: Monospace Number Alignment
-
-All numerical data uses a monospace font (JetBrains Mono, Fira Code, or SF Mono). This prevents visual "jumping" when numbers update and ensures columns align perfectly. Non-numerical text (labels, symbols) can use a proportional font.
-
-### Pattern 4: Compact Component Boundaries
-
-Bloomberg panels use 1px borders in dark gray (#333333) with no rounded corners, no shadows, and no padding between panels. Every pixel is data space. No card-style elevation. No whitespace "breathing room."
+- P1: Scoring completion -- makes the composite score real instead of placeholder
+- P2: Commercial API -- monetizes the scoring engine
+- P3: Attribution + self-improvement -- closes the feedback loop
+- P4: Future enhancements -- need data/users to justify
 
 ---
 
 ## Sources
 
-- [Bloomberg UX: Designing the Terminal for Color Accessibility](https://www.bloomberg.com/ux/2021/10/14/designing-the-terminal-for-color-accessibility/) -- Color system, accessibility considerations
-- [Bloomberg Color Palette](https://www.color-hex.com/color-palette/111776) -- Hex values: #000000, #FF433D, #0068FF, #4AF6C3, #FB8B1E
-- [Bloomberg Terminal Essentials: IB, Worksheets & Launchpad](https://www.bloomberg.com/professional/insights/technology/bloomberg-terminal-essentials-ib-worksheets-launchpad/) -- Launchpad component system, security groups
-- [How Bloomberg Terminal UX Designers Conceal Complexity](https://www.bloomberg.com/company/stories/how-bloomberg-terminal-ux-designers-conceal-complexity/) -- Progressive disclosure, UX patterns
-- [Innovating a Modern Icon: How Bloomberg Keeps the Terminal Cutting-Edge](https://www.bloomberg.com/company/stories/innovating-a-modern-icon-how-bloomberg-keeps-the-terminal-cutting-edge/) -- Evolution from 4-panel to tabbed model
-- [Bloomberg Keyboard Navigation Guide (SFU)](https://www.lib.sfu.ca/system/files/32883/bloomberg_keyboard.pdf) -- Color-coded keys, GO/Menu/Panel shortcuts
-- [React Grid Layout](https://github.com/react-grid-layout/react-grid-layout) -- Draggable/resizable grid for future multi-panel
-- [Berg VS Code Theme (Bloomberg-inspired)](https://github.com/jx22/berg) -- Dark background + bright blue/orange accent reference
-- [TradingView Ticker Tape Widget](https://www.tradingview.com/widget-docs/widgets/tickers/ticker-tape/) -- Scrolling ticker design reference
-- [Hacker News: Bloomberg as information-dense app](https://news.ycombinator.com/item?id=19153875) -- Community discussion on data density best practices
-- Existing codebase: `src/dashboard/application/queries.py`, `src/dashboard/presentation/routes.py` -- Backend data availability verified
+- Existing codebase: `src/scoring/domain/value_objects.py` -- TechnicalScore, TechnicalIndicatorScore, SentimentScore VOs already defined (HIGH confidence)
+- `docs/quantitative-scoring-methodologies.md` -- Technical sub-score components (RSI, MACD, MA, ADX, OBV) and sentiment sub-score components (analyst, news, insider, institutional) fully specified (HIGH confidence)
+- `docs/skill_chaining_and_self_improvement_research.md` -- 4-level performance attribution framework, feedback loop architecture, walk-forward optimization, diagnostic thresholds (HIGH confidence)
+- `docs/strategy-recommendation.md` -- Commercial product definitions (QuantScore, RegimeRadar, SignalFusion), pricing tiers, legal boundaries (HIGH confidence)
+- `docs/api-technical-feasibility.md` -- Data API availability for sentiment data (FMP, EODHD, Finnhub), rate limits, cost analysis (HIGH confidence)
+- [Finnhub News Sentiment API](https://finnhub.io/docs/api/news-sentiment) -- News sentiment scoring API reference (MEDIUM confidence)
+- [FMP Analyst Estimates API](https://site.financialmodelingprep.com/datasets/analyst-estimates-targets) -- Analyst revision data source (MEDIUM confidence)
+- [SentimenTrader](https://sentimentrader.com/indicator-api) -- Sentiment indicator API reference (MEDIUM confidence)
+- [Performance Attribution - Brinson-Fachler](https://www.neoxam.com/datahub/performance-attribution-brinson-fachler-method-explained/) -- Attribution methodology reference (MEDIUM confidence)
+- [FastAPI Rate Limiting Best Practices 2025](https://zuplo.com/learning-center/10-best-practices-for-api-rate-limiting-in-2025) -- Token bucket, sliding window patterns (MEDIUM confidence)
+- [QuantifiedStrategies: 100 Best Trading Indicators 2026](https://www.quantifiedstrategies.com/trading-indicators/) -- Indicator validation and parameter settings (MEDIUM confidence)
 
 ---
-*Feature research for: v1.3 Bloomberg Dashboard*
+*Feature research for: v1.4 Full Stack Trading Platform*
 *Researched: 2026-03-14*
