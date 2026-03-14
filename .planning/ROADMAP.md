@@ -97,10 +97,10 @@ Plans:
   2. When drawdown tier changes (DrawdownAlert), the drawdown gauge and risk indicators update automatically
   3. When market regime changes (RegimeChanged), the regime badge updates across relevant pages
   4. When a pipeline run completes (PipelineCompleted), the pipeline status and history update automatically
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 24-01: TBD
+- [ ] 24-01-PLAN.md -- useSSE hook with EventSource-to-query-invalidation mapping, SSEListener in Providers
 
 ### Phase 25: Cleanup
 **Goal**: Legacy HTMX dashboard code and Plotly dependency are removed, leaving only the React dashboard
