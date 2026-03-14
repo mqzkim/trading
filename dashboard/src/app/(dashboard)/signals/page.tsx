@@ -1,35 +1,52 @@
 'use client';
-import { useEffect, useState } from 'react';
+
+import { scoringColumns } from '@/components/signals/columns';
+import { SignalCards } from '@/components/signals/signal-cards';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DataTable } from '@/components/ui/data-table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useSignals } from '@/hooks/use-signals';
 
 export default function SignalsPage() {
-  const [data, setData] = useState<Record<string, unknown> | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error } = useSignals();
 
-  useEffect(() => {
-    fetch('/api/v1/dashboard/signals')
-      .then((res) => {
-        if (!res.ok) throw new Error(`Backend error: ${res.status}`);
-        return res.json();
-      })
-      .then(setData)
-      .catch((err) => setError(err.message));
-  }, []);
-
-  if (error) {
+  if (isLoading) {
     return (
-      <div className="p-8 text-red-400">
-        Backend connection failed - Start FastAPI first: {error}
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-64" />
+        <Skeleton className="h-48" />
       </div>
     );
   }
-  if (!data) return <div className="p-8 text-gray-400">Loading...</div>;
+
+  if (error) {
+    return <div className="p-8 text-destructive">Backend connection failed: {error.message}</div>;
+  }
+
+  if (!data) return null;
 
   return (
-    <div>
-      <h1 className="text-xl font-bold mb-4">Signals</h1>
-      <pre className="bg-gray-900 p-4 rounded text-sm overflow-auto text-gray-300">
-        {JSON.stringify(data, null, 2)}
-      </pre>
+    <div className="space-y-6">
+      <h1 className="text-xl font-bold">Signals</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Scoring Table</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <DataTable columns={scoringColumns} data={data.scores} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Signal Recommendations</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <SignalCards items={data.signals} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
