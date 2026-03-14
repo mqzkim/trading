@@ -17,6 +17,12 @@
     "indentWidth": 2,
     "lineWidth": 100
   },
+  "css": {
+    "parser": {
+      "cssModules": false,
+      "tailwindDirectives": true
+    }
+  },
   "javascript": {
     "formatter": {
       "quoteStyle": "single",
@@ -30,7 +36,8 @@
       "postcss.config.mjs",
       "biome.json",
       "tsconfig.json",
-      "package.json"
+      "package.json",
+      "components.json"
     ]
   }
 }
