@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from src.dashboard.infrastructure.sse_bridge import SSEBridge
+from src.dashboard.presentation.api_routes import api_router
 from src.dashboard.presentation.routes import router
 
 logger = logging.getLogger(__name__)
@@ -80,5 +81,6 @@ def create_dashboard_app(ctx: dict | None = None) -> FastAPI:
     app.state.sse_bridge = bridge
 
     app.include_router(router)
+    app.include_router(api_router)
 
     return app
