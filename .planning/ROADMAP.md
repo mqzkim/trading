@@ -109,10 +109,10 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. HTMX templates directory and Jinja2 template routes no longer exist in the codebase
   2. Plotly is removed from pyproject.toml dependencies and no Python code imports it
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 25-01: TBD
+- [ ] 25-01-PLAN.md -- Delete HTMX/Jinja2 templates, routes, charts; remove Plotly dependency; fix DDD violation in queries.py
 
 ## Progress
 
