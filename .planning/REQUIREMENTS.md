@@ -11,7 +11,7 @@ Requirements for Bloomberg Dashboard milestone. Each maps to roadmap phases.
 
 - [ ] **SETUP-01**: Next.js 16 프로젝트를 trading 프로젝트 내에 생성하고 개발 환경이 동작한다
 - [ ] **SETUP-02**: Next.js rewrites로 FastAPI API 요청을 프록시할 수 있다
-- [ ] **SETUP-03**: FastAPI에 JSON API 엔드포인트를 추가하여 기존 query handler 데이터를 JSON으로 응답한다
+- [x] **SETUP-03**: FastAPI에 JSON API 엔드포인트를 추가하여 기존 query handler 데이터를 JSON으로 응답한다
 
 ### Design System
 
@@ -93,7 +93,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | SETUP-01 | Phase 21 | Pending |
 | SETUP-02 | Phase 21 | Pending |
-| SETUP-03 | Phase 21 | Pending |
+| SETUP-03 | Phase 21 | Complete |
 | DSGN-01 | Phase 22 | Pending |
 | DSGN-02 | Phase 22 | Pending |
 | DSGN-03 | Phase 22 | Pending |
