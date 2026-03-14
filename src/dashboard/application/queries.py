@@ -212,20 +212,43 @@ class OverviewQueryHandler:
             except Exception:
                 pass
 
+        # Get price adapter and trade plans for target prices
+        price_adapter = self._ctx.get("price_adapter")
+        trade_plan_repo = self._ctx.get("trade_plan_repo")
+
+        # Batch fetch current prices
+        symbols_list = [pos.symbol for pos in raw_positions]
+        current_prices: dict[str, float] = {}
+        if price_adapter is not None:
+            try:
+                current_prices = price_adapter.get_latest_prices(symbols_list)
+            except Exception:
+                pass  # Fall back to entry_price
+
         result = []
         for pos in raw_positions:
             symbol = pos.symbol
             score_vo = scores.get(symbol)
             composite_score = score_vo.value if score_vo else 0.0
 
-            # Position has entry_price and quantity but no current_price
-            # Use entry_price as proxy (no live price feed in v1)
-            current_price = pos.entry_price
-            pnl_pct = 0.0
-            pnl_dollar = 0.0
+            # Current price: real market data, fallback to entry_price
+            current_price = current_prices.get(symbol, pos.entry_price)
+
+            # P&L calculation with real current price
+            pnl_dollar = (current_price - pos.entry_price) * pos.quantity
+            pnl_pct = (current_price - pos.entry_price) / pos.entry_price if pos.entry_price > 0 else 0.0
 
             stop_price = pos.atr_stop.stop_price if pos.atr_stop else 0.0
-            target_price = 0.0  # No target in Position entity
+
+            # Target price from trade plan (take_profit_price)
+            target_price = 0.0
+            if trade_plan_repo is not None:
+                try:
+                    plan = trade_plan_repo.find_by_symbol(symbol)
+                    if plan is not None:
+                        target_price = plan.get("take_profit_price", 0.0)
+                except Exception:
+                    pass
 
             result.append({
                 "symbol": symbol,

@@ -334,6 +334,12 @@ def bootstrap(
         broker_adapter=adapter,
     )
 
+    # Price adapter for dashboard current_price lookups
+    from src.dashboard.infrastructure.price_adapter import PriceAdapter
+    from core.data.client import DataClient
+
+    price_adapter = PriceAdapter(data_client=DataClient())
+
     # Data pipeline for ingest stage (lazy import to avoid circular deps)
     from src.data_ingest.infrastructure.pipeline import DataPipeline
 
@@ -366,6 +372,7 @@ def bootstrap(
         "kill_switch": kill_switch,
         "order_monitor": order_monitor,
         "trading_stream": trading_stream,
+        "price_adapter": price_adapter,
         "data_pipeline": data_pipeline,
         "pipeline_run_repo": pipeline_run_repo,
         "market_calendar": market_calendar,
