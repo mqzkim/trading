@@ -684,8 +684,9 @@ class TestPipelineOrchestratorE2E:
         mock_trade_plan_handler = MagicMock()
         mock_trade_plan_handler.generate.return_value = mock_trade_plan
 
-        # Mock DataClient for _run_plan
-        mock_data_client_get_full = {
+        # Mock DataClient for _run_plan (injected, not created internally)
+        mock_data_client = MagicMock()
+        mock_data_client.get_full.return_value = {
             "price": {"close": 175.50},
             "indicators": {"atr21": 5.0},
         }
@@ -696,5 +697,6 @@ class TestPipelineOrchestratorE2E:
             "score_handler": mock_score_handler,
             "signal_handler": mock_signal_handler,
             "trade_plan_handler": mock_trade_plan_handler,
+            "data_client": mock_data_client,
             "capital": 100_000.0,
         }

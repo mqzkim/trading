@@ -279,17 +279,16 @@ class PipelineOrchestrator:
     ) -> tuple[StageResult, list]:
         """Stage 5: Generate trade plans from actionable signals.
 
-        For each BUY/SELL signal, fetches market data via DataClient and
-        calls trade_plan_handler.generate(). Returns StageResult and the
-        list of generated TradePlan objects for _run_execute to consume.
+        For each BUY/SELL signal, fetches market data via injected data_client
+        and calls trade_plan_handler.generate(). Uses valuation_reader callable
+        (injected from infrastructure layer) for intrinsic_value lookup.
         """
-        from core.data.client import DataClient
         from src.execution.application.commands import GenerateTradePlanCommand
 
         started = datetime.now(timezone.utc)
         trade_plan_handler = handlers["trade_plan_handler"]
         capital = handlers.get("capital", 100_000.0)
-        client = DataClient()
+        data_client = handlers.get("data_client")
 
         plans: list = []
         succeeded = 0
@@ -301,18 +300,22 @@ class PipelineOrchestrator:
                 continue
 
             try:
-                full_data = client.get_full(sym)
-                entry_price = full_data.get("price", {}).get("close", 0.0)
-                atr = full_data.get("indicators", {}).get("atr21", 0.0) or 3.0
+                entry_price = 0.0
+                atr = 3.0
+
+                if data_client is not None:
+                    full_data = data_client.get_full(sym)
+                    entry_price = full_data.get("price", {}).get("close", 0.0)
+                    atr = full_data.get("indicators", {}).get("atr21", 0.0) or 3.0
 
                 score_data = score_results.get(sym, {})
                 composite_score = score_data.get("composite_score", 50.0)
                 margin_of_safety = score_data.get("margin_of_safety", 0.0)
                 reasoning = sig_data.get("reasoning", sig_data.get("reasoning_trace", ""))
-                intrinsic_value = (
-                    entry_price * (1 + margin_of_safety)
-                    if margin_of_safety > 0
-                    else entry_price * 1.2
+
+                # Query intrinsic_value via injected valuation_reader (DDD-compliant)
+                intrinsic_value = self._get_intrinsic_value(
+                    handlers, sym, entry_price, margin_of_safety,
                 )
 
                 cmd = GenerateTradePlanCommand(
@@ -348,6 +351,34 @@ class PipelineOrchestrator:
             symbols_failed=failed,
             succeeded_symbols=[p.symbol for p in plans] if plans else [],
         ), plans
+
+    def _get_intrinsic_value(
+        self,
+        handlers: dict,
+        symbol: str,
+        entry_price: float,
+        margin_of_safety: float,
+    ) -> float:
+        """Get intrinsic value via injected reader, fallback to heuristic.
+
+        Priority:
+        1. valuation_reader callable (injected from infrastructure layer)
+        2. Heuristic: entry_price * (1 + margin_of_safety) if margin_of_safety > 0
+        3. Fallback: entry_price * 1.2
+        """
+        valuation_reader = handlers.get("valuation_reader")
+        if valuation_reader is not None:
+            try:
+                value = valuation_reader(symbol)
+                if value is not None and value > 0:
+                    return value
+            except Exception:
+                pass  # Fall through to heuristic
+
+        # Heuristic fallback
+        if margin_of_safety > 0:
+            return entry_price * (1 + margin_of_safety)
+        return entry_price * 1.2
 
     def _run_execute(self, handlers: dict, trade_plans: list) -> StageResult:
         """Stage 6: Submit generated trade plans via approval gate + execute.
