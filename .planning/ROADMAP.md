@@ -122,6 +122,6 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 21. Foundation | 2/2 | Complete    | 2026-03-14 | - |
 | 22. Design System & Overview Page | 2/2 | Complete    | 2026-03-14 | - |
-| 23. Signals, Risk & Pipeline Pages | 3/3 | Complete   | 2026-03-14 | - |
+| 23. Signals, Risk & Pipeline Pages | 3/3 | Complete    | 2026-03-14 | - |
 | 24. Real-Time & Integration | v1.3 | 0/1 | Not started | - |
 | 25. Cleanup | v1.3 | 0/1 | Not started | - |
