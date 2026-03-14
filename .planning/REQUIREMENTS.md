@@ -1,0 +1,103 @@
+# Requirements: Intrinsic Alpha Trader
+
+**Defined:** 2026-03-14
+**Core Value:** Every recommendation must be explainable and risk-controlled — capital preservation and positive expectancy over maximizing returns.
+
+## v1.3 Requirements
+
+Requirements for Bloomberg Dashboard milestone. Each maps to roadmap phases.
+
+### Setup
+
+- [ ] **SETUP-01**: Next.js 16 프로젝트를 trading 프로젝트 내에 생성하고 개발 환경이 동작한다
+- [ ] **SETUP-02**: Next.js rewrites로 FastAPI API 요청을 프록시할 수 있다
+- [ ] **SETUP-03**: FastAPI에 JSON API 엔드포인트를 추가하여 기존 query handler 데이터를 JSON으로 응답한다
+
+### Design System
+
+- [ ] **DSGN-01**: Bloomberg 다크 테마 색상 토큰 시스템이 적용된다
+- [ ] **DSGN-02**: 모노스페이스 숫자 폰트로 금융 데이터가 정렬 표시된다
+- [ ] **DSGN-03**: 시맨틱 색상이 적용된다 (수익=cyan, 손실=red, 중립=white, 인터랙티브=amber)
+- [ ] **DSGN-04**: shadcn/ui 기반 공통 컴포넌트가 Bloomberg 스타일로 커스터마이징된다
+
+### Overview Page
+
+- [ ] **OVER-01**: KPI 카드 (총 자산, 일간 P&L, 드로다운, 파이프라인 상태)가 표시된다
+- [ ] **OVER-02**: 보유 종목 테이블 (티커, 수량, 가격, P&L, 스탑, 타겟, 스코어)이 표시된다
+- [ ] **OVER-03**: TradingView 에쿼티 커브 차트가 레짐 배경과 함께 표시된다
+- [ ] **OVER-04**: 매매 히스토리 테이블이 표시된다
+
+### Signals Page
+
+- [ ] **SGNL-01**: 스코어링 결과 테이블 (심볼, 복합점수, 리스크조정점수, 시그널)이 표시된다
+- [ ] **SGNL-02**: 시그널 추천 카드 (BUY/SELL/HOLD with strength)가 표시된다
+- [ ] **SGNL-03**: 테이블 컬럼 정렬 기능이 동작한다
+
+### Risk Page
+
+- [ ] **RISK-01**: 드로다운 게이지 (3단계 색상 green/yellow/red)가 표시된다
+- [ ] **RISK-02**: 섹터 노출 도넛 차트가 표시된다
+- [ ] **RISK-03**: 포지션 한도 프로그레스 바가 표시된다
+- [ ] **RISK-04**: 시장 레짐 배지가 표시된다
+
+### Pipeline Page
+
+- [ ] **PIPE-01**: 파이프라인 실행 폼과 결과가 동작한다
+- [ ] **PIPE-02**: 파이프라인 상태/히스토리가 표시된다
+- [ ] **PIPE-03**: 전략 승인 (생성/중단/재개) 폼이 동작한다
+- [ ] **PIPE-04**: 트레이드 리뷰 큐 (승인/거부)가 동작한다
+
+### Real-Time
+
+- [ ] **RT-01**: SSE로 실시간 이벤트 (OrderFilled, PipelineCompleted, DrawdownAlert, RegimeChanged)가 UI 컴포넌트에 반영된다
+
+### Cleanup
+
+- [ ] **CLNP-01**: HTMX/Jinja2 템플릿 코드가 제거된다
+- [ ] **CLNP-02**: Plotly 의존성이 제거된다
+
+## v2 Requirements
+
+Deferred to future release. Tracked but not in current roadmap.
+
+### Interactivity
+
+- **INTX-01**: 키보드 네비게이션으로 페이지/테이블/차트를 탐색할 수 있다
+- **INTX-02**: Cmd+K 커맨드 팔레트로 종목 검색/페이지 전환이 가능하다
+
+### Advanced Charts
+
+- **CHRT-01**: TradingView 캔들스틱 차트로 종목별 OHLCV 가격을 표시한다
+- **CHRT-02**: 차트에 기술적 지표 (MA, RSI, MACD)를 오버레이할 수 있다
+
+### Layout
+
+- **LAYT-01**: 멀티패널 드래그 가능 레이아웃으로 대시보드를 커스터마이징할 수 있다
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| 모바일 반응형 디자인 | Bloomberg 스타일의 데이터 밀도는 데스크탑 전용 |
+| 실시간 틱 스트리밍 | 일간 단위 시스템이므로 불필요, 과도한 리소스 |
+| 드래그 앤 드롭 트레이딩 | human-in-the-loop 제약 위반 |
+| Paper/Live 모드 UI 토글 | 실수로 모드 전환할 위험, 설정 파일로만 관리 |
+| Node.js subprocess로 Python 호출 | CVE-2025-55182 보안 취약점, HTTP BFF만 허용 |
+| DuckDB/SQLite 직접 접근 (Node.js) | 파일 잠금 충돌 이력, FastAPI 경유만 허용 |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| (To be filled by roadmapper) | | |
+
+**Coverage:**
+- v1.3 requirements: 22 total
+- Mapped to phases: 0
+- Unmapped: 22
+
+---
+*Requirements defined: 2026-03-14*
+*Last updated: 2026-03-14 after initial definition*
