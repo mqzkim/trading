@@ -24,6 +24,13 @@
     }
   },
   "files": {
-    "includes": ["src/**", "*.ts", "*.tsx", "*.json", "*.mjs"]
+    "includes": [
+      "src/**",
+      "next.config.ts",
+      "postcss.config.mjs",
+      "biome.json",
+      "tsconfig.json",
+      "package.json"
+    ]
   }
 }
