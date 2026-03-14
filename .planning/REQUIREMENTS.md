@@ -91,13 +91,37 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (To be filled by roadmapper) | | |
+| SETUP-01 | Phase 21 | Pending |
+| SETUP-02 | Phase 21 | Pending |
+| SETUP-03 | Phase 21 | Pending |
+| DSGN-01 | Phase 22 | Pending |
+| DSGN-02 | Phase 22 | Pending |
+| DSGN-03 | Phase 22 | Pending |
+| DSGN-04 | Phase 22 | Pending |
+| OVER-01 | Phase 22 | Pending |
+| OVER-02 | Phase 22 | Pending |
+| OVER-03 | Phase 22 | Pending |
+| OVER-04 | Phase 22 | Pending |
+| SGNL-01 | Phase 23 | Pending |
+| SGNL-02 | Phase 23 | Pending |
+| SGNL-03 | Phase 23 | Pending |
+| RISK-01 | Phase 23 | Pending |
+| RISK-02 | Phase 23 | Pending |
+| RISK-03 | Phase 23 | Pending |
+| RISK-04 | Phase 23 | Pending |
+| PIPE-01 | Phase 23 | Pending |
+| PIPE-02 | Phase 23 | Pending |
+| PIPE-03 | Phase 23 | Pending |
+| PIPE-04 | Phase 23 | Pending |
+| RT-01 | Phase 24 | Pending |
+| CLNP-01 | Phase 25 | Pending |
+| CLNP-02 | Phase 25 | Pending |
 
 **Coverage:**
-- v1.3 requirements: 22 total
-- Mapped to phases: 0
-- Unmapped: 22
+- v1.3 requirements: 25 total
+- Mapped to phases: 25
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-14*
-*Last updated: 2026-03-14 after initial definition*
+*Last updated: 2026-03-14 after roadmap creation*
