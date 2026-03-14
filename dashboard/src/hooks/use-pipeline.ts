@@ -40,7 +40,7 @@ export function useApprovalCreate() {
       allowed_regimes: string[];
       max_per_trade_pct: number;
       daily_budget_cap: number;
-      expires_at: string;
+      expires_in_days: number;
     }) => {
       const res = await fetch('/api/v1/dashboard/approval/create', {
         method: 'POST',
