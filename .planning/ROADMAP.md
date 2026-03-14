@@ -37,7 +37,7 @@ Delivered: Safety infrastructure, automated pipeline, strategy approval, live tr
 - [x] **Phase 21: Foundation** - Next.js project setup, FastAPI JSON API, BFF proxy architecture (completed 2026-03-14)
 - [x] **Phase 22: Design System & Overview Page** - Bloomberg dark theme tokens, shadcn/ui components, Overview page with KPI cards, holdings table, equity curve chart (completed 2026-03-14)
 - [x] **Phase 23: Signals, Risk & Pipeline Pages** - Scoring tables, signal cards, drawdown gauge, sector chart, pipeline controls, approval queue (completed 2026-03-14)
-- [ ] **Phase 24: Real-Time & Integration** - SSE event wiring to React components, live UI updates across all pages
+- [x] **Phase 24: Real-Time & Integration** - SSE event wiring to React components, live UI updates across all pages (completed 2026-03-14)
 - [ ] **Phase 25: Cleanup** - Remove HTMX/Jinja2 templates and Plotly dependency
 
 ## Phase Details
@@ -123,5 +123,5 @@ Plans:
 | 21. Foundation | 2/2 | Complete    | 2026-03-14 | - |
 | 22. Design System & Overview Page | 2/2 | Complete    | 2026-03-14 | - |
 | 23. Signals, Risk & Pipeline Pages | 3/3 | Complete    | 2026-03-14 | - |
-| 24. Real-Time & Integration | v1.3 | 0/1 | Not started | - |
+| 24. Real-Time & Integration | 1/1 | Complete   | 2026-03-14 | - |
 | 25. Cleanup | v1.3 | 0/1 | Not started | - |

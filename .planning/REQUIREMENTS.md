@@ -49,7 +49,7 @@ Requirements for Bloomberg Dashboard milestone. Each maps to roadmap phases.
 
 ### Real-Time
 
-- [ ] **RT-01**: SSE로 실시간 이벤트 (OrderFilled, PipelineCompleted, DrawdownAlert, RegimeChanged)가 UI 컴포넌트에 반영된다
+- [x] **RT-01**: SSE로 실시간 이벤트 (OrderFilled, PipelineCompleted, DrawdownAlert, RegimeChanged)가 UI 컴포넌트에 반영된다
 
 ### Cleanup
 
@@ -113,7 +113,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PIPE-02 | Phase 23 | Complete |
 | PIPE-03 | Phase 23 | Complete |
 | PIPE-04 | Phase 23 | Complete |
-| RT-01 | Phase 24 | Pending |
+| RT-01 | Phase 24 | Complete |
 | CLNP-01 | Phase 25 | Pending |
 | CLNP-02 | Phase 25 | Pending |
 
