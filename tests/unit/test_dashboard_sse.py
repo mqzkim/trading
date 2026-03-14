@@ -105,7 +105,7 @@ async def test_sse_bridge_queue_full_drops():
 
 
 def test_sse_endpoint_content_type():
-    """GET /dashboard/events returns content-type text/event-stream."""
+    """GET /api/v1/dashboard/events returns content-type text/event-stream."""
     ctx = _make_test_ctx()
     app = create_dashboard_app(ctx=ctx)
 
@@ -113,7 +113,7 @@ def test_sse_endpoint_content_type():
     from fastapi.testclient import TestClient
 
     route_paths = [r.path for r in app.routes if hasattr(r, "path")]
-    assert "/dashboard/events" in route_paths
+    assert "/api/v1/dashboard/events" in route_paths
 
     # Verify SSE bridge is wired
     assert hasattr(app.state, "sse_bridge")
