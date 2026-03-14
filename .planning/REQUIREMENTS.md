@@ -42,10 +42,10 @@ Requirements for Bloomberg Dashboard milestone. Each maps to roadmap phases.
 
 ### Pipeline Page
 
-- [ ] **PIPE-01**: 파이프라인 실행 폼과 결과가 동작한다
-- [ ] **PIPE-02**: 파이프라인 상태/히스토리가 표시된다
-- [ ] **PIPE-03**: 전략 승인 (생성/중단/재개) 폼이 동작한다
-- [ ] **PIPE-04**: 트레이드 리뷰 큐 (승인/거부)가 동작한다
+- [x] **PIPE-01**: 파이프라인 실행 폼과 결과가 동작한다
+- [x] **PIPE-02**: 파이프라인 상태/히스토리가 표시된다
+- [x] **PIPE-03**: 전략 승인 (생성/중단/재개) 폼이 동작한다
+- [x] **PIPE-04**: 트레이드 리뷰 큐 (승인/거부)가 동작한다
 
 ### Real-Time
 
@@ -109,10 +109,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RISK-02 | Phase 23 | Complete |
 | RISK-03 | Phase 23 | Complete |
 | RISK-04 | Phase 23 | Complete |
-| PIPE-01 | Phase 23 | Pending |
-| PIPE-02 | Phase 23 | Pending |
-| PIPE-03 | Phase 23 | Pending |
-| PIPE-04 | Phase 23 | Pending |
+| PIPE-01 | Phase 23 | Complete |
+| PIPE-02 | Phase 23 | Complete |
+| PIPE-03 | Phase 23 | Complete |
+| PIPE-04 | Phase 23 | Complete |
 | RT-01 | Phase 24 | Pending |
 | CLNP-01 | Phase 25 | Pending |
 | CLNP-02 | Phase 25 | Pending |

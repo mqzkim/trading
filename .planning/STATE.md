@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 23 of 25 (Signals, Risk & Pipeline Pages)
-Plan: 2 of 3 in current phase (23-02 complete)
-Status: Phase 23 in progress, 23-03 next
-Last activity: 2026-03-14 -- Completed 23-02 Risk Page plan
+Plan: 3 of 3 in current phase (23-03 complete)
+Status: Phase 23 complete, Phase 24 next
+Last activity: 2026-03-14 -- Completed 23-03 Pipeline Page plan (Phase 23 complete)
 
 Progress: [██████████] 100%
 
@@ -48,9 +48,10 @@ Progress: [██████████] 100%
 | 22-design-system | 2/2 | 8min | 4min |
 | Phase 22 P01 | 4min | 2 tasks | 16 files |
 | Phase 22 P02 | 4min | 2 tasks | 5 files |
-| 23-signals-risk-pipeline | 2/3 | -- | -- |
+| 23-signals-risk-pipeline | 3/3 | 9min | 3min |
 | Phase 23 P01 | 3min | 2 tasks | 15 files |
 | Phase 23 P02 | 3min | 2 tasks | 5 files |
+| Phase 23 P03 | 3min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,9 @@ Recent decisions affecting current work:
 - [Phase 23-02]: CSS conic-gradient for drawdown gauge and sector donut -- no chart library needed
 - [Phase 23-02]: ProgressLabel + plain span instead of ProgressValue render function for simpler API
 - [Phase 23-02]: Regime badge colors use theme tokens (profit/loss/chart-1/interactive) for design system consistency
+- [Phase 23-03]: Approval create form uses expires_in_days (integer) matching backend contract, not expires_at (string)
+- [Phase 23-03]: ApprovalControls conditionally renders create form vs status view based on approval null check
+- [Phase 23-03]: ReviewQueue uses two separate useReviewAction hooks (approve/reject) for independent isPending states
 
 ### Pending Todos
 
@@ -99,6 +103,6 @@ New for v1.3:
 
 ## Session Continuity
 
-Last session: 2026-03-14T11:45:12Z
-Stopped at: Completed 23-02-PLAN.md
+Last session: 2026-03-14T11:45:13Z
+Stopped at: Completed 23-03-PLAN.md
 Resume file: None
