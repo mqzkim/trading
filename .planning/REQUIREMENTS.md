@@ -96,51 +96,51 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PIPE-01 | TBD | Pending |
-| PIPE-02 | TBD | Pending |
-| PIPE-03 | TBD | Pending |
-| PIPE-04 | TBD | Pending |
-| PIPE-05 | TBD | Pending |
-| PIPE-06 | TBD | Pending |
-| TECH-01 | TBD | Pending |
-| TECH-02 | TBD | Pending |
-| TECH-03 | TBD | Pending |
-| TECH-04 | TBD | Pending |
-| TECH-05 | TBD | Pending |
-| TECH-06 | TBD | Pending |
-| TECH-07 | TBD | Pending |
-| SENT-01 | TBD | Pending |
-| SENT-02 | TBD | Pending |
-| SENT-03 | TBD | Pending |
-| SENT-04 | TBD | Pending |
-| SENT-05 | TBD | Pending |
-| SENT-06 | TBD | Pending |
-| API-01 | TBD | Pending |
-| API-02 | TBD | Pending |
-| API-03 | TBD | Pending |
-| API-04 | TBD | Pending |
-| API-05 | TBD | Pending |
-| API-06 | TBD | Pending |
-| API-07 | TBD | Pending |
-| PERF-01 | TBD | Pending |
-| PERF-02 | TBD | Pending |
-| PERF-03 | TBD | Pending |
-| PERF-04 | TBD | Pending |
-| PERF-05 | TBD | Pending |
-| SELF-01 | TBD | Pending |
-| SELF-02 | TBD | Pending |
-| SELF-03 | TBD | Pending |
-| SELF-04 | TBD | Pending |
-| DASH-01 | TBD | Pending |
-| DASH-02 | TBD | Pending |
-| DASH-03 | TBD | Pending |
-| DASH-04 | TBD | Pending |
+| PIPE-01 | Phase 26 | Pending |
+| PIPE-02 | Phase 26 | Pending |
+| PIPE-03 | Phase 26 | Pending |
+| PIPE-04 | Phase 26 | Pending |
+| PIPE-05 | Phase 26 | Pending |
+| PIPE-06 | Phase 26 | Pending |
+| TECH-01 | Phase 27 | Pending |
+| TECH-02 | Phase 27 | Pending |
+| TECH-03 | Phase 27 | Pending |
+| TECH-04 | Phase 27 | Pending |
+| TECH-05 | Phase 27 | Pending |
+| TECH-06 | Phase 27 | Pending |
+| TECH-07 | Phase 27 | Pending |
+| SENT-01 | Phase 27 | Pending |
+| SENT-02 | Phase 27 | Pending |
+| SENT-03 | Phase 27 | Pending |
+| SENT-04 | Phase 27 | Pending |
+| SENT-05 | Phase 27 | Pending |
+| SENT-06 | Phase 27 | Pending |
+| API-01 | Phase 28 | Pending |
+| API-02 | Phase 28 | Pending |
+| API-03 | Phase 28 | Pending |
+| API-04 | Phase 28 | Pending |
+| API-05 | Phase 28 | Pending |
+| API-06 | Phase 28 | Pending |
+| API-07 | Phase 28 | Pending |
+| PERF-01 | Phase 29 | Pending |
+| PERF-02 | Phase 29 | Pending |
+| PERF-03 | Phase 29 | Pending |
+| PERF-04 | Phase 29 | Pending |
+| PERF-05 | Phase 29 | Pending |
+| SELF-01 | Phase 29 | Pending |
+| SELF-02 | Phase 29 | Pending |
+| SELF-03 | Phase 29 | Pending |
+| SELF-04 | Phase 29 | Pending |
+| DASH-01 | Phase 28 | Pending |
+| DASH-02 | Phase 28 | Pending |
+| DASH-03 | Phase 28 | Pending |
+| DASH-04 | Phase 28 | Pending |
 
 **Coverage:**
 - v1.4 requirements: 39 total
-- Mapped to phases: 0
-- Unmapped: 39 ⚠️
+- Mapped to phases: 39
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-14*
-*Last updated: 2026-03-14 after initial definition*
+*Last updated: 2026-03-14 after roadmap creation*
