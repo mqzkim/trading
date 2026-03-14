@@ -1,11 +1,10 @@
 """Dashboard JSON REST API routes.
 
-Provides JSON API endpoints that expose the same data as the existing
-HTMX routes. Used by the React frontend via the BFF proxy.
+Provides JSON API endpoints for the React dashboard frontend via the BFF proxy.
 
-All GET endpoints call existing QueryHandlers and return dicts directly.
-All POST endpoints accept JSON bodies (Pydantic BaseModel) instead of Form data.
-The SSE endpoint sends raw JSON payloads (no HTML partials).
+All GET endpoints call QueryHandlers and return dicts directly.
+All POST endpoints accept JSON bodies (Pydantic BaseModel).
+The SSE endpoint sends raw JSON payloads for real-time updates.
 """
 from __future__ import annotations
 
@@ -59,10 +58,7 @@ def api_overview(request: Request) -> dict[str, Any]:
     """Return overview data as JSON (KPIs, positions, equity curve, regime periods)."""
     ctx = request.app.state.ctx
     handler = OverviewQueryHandler(ctx)
-    data = handler.handle()
-    # Strip Plotly chart JSON if present (not needed by React frontend)
-    data.pop("equity_curve_chart_json", None)
-    return data
+    return handler.handle()
 
 
 @api_router.get("/signals")
@@ -77,14 +73,10 @@ def api_signals(
 
 @api_router.get("/risk")
 def api_risk(request: Request) -> dict[str, Any]:
-    """Return risk metrics as JSON (no Plotly chart data)."""
+    """Return risk metrics as JSON."""
     ctx = request.app.state.ctx
     handler = RiskQueryHandler(ctx)
-    data = handler.handle()
-    # Strip Plotly chart JSON keys (React frontend uses its own charts)
-    data.pop("gauge_json", None)
-    data.pop("donut_json", None)
-    return data
+    return handler.handle()
 
 
 @api_router.get("/pipeline")

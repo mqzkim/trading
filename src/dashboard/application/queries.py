@@ -6,7 +6,6 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any
 
-from src.dashboard.presentation.charts import build_drawdown_gauge, build_sector_donut
 
 
 @dataclass(frozen=True)
@@ -443,7 +442,7 @@ class RiskQueryHandler:
 
         Returns:
             dict with keys: drawdown_pct, drawdown_level, sector_weights,
-                position_count, max_positions, regime, gauge_json, donut_json
+                position_count, max_positions, regime
         """
         # Get open positions
         try:
@@ -490,12 +489,6 @@ class RiskQueryHandler:
 
         regime = regime_obj.regime_type.value if regime_obj is not None else "Unknown"
 
-        # Build chart JSON
-        gauge_json = build_drawdown_gauge(drawdown_pct)
-        donut_json = build_sector_donut(
-            sector_weights if sector_weights else {"No positions": 100}
-        )
-
         return {
             "drawdown_pct": drawdown_pct,
             "drawdown_level": drawdown_level,
@@ -503,6 +496,4 @@ class RiskQueryHandler:
             "position_count": position_count,
             "max_positions": self.MAX_POSITIONS,
             "regime": regime,
-            "gauge_json": gauge_json,
-            "donut_json": donut_json,
         }

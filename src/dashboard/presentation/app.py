@@ -1,7 +1,7 @@
 """Dashboard FastAPI app factory.
 
 Creates a FastAPI application with bootstrap context, SSE bridge,
-and dashboard routes mounted at /dashboard/.
+and JSON API routes mounted at /api/v1/dashboard/.
 """
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from fastapi import FastAPI
 
 from src.dashboard.infrastructure.sse_bridge import SSEBridge
 from src.dashboard.presentation.api_routes import api_router
-from src.dashboard.presentation.routes import router
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +53,7 @@ def create_dashboard_app(ctx: dict | None = None) -> FastAPI:
         ctx: Bootstrap context dict. If None, calls bootstrap() to create one.
 
     Returns:
-        Configured FastAPI app with dashboard routes.
+        Configured FastAPI app with JSON API routes.
     """
     if ctx is None:
         from src.bootstrap import bootstrap
@@ -80,7 +79,6 @@ def create_dashboard_app(ctx: dict | None = None) -> FastAPI:
     )
     app.state.sse_bridge = bridge
 
-    app.include_router(router)
     app.include_router(api_router)
 
     return app
