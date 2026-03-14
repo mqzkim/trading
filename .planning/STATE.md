@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Bloomberg Dashboard
 status: in-progress
-stopped_at: Completed 23-01-PLAN.md
-last_updated: "2026-03-14T11:38:00Z"
-last_activity: 2026-03-14 -- Completed 23-01 Signals Page plan
+stopped_at: Completed 23-03-PLAN.md
+last_updated: "2026-03-14T11:45:13Z"
+last_activity: 2026-03-14 -- Completed 23-03 Pipeline Page plan (Phase 23 complete)
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 5
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
   percent: 50
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 23 of 25 (Signals, Risk & Pipeline Pages)
-Plan: 1 of 3 in current phase (23-01 complete)
-Status: Phase 23 in progress, 23-02 next
-Last activity: 2026-03-14 -- Completed 23-01 Signals Page plan
+Plan: 2 of 3 in current phase (23-02 complete)
+Status: Phase 23 in progress, 23-03 next
+Last activity: 2026-03-14 -- Completed 23-02 Risk Page plan
 
-Progress: [█████░░░░░] 50%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -48,8 +48,9 @@ Progress: [█████░░░░░] 50%
 | 22-design-system | 2/2 | 8min | 4min |
 | Phase 22 P01 | 4min | 2 tasks | 16 files |
 | Phase 22 P02 | 4min | 2 tasks | 5 files |
-| 23-signals-risk-pipeline | 1/3 | -- | -- |
+| 23-signals-risk-pipeline | 2/3 | -- | -- |
 | Phase 23 P01 | 3min | 2 tasks | 15 files |
+| Phase 23 P02 | 3min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,9 @@ Recent decisions affecting current work:
 - [Phase 23-01]: Column definitions declared outside component to avoid recreation on each render
 - [Phase 23-01]: Strength indicator uses aria-hidden decorative bar with visible percentage text for accessibility
 - [Phase 23-01]: Badge variant mapping: BUY=default (primary), SELL=destructive, HOLD/--=secondary
+- [Phase 23-02]: CSS conic-gradient for drawdown gauge and sector donut -- no chart library needed
+- [Phase 23-02]: ProgressLabel + plain span instead of ProgressValue render function for simpler API
+- [Phase 23-02]: Regime badge colors use theme tokens (profit/loss/chart-1/interactive) for design system consistency
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ New for v1.3:
 
 ## Session Continuity
 
-Last session: 2026-03-14T11:34:51Z
-Stopped at: Completed 23-01-PLAN.md
+Last session: 2026-03-14T11:45:12Z
+Stopped at: Completed 23-02-PLAN.md
 Resume file: None

@@ -35,10 +35,10 @@ Requirements for Bloomberg Dashboard milestone. Each maps to roadmap phases.
 
 ### Risk Page
 
-- [ ] **RISK-01**: 드로다운 게이지 (3단계 색상 green/yellow/red)가 표시된다
-- [ ] **RISK-02**: 섹터 노출 도넛 차트가 표시된다
-- [ ] **RISK-03**: 포지션 한도 프로그레스 바가 표시된다
-- [ ] **RISK-04**: 시장 레짐 배지가 표시된다
+- [x] **RISK-01**: 드로다운 게이지 (3단계 색상 green/yellow/red)가 표시된다
+- [x] **RISK-02**: 섹터 노출 도넛 차트가 표시된다
+- [x] **RISK-03**: 포지션 한도 프로그레스 바가 표시된다
+- [x] **RISK-04**: 시장 레짐 배지가 표시된다
 
 ### Pipeline Page
 
@@ -105,10 +105,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SGNL-01 | Phase 23 | Complete |
 | SGNL-02 | Phase 23 | Complete |
 | SGNL-03 | Phase 23 | Complete |
-| RISK-01 | Phase 23 | Pending |
-| RISK-02 | Phase 23 | Pending |
-| RISK-03 | Phase 23 | Pending |
-| RISK-04 | Phase 23 | Pending |
+| RISK-01 | Phase 23 | Complete |
+| RISK-02 | Phase 23 | Complete |
+| RISK-03 | Phase 23 | Complete |
+| RISK-04 | Phase 23 | Complete |
 | PIPE-01 | Phase 23 | Pending |
 | PIPE-02 | Phase 23 | Pending |
 | PIPE-03 | Phase 23 | Pending |
