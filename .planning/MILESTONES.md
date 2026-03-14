@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.2 Production Trading & Dashboard (Shipped: 2026-03-14)
+
+**Phases completed:** 9 phases, 20 plans, 0 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.1 Stabilization & Expansion (Shipped: 2026-03-12)
 
 **Phases completed:** 7 phases, 17 plans, 0 tasks
