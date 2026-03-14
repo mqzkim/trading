@@ -3,11 +3,18 @@
 """
 from .sqlite_repo import SqliteScoreRepository
 from .in_memory_repo import InMemoryScoreRepository
-from .core_scoring_adapter import CoreScoringAdapter, TechnicalIndicatorAdapter
+from .core_scoring_adapter import (
+    CoreScoringAdapter,
+    TechnicalIndicatorAdapter,
+    FundamentalDataAdapter,
+    SentimentDataAdapter,
+)
 
 __all__ = [
     "SqliteScoreRepository",
     "InMemoryScoreRepository",
     "CoreScoringAdapter",
     "TechnicalIndicatorAdapter",
+    "FundamentalDataAdapter",
+    "SentimentDataAdapter",
 ]

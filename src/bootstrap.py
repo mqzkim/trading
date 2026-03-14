@@ -93,8 +93,26 @@ def bootstrap(
 
     signal_adapter = CoreSignalAdapter()
 
+    # -- DDD adapters for scoring handler (infrastructure layer) --
+    from src.scoring.infrastructure.core_scoring_adapter import (
+        FundamentalDataAdapter,
+        TechnicalIndicatorAdapter,
+        SentimentDataAdapter,
+    )
+
+    fundamental_adapter = FundamentalDataAdapter()
+    technical_adapter = TechnicalIndicatorAdapter()
+    sentiment_adapter = SentimentDataAdapter()
+
     # -- Handlers (wired with repos) --
-    score_handler = ScoreSymbolHandler(score_repo=score_repo, regime_adjuster=regime_adjuster)
+    score_handler = ScoreSymbolHandler(
+        score_repo=score_repo,
+        regime_adjuster=regime_adjuster,
+        bus=bus,
+        fundamental_client=fundamental_adapter,
+        technical_client=technical_adapter,
+        sentiment_client=sentiment_adapter,
+    )
     signal_handler = GenerateSignalHandler(
         signal_repo=signal_repo,
         signal_adapter=signal_adapter,

@@ -45,6 +45,7 @@ class ScoreSymbolHandler:
         technical_client=None,
         sentiment_client=None,
         regime_adjuster=None,
+        bus=None,
     ):
         self._score_repo = score_repo
         self._safety = SafetyFilterService()
@@ -53,6 +54,7 @@ class ScoreSymbolHandler:
         self._fundamental_client = fundamental_client
         self._technical_client = technical_client
         self._sentiment_client = sentiment_client
+        self._bus = bus
 
     def handle(self, cmd: ScoreSymbolCommand) -> Result:
         """
@@ -115,7 +117,7 @@ class ScoreSymbolHandler:
         # 5. 결과 저장 (Repository)
         self._score_repo.save(symbol, composite)
 
-        # 6. 도메인 이벤트 생성 (bus publish는 Plan 03에서 wiring)
+        # 6. 도메인 이벤트 발행
         event = ScoreUpdatedEvent(
             symbol=symbol,
             composite_score=composite.value,
@@ -123,6 +125,8 @@ class ScoreSymbolHandler:
             safety_passed=True,
             strategy=composite.strategy,
         )
+        if self._bus is not None:
+            self._bus.publish(event)
 
         result = {
             "symbol": symbol,

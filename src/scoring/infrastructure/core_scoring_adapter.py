@@ -209,6 +209,40 @@ class CoreScoringAdapter:
         return compute_fundamental_score(highlights, valuation)
 
 
+class FundamentalDataAdapter:
+    """Infrastructure adapter providing fundamental data via .get(symbol).
+
+    Wraps DataClient + CoreScoringAdapter to keep core/ imports out of handlers.
+    """
+
+    def __init__(
+        self,
+        data_client: DataClient | None = None,
+        scoring_adapter: CoreScoringAdapter | None = None,
+    ) -> None:
+        self._client = data_client or DataClient()
+        self._scoring = scoring_adapter or CoreScoringAdapter()
+
+    def get(self, symbol: str) -> dict:
+        """Fetch fundamental data and compute scores for a symbol."""
+        fund_data = self._client.get_fundamentals(symbol)
+        highlights = fund_data.get("highlights", {})
+        valuation = fund_data.get("valuation", {})
+        return compute_fundamental_score(highlights, valuation)
+
+
+class SentimentDataAdapter:
+    """Infrastructure adapter providing sentiment data via .get(symbol).
+
+    Wraps core/scoring/sentiment to keep core/ imports out of handlers.
+    """
+
+    def get(self, symbol: str) -> dict:
+        """Compute sentiment score for a symbol."""
+        from core.scoring.sentiment import compute_sentiment_score  # type: ignore[import-untyped]
+        return compute_sentiment_score(symbol)  # type: ignore[arg-type]
+
+
 def _safe_last(s: pd.Series) -> float:
     """Extract last non-NaN value from a pandas Series, or NaN if empty."""
     v = s.dropna()
@@ -279,6 +313,29 @@ class TechnicalIndicatorAdapter:
             adx=adx,
             obv_change_pct=obv_change_pct,
         )
+
+    def get(self, symbol: str, days: int = 756) -> dict:
+        """Fetch OHLCV and return raw indicator values as dict.
+
+        Returns dict with keys matching handler's expected format:
+        technical_score, rsi, macd_histogram, close, ma50, ma200, adx, obv_change_pct.
+        """
+        from core.scoring.technical import compute_technical_score  # type: ignore[import-untyped]
+
+        df = self._client.get_price_history(symbol, days)
+        ind = indicators.compute_all(df)
+        result = compute_technical_score(df, ind)
+
+        # Merge raw indicator values for sub-score computation
+        result["rsi"] = _safe_float(_safe_last(ind["rsi14"]))
+        result["macd_histogram"] = _safe_float(_safe_last(ind["macd_histogram"]))
+        result["close"] = _safe_float(float(df["close"].iloc[-1])) if len(df) > 0 else None
+        result["ma50"] = _safe_float(_safe_last(ind["ma50"]))
+        result["ma200"] = _safe_float(_safe_last(ind["ma200"]))
+        result["adx"] = _safe_float(_safe_last(ind["adx14"]))
+        result["obv_change_pct"] = self._compute_obv_change(ind["obv"])
+
+        return result
 
     @staticmethod
     def _compute_obv_change(obv_series: pd.Series, lookback: int = 60) -> float | None:
