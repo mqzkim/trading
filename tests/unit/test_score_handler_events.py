@@ -1,8 +1,11 @@
-"""Tests for ScoreSymbolHandler event creation and G-Score wiring.
+"""Tests for ScoreSymbolHandler event creation, bus publishing, and adapter injection.
 
 Verifies:
 1. ScoreSymbolHandler.handle() passes g_score and is_growth_stock to compute()
 2. ScoreSymbolHandler.handle() creates ScoreUpdatedEvent after scoring
+3. ScoreSymbolHandler publishes ScoreUpdatedEvent via injected bus
+4. ScoreSymbolHandler works when bus is None (backward compat)
+5. ScoreSymbolHandler uses injected DDD adapters instead of inline core/ imports
 """
 from __future__ import annotations
 
@@ -14,6 +17,7 @@ from src.scoring.application.commands import ScoreSymbolCommand
 from src.scoring.application.handlers import ScoreSymbolHandler
 from src.scoring.domain.events import ScoreUpdatedEvent
 from src.scoring.domain.value_objects import CompositeScore
+from src.shared.infrastructure.sync_event_bus import SyncEventBus
 
 
 class FakeScoreRepo:
@@ -21,9 +25,12 @@ class FakeScoreRepo:
 
     def __init__(self) -> None:
         self._scores: dict[str, CompositeScore] = {}
+        self._details: dict[str, dict] = {}
 
-    def save(self, symbol: str, score: CompositeScore) -> None:
+    def save(self, symbol: str, score: CompositeScore, details: dict | None = None) -> None:
         self._scores[symbol] = score
+        if details is not None:
+            self._details[symbol] = details
 
     def find_latest(self, symbol: str) -> Optional[CompositeScore]:
         return self._scores.get(symbol)
@@ -171,3 +178,145 @@ class TestGScoreWiring:
         # Normal stock: fundamental=75, technical=70, sentiment=55
         # swing (TECH-03): 0.40*75 + 0.40*70 + 0.20*55 = 30.0 + 28.0 + 11.0 = 69.0
         assert data["composite_score"] == 69.0
+
+
+class TestBusPublishing:
+    """ScoreSymbolHandler should publish ScoreUpdatedEvent via injected bus."""
+
+    def test_handle_publishes_event_to_bus(self) -> None:
+        """When bus is injected, handle() publishes ScoreUpdatedEvent."""
+        bus = SyncEventBus()
+        received_events: list[ScoreUpdatedEvent] = []
+        bus.subscribe(ScoreUpdatedEvent, lambda e: received_events.append(e))
+
+        repo = FakeScoreRepo()
+        handler = ScoreSymbolHandler(
+            score_repo=repo,
+            bus=bus,
+            fundamental_client=FakeClient({
+                "fundamental_score": 75, "f_score": 8,
+                "z_score": 4.0, "m_score": -2.5,
+            }),
+            technical_client=FakeClient({"technical_score": 70}),
+            sentiment_client=FakeClient({"sentiment_score": 55}),
+        )
+        cmd = ScoreSymbolCommand(symbol="AAPL", strategy="swing")
+        result = handler.handle(cmd)
+
+        assert result.is_ok()
+        assert len(received_events) == 1, "Bus should have received exactly one event"
+        assert received_events[0].symbol == "AAPL"
+        assert received_events[0].composite_score == result.unwrap()["composite_score"]
+
+    def test_handle_works_without_bus(self) -> None:
+        """When bus is None (backward compat), handle() still works without error."""
+        repo = FakeScoreRepo()
+        handler = ScoreSymbolHandler(
+            score_repo=repo,
+            bus=None,
+            fundamental_client=FakeClient({
+                "fundamental_score": 75, "f_score": 8,
+                "z_score": 4.0, "m_score": -2.5,
+            }),
+            technical_client=FakeClient({"technical_score": 70}),
+            sentiment_client=FakeClient({"sentiment_score": 55}),
+        )
+        cmd = ScoreSymbolCommand(symbol="MSFT", strategy="swing")
+        result = handler.handle(cmd)
+
+        assert result.is_ok()
+        assert result.unwrap()["composite_score"] > 0
+
+    def test_no_event_published_when_safety_fails(self) -> None:
+        """Bus should NOT receive events when safety gate fails."""
+        bus = SyncEventBus()
+        received_events: list[ScoreUpdatedEvent] = []
+        bus.subscribe(ScoreUpdatedEvent, lambda e: received_events.append(e))
+
+        repo = FakeScoreRepo()
+        handler = ScoreSymbolHandler(
+            score_repo=repo,
+            bus=bus,
+            fundamental_client=FakeClient({
+                "fundamental_score": 50,
+                "z_score": 1.0, "m_score": -1.0,
+            }),
+            technical_client=FakeClient({"technical_score": 50}),
+            sentiment_client=FakeClient({"sentiment_score": 50}),
+        )
+        cmd = ScoreSymbolCommand(symbol="BAD", strategy="swing")
+        result = handler.handle(cmd)
+
+        assert result.is_ok()
+        assert result.unwrap()["safety_passed"] is False
+        assert len(received_events) == 0, "No event should be published on safety failure"
+
+
+class TestAdapterInjection:
+    """ScoreSymbolHandler should use injected DDD adapters for data fetching."""
+
+    def test_uses_injected_fundamental_client(self) -> None:
+        """Handler calls fundamental_client.get() instead of inline core/ import."""
+        call_log: list[str] = []
+
+        class TrackingClient:
+            def get(self, symbol: str) -> dict:
+                call_log.append(f"fundamental:{symbol}")
+                return {
+                    "fundamental_score": 70, "f_score": 7,
+                    "z_score": 3.0, "m_score": -2.0,
+                }
+
+        handler = ScoreSymbolHandler(
+            score_repo=FakeScoreRepo(),
+            fundamental_client=TrackingClient(),
+            technical_client=FakeClient({"technical_score": 60}),
+            sentiment_client=FakeClient({"sentiment_score": 50}),
+        )
+        handler.handle(ScoreSymbolCommand(symbol="GOOG"))
+
+        assert "fundamental:GOOG" in call_log
+
+    def test_uses_injected_technical_client(self) -> None:
+        """Handler calls technical_client.get() instead of inline core/ import."""
+        call_log: list[str] = []
+
+        class TrackingClient:
+            def get(self, symbol: str) -> dict:
+                call_log.append(f"technical:{symbol}")
+                return {"technical_score": 65}
+
+        handler = ScoreSymbolHandler(
+            score_repo=FakeScoreRepo(),
+            fundamental_client=FakeClient({
+                "fundamental_score": 70, "f_score": 7,
+                "z_score": 3.0, "m_score": -2.0,
+            }),
+            technical_client=TrackingClient(),
+            sentiment_client=FakeClient({"sentiment_score": 50}),
+        )
+        handler.handle(ScoreSymbolCommand(symbol="GOOG"))
+
+        assert "technical:GOOG" in call_log
+
+    def test_uses_injected_sentiment_client(self) -> None:
+        """Handler calls sentiment_client.get() instead of inline core/ import."""
+        call_log: list[str] = []
+
+        class TrackingClient:
+            def get(self, symbol: str) -> dict:
+                call_log.append(f"sentiment:{symbol}")
+                return {"sentiment_score": 55}
+
+        handler = ScoreSymbolHandler(
+            score_repo=FakeScoreRepo(),
+            fundamental_client=FakeClient({
+                "fundamental_score": 70, "f_score": 7,
+                "z_score": 3.0, "m_score": -2.0,
+            }),
+            technical_client=FakeClient({"technical_score": 60}),
+            sentiment_client=TrackingClient(),
+        )
+        handler.handle(ScoreSymbolCommand(symbol="GOOG"))
+
+        assert "sentiment:GOOG" in call_log
