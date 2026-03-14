@@ -29,9 +29,9 @@ Requirements for Bloomberg Dashboard milestone. Each maps to roadmap phases.
 
 ### Signals Page
 
-- [ ] **SGNL-01**: 스코어링 결과 테이블 (심볼, 복합점수, 리스크조정점수, 시그널)이 표시된다
-- [ ] **SGNL-02**: 시그널 추천 카드 (BUY/SELL/HOLD with strength)가 표시된다
-- [ ] **SGNL-03**: 테이블 컬럼 정렬 기능이 동작한다
+- [x] **SGNL-01**: 스코어링 결과 테이블 (심볼, 복합점수, 리스크조정점수, 시그널)이 표시된다
+- [x] **SGNL-02**: 시그널 추천 카드 (BUY/SELL/HOLD with strength)가 표시된다
+- [x] **SGNL-03**: 테이블 컬럼 정렬 기능이 동작한다
 
 ### Risk Page
 
@@ -102,9 +102,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OVER-02 | Phase 22 | Pending |
 | OVER-03 | Phase 22 | Pending |
 | OVER-04 | Phase 22 | Pending |
-| SGNL-01 | Phase 23 | Pending |
-| SGNL-02 | Phase 23 | Pending |
-| SGNL-03 | Phase 23 | Pending |
+| SGNL-01 | Phase 23 | Complete |
+| SGNL-02 | Phase 23 | Complete |
+| SGNL-03 | Phase 23 | Complete |
 | RISK-01 | Phase 23 | Pending |
 | RISK-02 | Phase 23 | Pending |
 | RISK-03 | Phase 23 | Pending |
