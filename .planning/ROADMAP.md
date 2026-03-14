@@ -81,12 +81,12 @@ Plans:
   2. Risk page shows drawdown gauge with 3-tier coloring (green/yellow/red), sector exposure donut chart, position limit progress bars, and market regime badge
   3. Pipeline page allows running the pipeline via form, displays pipeline run history, and provides strategy approval controls (create/suspend/resume)
   4. Trade review queue shows pending trade plans with approve/reject buttons that submit to the backend
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 23-01: TBD
-- [ ] 23-02: TBD
-- [ ] 23-03: TBD
+- [ ] 23-01-PLAN.md -- Shared data layer (types, hooks, DataTable) + Signals page with sortable scoring table and signal cards
+- [ ] 23-02-PLAN.md -- Risk page with drawdown gauge, sector donut chart, position limits, regime badge
+- [ ] 23-03-PLAN.md -- Pipeline page with run form, history, approval controls, trade review queue
 
 ### Phase 24: Real-Time & Integration
 **Goal**: Dashboard UI updates in real-time when trading events occur without requiring page refresh
@@ -116,7 +116,7 @@ Plans:
 
 ## Progress
 
-**Execution Order:** Phases execute in numeric order: 21 → 22 → 23 → 24 → 25
+**Execution Order:** Phases execute in numeric order: 21 -> 22 -> 23 -> 24 -> 25
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
