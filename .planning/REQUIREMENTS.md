@@ -10,11 +10,11 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 ### Pipeline & Tech Debt
 
 - [ ] **PIPE-01**: Pipeline runs successfully end-to-end (screening → scoring → signal → execution)
-- [ ] **PIPE-02**: DuckDB/SQLite scoring store mismatch resolved (single source of truth)
-- [ ] **PIPE-03**: Domain events actually published and consumed via EventBus (not just defined)
+- [x] **PIPE-02**: DuckDB/SQLite scoring store mismatch resolved (single source of truth)
+- [x] **PIPE-03**: Domain events actually published and consumed via EventBus (not just defined)
 - [ ] **PIPE-04**: target_price populated from valuation engine (not always 0.0)
 - [ ] **PIPE-05**: current_price uses live/latest price data (not entry_price proxy)
-- [ ] **PIPE-06**: DDD path wiring gaps closed (legacy core/ wrapper only as fallback)
+- [x] **PIPE-06**: DDD path wiring gaps closed (legacy core/ wrapper only as fallback)
 
 ### Technical Scoring
 
@@ -97,11 +97,11 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | PIPE-01 | Phase 26 | Pending |
-| PIPE-02 | Phase 26 | Pending |
-| PIPE-03 | Phase 26 | Pending |
+| PIPE-02 | Phase 26 | Complete |
+| PIPE-03 | Phase 26 | Complete |
 | PIPE-04 | Phase 26 | Pending |
 | PIPE-05 | Phase 26 | Pending |
-| PIPE-06 | Phase 26 | Pending |
+| PIPE-06 | Phase 26 | Complete |
 | TECH-01 | Phase 27 | Pending |
 | TECH-02 | Phase 27 | Pending |
 | TECH-03 | Phase 27 | Pending |
