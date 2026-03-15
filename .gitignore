@@ -25,6 +25,8 @@ htmlcov/
 # IDE
 .idea/
 .vscode/
+.claude/settings.local.json
+.claude/scripts/*.log
 
 # OS cruft
 .DS_Store
