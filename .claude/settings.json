@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /home/mqz/workspace/trading/.claude/scripts/kanban-sprint-sync.sh",
+            "command": "bash -lc 'repo_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd); bash \"$repo_root/.claude/scripts/kanban-sprint-sync.sh\"'",
             "timeout": 15
           }
         ]
