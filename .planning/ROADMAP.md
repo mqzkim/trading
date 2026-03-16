@@ -85,7 +85,7 @@ Plans:
 
 Plans:
 - [ ] 27-01-PLAN.md — Expand SentimentScore VO, fix MACD ATR normalization, build RealSentimentAdapter, wire SentimentUpdatedEvent
-- [ ] 27-02-PLAN.md — Unit and integration tests for all Phase 27 changes
+- [x] 27-02-PLAN.md — Unit and integration tests for all Phase 27 changes (completed 2026-03-16)
 
 ### Phase 28: Commercial API & Dashboard
 **Goal**: Three commercial API products serve real 3-axis scoring data behind authentication and rate limiting, and the dashboard displays all new scoring and regime data
@@ -131,6 +131,6 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29
 | 12-20 | v1.2 | 20/20 | Complete | 2026-03-14 |
 | 21-25 | v1.3 | 9/9 | Complete | 2026-03-14 |
 | 26. Pipeline Stabilization | 2/2 | Complete   | 2026-03-14 | - |
-| 27. Scoring Expansion | 2/2 | Complete   | 2026-03-16 | - |
+| 27. Scoring Expansion | 2/2 | Complete    | 2026-03-16 | - |
 | 28. Commercial API & Dashboard | v1.4 | 0/? | Not started | - |
 | 29. Performance & Self-Improvement | v1.4 | 0/? | Not started | - |

@@ -18,22 +18,22 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 
 ### Technical Scoring
 
-- [ ] **TECH-01**: RSI(14) scoring integrated into TechnicalScore VO with 0-100 mapping
-- [ ] **TECH-02**: MACD scoring with histogram direction and crossover detection
-- [ ] **TECH-03**: Moving average trend scoring (50/200-day MA, golden/death cross)
-- [ ] **TECH-04**: ADX trend strength scoring (>25 trending, <20 ranging)
-- [ ] **TECH-05**: OBV volume confirmation scoring
-- [ ] **TECH-06**: MACD normalization bug fixed (hardcoded [-5,+5] range)
-- [ ] **TECH-07**: Composite score reflects 3-axis weights (fundamental/technical/sentiment)
+- [x] **TECH-01**: RSI(14) scoring integrated into TechnicalScore VO with 0-100 mapping
+- [x] **TECH-02**: MACD scoring with histogram direction and crossover detection
+- [x] **TECH-03**: Moving average trend scoring (50/200-day MA, golden/death cross)
+- [x] **TECH-04**: ADX trend strength scoring (>25 trending, <20 ranging)
+- [x] **TECH-05**: OBV volume confirmation scoring
+- [x] **TECH-06**: MACD normalization bug fixed (hardcoded [-5,+5] range)
+- [x] **TECH-07**: Composite score reflects 3-axis weights (fundamental/technical/sentiment)
 
 ### Sentiment Scoring
 
-- [ ] **SENT-01**: News sentiment scoring via Alpaca News API + VADER analysis
-- [ ] **SENT-02**: Insider trade scoring from SEC Form 4 data (buy/sell ratio)
-- [ ] **SENT-03**: Institutional holdings change rate from 13F filings
-- [ ] **SENT-04**: Analyst estimate revision direction integrated
-- [ ] **SENT-05**: SentimentScore VO populated with real sub-component data (not default 50)
-- [ ] **SENT-06**: Sentiment confidence field added (data freshness/coverage indicator)
+- [x] **SENT-01**: News sentiment scoring via Alpaca News API + VADER analysis
+- [x] **SENT-02**: Insider trade scoring from SEC Form 4 data (buy/sell ratio)
+- [x] **SENT-03**: Institutional holdings change rate from 13F filings
+- [x] **SENT-04**: Analyst estimate revision direction integrated
+- [x] **SENT-05**: SentimentScore VO populated with real sub-component data (not default 50)
+- [x] **SENT-06**: Sentiment confidence field added (data freshness/coverage indicator)
 
 ### Commercial API
 
@@ -102,19 +102,19 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 | PIPE-04 | Phase 26 | Complete |
 | PIPE-05 | Phase 26 | Complete |
 | PIPE-06 | Phase 26 | Complete |
-| TECH-01 | Phase 27 | Pending |
-| TECH-02 | Phase 27 | Pending |
-| TECH-03 | Phase 27 | Pending |
-| TECH-04 | Phase 27 | Pending |
-| TECH-05 | Phase 27 | Pending |
-| TECH-06 | Phase 27 | Pending |
-| TECH-07 | Phase 27 | Pending |
-| SENT-01 | Phase 27 | Pending |
-| SENT-02 | Phase 27 | Pending |
-| SENT-03 | Phase 27 | Pending |
-| SENT-04 | Phase 27 | Pending |
-| SENT-05 | Phase 27 | Pending |
-| SENT-06 | Phase 27 | Pending |
+| TECH-01 | Phase 27 | Complete |
+| TECH-02 | Phase 27 | Complete |
+| TECH-03 | Phase 27 | Complete |
+| TECH-04 | Phase 27 | Complete |
+| TECH-05 | Phase 27 | Complete |
+| TECH-06 | Phase 27 | Complete |
+| TECH-07 | Phase 27 | Complete |
+| SENT-01 | Phase 27 | Complete |
+| SENT-02 | Phase 27 | Complete |
+| SENT-03 | Phase 27 | Complete |
+| SENT-04 | Phase 27 | Complete |
+| SENT-05 | Phase 27 | Complete |
+| SENT-06 | Phase 27 | Complete |
 | API-01 | Phase 28 | Pending |
 | API-02 | Phase 28 | Pending |
 | API-03 | Phase 28 | Pending |
