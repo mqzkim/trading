@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Full Stack Trading Platform
 status: completed
-stopped_at: Completed 27-01-PLAN.md -- SentimentScore expansion, MACD ATR fix, RealSentimentAdapter
-last_updated: "2026-03-16T19:13:28.255Z"
+stopped_at: "Completed 27-02-PLAN.md -- Phase 27 test coverage: 77 new tests across 5 files"
+last_updated: "2026-03-16T19:23:22.561Z"
 last_activity: 2026-03-14 -- Completed 26-02 pipeline data quality and E2E stability (real prices, valuation adapter, pipeline E2E test)
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 10
 ---
 
@@ -51,6 +51,7 @@ Progress: [##░░░░░░░░] 10%
 | Phase 26 P01 | 17min | 3 tasks | 11 files |
 | Phase 26 P02 | 7min | 2 tasks | 9 files |
 | Phase 27 P01 | 7 | 2 tasks | 9 files |
+| Phase 27 P02 | 8 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,7 @@ Recent decisions affecting current work:
 - [Phase 27]: MACD normalization uses ATR-scaled dynamic range [-2*atr21, +2*atr21] instead of hardcoded [-5, +5]
 - [Phase 27]: SentimentConfidence.NONE triggers weight renormalization: drops 20% sentiment axis, renormalizes fundamental+technical
 - [Phase 27]: RealSentimentAdapter: Alpaca News+VADER for news, yfinance for insider/institutional/analyst
+- [Phase 27]: Patch yfinance at yfinance.Ticker (module level) since it is imported locally inside RealSentimentAdapter methods
 
 ### Pending Todos
 
@@ -89,6 +91,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-16T19:13:21.835Z
-Stopped at: Completed 27-01-PLAN.md -- SentimentScore expansion, MACD ATR fix, RealSentimentAdapter
+Last session: 2026-03-16T19:23:22.558Z
+Stopped at: Completed 27-02-PLAN.md -- Phase 27 test coverage: 77 new tests across 5 files
 Resume file: None
