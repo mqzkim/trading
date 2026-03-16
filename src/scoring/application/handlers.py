@@ -15,11 +15,13 @@ from src.scoring.domain import (
     FundamentalScore,
     TechnicalScore,
     SentimentScore,
+    SentimentConfidence,
     SafetyFilterService,
     CompositeScoringService,
     TechnicalScoringService,
     IScoreRepository,
     ScoreUpdatedEvent,
+    SentimentUpdatedEvent,
 )
 from .commands import ScoreSymbolCommand
 
@@ -101,7 +103,22 @@ class ScoreSymbolHandler:
         # Technical sub-score computation: use raw indicator values if available
         technical = self._compute_technical_with_subscores(technical_data)
 
-        sentiment = SentimentScore(value=sentiment_data.get("sentiment_score", 50))
+        # Build full SentimentScore VO with sub-fields from real adapter data
+        sentiment_confidence = sentiment_data.get("confidence", SentimentConfidence.NONE)
+        if isinstance(sentiment_confidence, str):
+            try:
+                sentiment_confidence = SentimentConfidence(sentiment_confidence)
+            except ValueError:
+                sentiment_confidence = SentimentConfidence.NONE
+
+        sentiment = SentimentScore(
+            value=sentiment_data.get("sentiment_score", 50),
+            news_score=sentiment_data.get("news_score"),
+            insider_score=sentiment_data.get("insider_score"),
+            institutional_score=sentiment_data.get("institutional_score"),
+            analyst_score=sentiment_data.get("analyst_score"),
+            confidence=sentiment_confidence,
+        )
 
         # 4. 복합 점수 산출 (Domain Service)
         composite = self._composite.compute(
@@ -112,6 +129,7 @@ class ScoreSymbolHandler:
             tail_risk_penalty=cmd.tail_risk_penalty,
             g_score=fundamental_data.get("g_score"),
             is_growth_stock=fundamental_data.get("is_growth_stock", False),
+            sentiment_confidence=sentiment_confidence,
         )
 
         # 5. 결과 저장 (Repository) -- sub-scores 포함
@@ -135,6 +153,19 @@ class ScoreSymbolHandler:
         )
         if self._bus is not None:
             self._bus.publish(event)
+
+        # Publish SentimentUpdatedEvent for observability
+        sentiment_event = SentimentUpdatedEvent(
+            symbol=symbol,
+            sentiment_score=sentiment.value,
+            confidence=sentiment.confidence.value,
+            news_score=sentiment.news_score,
+            insider_score=sentiment.insider_score,
+            institutional_score=sentiment.institutional_score,
+            analyst_score=sentiment.analyst_score,
+        )
+        if self._bus is not None:
+            self._bus.publish(sentiment_event)
 
         result = {
             "symbol": symbol,
@@ -187,6 +218,7 @@ class ScoreSymbolHandler:
                 ma200=technical_data.get("ma200"),
                 adx=technical_data.get("adx"),
                 obv_change_pct=technical_data.get("obv_change_pct"),
+                atr21=technical_data.get("atr21"),
             )
 
         # Fallback: no raw indicators, use composite score only
@@ -237,6 +269,7 @@ class ScoreSymbolHandler:
         result["ma50"] = _last(ind["ma50"])
         result["ma200"] = _last(ind["ma200"])
         result["adx"] = _last(ind["adx14"])
+        result["atr21"] = _last(ind["atr21"]) if "atr21" in ind else None
 
         # OBV change percentage (60-day lookback, same as TechnicalIndicatorAdapter)
         obv = ind["obv"].dropna()

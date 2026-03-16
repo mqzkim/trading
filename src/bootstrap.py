@@ -97,12 +97,20 @@ def bootstrap(
     from src.scoring.infrastructure.core_scoring_adapter import (
         FundamentalDataAdapter,
         TechnicalIndicatorAdapter,
-        SentimentDataAdapter,
+        RealSentimentAdapter,
     )
 
     fundamental_adapter = FundamentalDataAdapter()
     technical_adapter = TechnicalIndicatorAdapter()
-    sentiment_adapter = SentimentDataAdapter()
+
+    # RealSentimentAdapter: use Alpaca paper keys for news sentiment
+    from src.settings import settings as _settings
+    _alpaca_key = _settings.ALPACA_PAPER_KEY or _settings.ALPACA_API_KEY
+    _alpaca_secret = _settings.ALPACA_PAPER_SECRET or _settings.ALPACA_SECRET_KEY
+    sentiment_adapter = RealSentimentAdapter(
+        alpaca_key=_alpaca_key,
+        alpaca_secret=_alpaca_secret,
+    )
 
     # -- Handlers (wired with repos) --
     score_handler = ScoreSymbolHandler(
@@ -201,7 +209,7 @@ def bootstrap(
     # Minimal logging handler to prove the event bus infrastructure works
     # end-to-end. Per RESEARCH pitfall 3: start with a no-op/logging handler,
     # verify with integration tests, then enable cross-context wiring in Phase 6+.
-    from src.scoring.domain.events import ScoreUpdatedEvent
+    from src.scoring.domain.events import ScoreUpdatedEvent, SentimentUpdatedEvent
 
     score_events: list[ScoreUpdatedEvent] = []
 
@@ -210,6 +218,15 @@ def bootstrap(
         score_events.append(event)
 
     bus.subscribe(ScoreUpdatedEvent, _log_score_event)
+
+    # Subscribe SentimentUpdatedEvent for logging/observability
+    sentiment_events: list[SentimentUpdatedEvent] = []
+
+    def _log_sentiment_event(event: SentimentUpdatedEvent) -> None:
+        """Track sentiment events for observability. No side effects."""
+        sentiment_events.append(event)
+
+    bus.subscribe(SentimentUpdatedEvent, _log_sentiment_event)
 
     # -- Score -> DuckDB sync (event-driven, per-symbol upsert) --
     from src.signals.infrastructure.duckdb_signal_store import DuckDBSignalStore
@@ -364,6 +381,7 @@ def bootstrap(
         "portfolio_handler": portfolio_handler,
         "trade_plan_handler": trade_plan_handler,
         "score_events": score_events,
+        "sentiment_events": sentiment_events,
         "regime_adjuster": regime_adjuster,
         "capital": capital,
         "market": market,

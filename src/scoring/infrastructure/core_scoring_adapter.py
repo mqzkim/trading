@@ -350,7 +350,7 @@ class RealSentimentAdapter:
                 secret_key=self._alpaca_secret,
             )
             start = datetime.utcnow() - timedelta(days=30)
-            request = NewsRequest(symbols=[symbol], start=start, limit=50)
+            request = NewsRequest(symbols=symbol, start=start, limit=50)  # type: ignore[arg-type]
             news_response = client.get_news(request)
 
             # Extract articles from response
