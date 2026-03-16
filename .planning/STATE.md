@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Full Stack Trading Platform
-status: executing
-stopped_at: Completed 26-02-PLAN.md -- Phase 26 complete
-last_updated: "2026-03-14T14:57:07Z"
-last_activity: 2026-03-14 -- Completed 26-02 pipeline data quality and E2E stability
+status: completed
+stopped_at: Completed 27-01-PLAN.md -- SentimentScore expansion, MACD ATR fix, RealSentimentAdapter
+last_updated: "2026-03-16T19:13:28.255Z"
+last_activity: 2026-03-14 -- Completed 26-02 pipeline data quality and E2E stability (real prices, valuation adapter, pipeline E2E test)
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
   percent: 10
 ---
 
@@ -50,6 +50,7 @@ Progress: [##░░░░░░░░] 10%
 | v1.4 | 4 | TBD | - |
 | Phase 26 P01 | 17min | 3 tasks | 11 files |
 | Phase 26 P02 | 7min | 2 tasks | 9 files |
+| Phase 27 P01 | 7 | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,9 @@ Recent decisions affecting current work:
 - [26-02]: Pipeline _run_plan uses injected data_client and valuation_reader -- no infrastructure imports in domain
 - [26-02]: PriceAdapter with graceful fallback to entry_price when DataClient fails
 - [26-02]: Shared DataClient instance between PriceAdapter and pipeline via bootstrap
+- [Phase 27]: MACD normalization uses ATR-scaled dynamic range [-2*atr21, +2*atr21] instead of hardcoded [-5, +5]
+- [Phase 27]: SentimentConfidence.NONE triggers weight renormalization: drops 20% sentiment axis, renormalizes fundamental+technical
+- [Phase 27]: RealSentimentAdapter: Alpaca News+VADER for news, yfinance for insider/institutional/analyst
 
 ### Pending Todos
 
@@ -85,6 +89,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-14T14:57:07Z
-Stopped at: Completed 26-02-PLAN.md -- Phase 26 complete
+Last session: 2026-03-16T19:13:21.835Z
+Stopped at: Completed 27-01-PLAN.md -- SentimentScore expansion, MACD ATR fix, RealSentimentAdapter
 Resume file: None
