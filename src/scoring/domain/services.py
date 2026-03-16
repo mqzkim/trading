@@ -17,6 +17,7 @@ from .value_objects import (
     TechnicalScore,
     TechnicalIndicatorScore,
     SentimentScore,
+    SentimentConfidence,
     SafetyGate,
     CompositeScore,
     STRATEGY_WEIGHTS,
@@ -120,6 +121,7 @@ class CompositeScoringService:
         tail_risk_penalty: float = 0.0,
         g_score: int | None = None,
         is_growth_stock: bool = False,
+        sentiment_confidence: SentimentConfidence = SentimentConfidence.MEDIUM,
     ) -> CompositeScore:
         """복합 점수 계산.
 
@@ -134,6 +136,8 @@ class CompositeScoringService:
             tail_risk_penalty: 꼬리위험 패널티
             g_score: Mohanram G-Score (0-8), 성장주에만 적용
             is_growth_stock: PBR > 3 여부
+            sentiment_confidence: SentimentConfidence 레벨;
+                NONE일 경우 sentiment 축을 제외하고 fundamental+technical 재정규화
         """
         # G-Score blending for growth stocks
         effective_fundamental_value = fundamental.value
@@ -153,11 +157,27 @@ class CompositeScoringService:
         # Get weights (regime-adjusted or default)
         w = self._regime_adjuster.adjust_weights(strategy)
 
-        raw = (
-            w["fundamental"] * adjusted_fundamental.value
-            + w["technical"] * technical.value
-            + w["sentiment"] * sentiment.value
-        )
+        if sentiment_confidence == SentimentConfidence.NONE:
+            # Drop sentiment axis: renormalize fundamental + technical only
+            w_sum = w["fundamental"] + w["technical"]
+            if w_sum <= 0:
+                w_sum = 1.0
+            w_f = w["fundamental"] / w_sum
+            w_t = w["technical"] / w_sum
+            raw = w_f * adjusted_fundamental.value + w_t * technical.value
+            effective_weights = {
+                "fundamental": round(w_f, 4),
+                "technical": round(w_t, 4),
+                "sentiment": 0.0,
+            }
+        else:
+            raw = (
+                w["fundamental"] * adjusted_fundamental.value
+                + w["technical"] * technical.value
+                + w["sentiment"] * sentiment.value
+            )
+            effective_weights = w
+
         raw = max(0.0, min(100.0, raw))
         risk_adj = max(0.0, min(100.0, raw - 0.3 * tail_risk_penalty))
 
@@ -165,7 +185,7 @@ class CompositeScoringService:
             value=round(raw, 1),
             risk_adjusted=round(risk_adj, 1),
             strategy=strategy,
-            weights=w,
+            weights=effective_weights,
         )
 
 
@@ -205,6 +225,7 @@ class TechnicalScoringService:
         ma200: float | None,
         adx: float | None,
         obv_change_pct: float | None,
+        atr21: float | None = None,
     ) -> TechnicalScore:
         """5개 지표에서 복합 기술 점수 산출.
 
@@ -216,12 +237,15 @@ class TechnicalScoringService:
             ma200: 200일 이동평균
             adx: ADX(14) 값
             obv_change_pct: OBV 변화율 (%)
+            atr21: ATR(21) 값 — MACD 정규화 범위 계산에 사용.
+                   제공 시 [-2*atr21, +2*atr21]로 동적 정규화.
+                   None이면 [-1, +1] 기본 범위 사용.
 
         Returns:
             TechnicalScore with 5 sub-scores and composite value.
         """
         rsi_sub = self._score_rsi(rsi)
-        macd_sub = self._score_macd(macd_histogram)
+        macd_sub = self._score_macd(macd_histogram, atr21)
         ma_sub = self._score_ma(close, ma50, ma200)
         adx_sub = self._score_adx(adx)
         obv_sub = self._score_obv(obv_change_pct)
@@ -276,8 +300,17 @@ class TechnicalScoringService:
             explanation=explanation, raw_value=rsi,
         )
 
-    def _score_macd(self, histogram: float | None) -> TechnicalIndicatorScore:
-        """MACD histogram scoring: positive = bullish, negative = bearish."""
+    def _score_macd(
+        self, histogram: float | None, atr21: float | None = None
+    ) -> TechnicalIndicatorScore:
+        """MACD histogram scoring: positive = bullish, negative = bearish.
+
+        Normalization range:
+          - If atr21 available and > 0: [-2*atr21, +2*atr21] (dynamic, stock-size aware)
+          - Otherwise: [-1.0, +1.0] (1 dollar default for typical stocks)
+
+        This fixes the hardcoded [-5, +5] bug that clipped NVR (ATR~198) to max score.
+        """
         if _is_missing(histogram):
             return TechnicalIndicatorScore(
                 name="MACD", value=50.0,
@@ -286,14 +319,23 @@ class TechnicalScoringService:
             )
         assert isinstance(histogram, (int, float))
 
-        # Normalize histogram: roughly -5 to +5 range maps to 0-100
-        score = _norm(histogram, -5.0, 5.0)
+        # Determine normalization range
+        if atr21 is not None and not _is_missing(atr21) and float(atr21) > 0:
+            half_range = 2.0 * float(atr21)
+            threshold_slight = 0.1 * float(atr21)
+            threshold_strong = 0.3 * float(atr21)
+        else:
+            half_range = 1.0  # 1 dollar default range
+            threshold_slight = 0.1
+            threshold_strong = 0.3
 
-        if histogram > 0.5:
+        score = _norm(histogram, -half_range, half_range)
+
+        if histogram > threshold_strong:
             explanation = f"MACD histogram {histogram:+.2f}: bullish momentum"
-        elif histogram > 0:
+        elif histogram > threshold_slight:
             explanation = f"MACD histogram {histogram:+.2f}: slightly bullish"
-        elif histogram > -0.5:
+        elif histogram > -threshold_slight:
             explanation = f"MACD histogram {histogram:+.2f}: slightly bearish"
         else:
             explanation = f"MACD histogram {histogram:+.2f}: bearish momentum"

@@ -235,12 +235,317 @@ class SentimentDataAdapter:
     """Infrastructure adapter providing sentiment data via .get(symbol).
 
     Wraps core/scoring/sentiment to keep core/ imports out of handlers.
+    Kept for backward compatibility -- use RealSentimentAdapter for live data.
     """
 
     def get(self, symbol: str) -> dict:
         """Compute sentiment score for a symbol."""
         from core.scoring.sentiment import compute_sentiment_score  # type: ignore[import-untyped]
         return compute_sentiment_score(symbol)  # type: ignore[arg-type]
+
+
+class RealSentimentAdapter:
+    """Infrastructure adapter fetching real sentiment data from 4 live sources.
+
+    Sources:
+      1. Alpaca News API + VADER — news sentiment
+      2. yfinance insider_transactions — insider buy/sell ratio
+      3. yfinance institutional_holders — institutional holdings QoQ change
+      4. yfinance recommendations + analyst_price_targets — analyst sentiment
+
+    All external calls are wrapped in try/except: returns None on failure.
+    Confidence is determined by count of non-None sub-scores.
+    """
+
+    # Sub-score weights for composite sentiment (re-normalized if some missing)
+    _WEIGHTS = {
+        "news": 0.35,
+        "insider": 0.25,
+        "institutional": 0.20,
+        "analyst": 0.20,
+    }
+
+    def __init__(
+        self,
+        alpaca_key: str | None = None,
+        alpaca_secret: str | None = None,
+    ) -> None:
+        self._alpaca_key = alpaca_key
+        self._alpaca_secret = alpaca_secret
+
+    def get(self, symbol: str) -> dict:
+        """Fetch all 4 sentiment sub-scores and return composite dict.
+
+        Returns:
+            Dict with keys:
+              sentiment_score (0-100), news_score (float|None),
+              insider_score (float|None), institutional_score (float|None),
+              analyst_score (float|None), confidence (SentimentConfidence)
+        """
+        from src.scoring.domain.value_objects import SentimentConfidence
+
+        news_score = self._fetch_news_sentiment(symbol)
+        insider_score = self._fetch_insider_score(symbol)
+        institutional_score = self._fetch_institutional_score(symbol)
+        analyst_score = self._fetch_analyst_score(symbol)
+
+        # Determine confidence from count of available sub-scores
+        scores = {
+            "news": news_score,
+            "insider": insider_score,
+            "institutional": institutional_score,
+            "analyst": analyst_score,
+        }
+        available_count = sum(1 for v in scores.values() if v is not None)
+        confidence_map = {
+            0: SentimentConfidence.NONE,
+            1: SentimentConfidence.LOW,
+            2: SentimentConfidence.LOW,
+            3: SentimentConfidence.MEDIUM,
+            4: SentimentConfidence.HIGH,
+        }
+        confidence = confidence_map[available_count]
+
+        # Compute composite sentiment as weighted average of available sub-scores
+        if available_count > 0:
+            total_weight = sum(
+                self._WEIGHTS[k] for k, v in scores.items() if v is not None
+            )
+            composite = sum(
+                self._WEIGHTS[k] * v
+                for k, v in scores.items()
+                if v is not None
+            ) / total_weight
+        else:
+            composite = 50.0  # neutral fallback
+
+        composite = max(0.0, min(100.0, composite))
+
+        return {
+            "sentiment_score": round(composite, 1),
+            "news_score": news_score,
+            "insider_score": insider_score,
+            "institutional_score": institutional_score,
+            "analyst_score": analyst_score,
+            "confidence": confidence,
+        }
+
+    def _fetch_news_sentiment(self, symbol: str) -> float | None:
+        """Fetch last 30 days of news from Alpaca, score with VADER.
+
+        Returns:
+            0-100 score or None if keys missing or < 3 articles found.
+        """
+        if not self._alpaca_key or not self._alpaca_secret:
+            return None
+
+        try:
+            from alpaca.data.historical.news import NewsClient
+            from alpaca.data.requests import NewsRequest
+            from datetime import datetime, timedelta
+            from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer  # type: ignore[import-untyped]
+
+            client = NewsClient(
+                api_key=self._alpaca_key,
+                secret_key=self._alpaca_secret,
+            )
+            start = datetime.utcnow() - timedelta(days=30)
+            request = NewsRequest(symbols=[symbol], start=start, limit=50)
+            news_response = client.get_news(request)
+
+            # Extract articles from response
+            articles = []
+            if hasattr(news_response, "news"):
+                articles = news_response.news
+            elif isinstance(news_response, dict) and "news" in news_response:
+                articles = news_response["news"]
+            elif isinstance(news_response, list):
+                articles = news_response
+
+            if len(articles) < 3:
+                return None
+
+            analyzer = SentimentIntensityAnalyzer()
+            compounds = []
+            for article in articles:
+                headline = ""
+                if hasattr(article, "headline"):
+                    headline = article.headline or ""
+                elif isinstance(article, dict):
+                    headline = article.get("headline", "")
+                if headline:
+                    score = analyzer.polarity_scores(headline)
+                    compounds.append(score["compound"])
+
+            if not compounds:
+                return None
+
+            avg_compound = sum(compounds) / len(compounds)
+            # Map compound [-1, +1] to [0, 100]
+            return round((avg_compound + 1.0) / 2.0 * 100.0, 1)
+
+        except Exception:
+            return None
+
+    def _fetch_insider_score(self, symbol: str) -> float | None:
+        """Fetch insider transactions via yfinance.
+
+        Computes buy/(buy+sell) ratio over last 180 days.
+        Returns 0-100 score or None if no data.
+        """
+        try:
+            import yfinance as yf  # type: ignore[import-untyped]
+            from datetime import datetime, timedelta
+
+            ticker = yf.Ticker(symbol)
+            df = ticker.insider_transactions
+            if df is None or (hasattr(df, "empty") and df.empty):
+                return None
+
+            # Filter to last 180 days
+            cutoff = datetime.now() - timedelta(days=180)
+            if "Start Date" in df.columns:
+                date_col = "Start Date"
+            elif "Date" in df.columns:
+                date_col = "Date"
+            else:
+                return None
+
+            df = df.copy()
+            df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
+            df = df[df[date_col] >= pd.Timestamp(cutoff)]
+
+            if df.empty:
+                return None
+
+            # Count buys and sells
+            buys = 0
+            sells = 0
+            for _, row in df.iterrows():
+                text = str(row.get("Transaction", row.get("Text", ""))).lower()
+                if "buy" in text or "purchase" in text:
+                    buys += 1
+                elif "sell" in text or "sale" in text:
+                    sells += 1
+
+            total = buys + sells
+            if total == 0:
+                return None
+
+            ratio = buys / total
+            return round(ratio * 100.0, 1)
+
+        except Exception:
+            return None
+
+    def _fetch_institutional_score(self, symbol: str) -> float | None:
+        """Fetch institutional holdings via yfinance.
+
+        Computes QoQ pctHeld change. Maps [-5%, +5%] change to [0, 100].
+        Returns None if insufficient data.
+        """
+        try:
+            import yfinance as yf  # type: ignore[import-untyped]
+
+            ticker = yf.Ticker(symbol)
+            df = ticker.institutional_holders
+            if df is None or (hasattr(df, "empty") and df.empty):
+                return None
+
+            # Look for "% Out" or "pctHeld" column
+            pct_col = None
+            for col in ["% Out", "pctHeld", "Pct Held"]:
+                if col in df.columns:
+                    pct_col = col
+                    break
+
+            if pct_col is None or len(df) < 2:
+                return None
+
+            latest = float(df[pct_col].iloc[0]) if not pd.isna(df[pct_col].iloc[0]) else None
+            prior = float(df[pct_col].iloc[1]) if not pd.isna(df[pct_col].iloc[1]) else None
+
+            if latest is None or prior is None:
+                return None
+
+            # Handle percentage vs fraction (yfinance returns fractions like 0.03)
+            if latest < 1.0:
+                latest *= 100.0
+            if prior < 1.0:
+                prior *= 100.0
+
+            change_pct = latest - prior
+            # Map [-5%, +5%] change to [0, 100]
+            score = max(0.0, min(100.0, (change_pct + 5.0) / 10.0 * 100.0))
+            return round(score, 1)
+
+        except Exception:
+            return None
+
+    def _fetch_analyst_score(self, symbol: str) -> float | None:
+        """Fetch analyst recommendations and price targets via yfinance.
+
+        Combines:
+          - 60%: bullish_ratio from recommendations (strongBuy+buy / total)
+          - 40%: upside_score from analyst price target vs current price
+
+        Returns 0-100 score or None if no data.
+        """
+        try:
+            import yfinance as yf  # type: ignore[import-untyped]
+
+            ticker = yf.Ticker(symbol)
+
+            # -- Analyst recommendations --
+            recs = ticker.recommendations
+            bullish_score: float | None = None
+
+            if recs is not None and not (hasattr(recs, "empty") and recs.empty):
+                # Get most recent period
+                rec_row = recs.iloc[0] if len(recs) > 0 else None
+                if rec_row is not None:
+                    strong_buy = float(rec_row.get("strongBuy", 0) or 0)
+                    buy = float(rec_row.get("buy", 0) or 0)
+                    hold = float(rec_row.get("hold", 0) or 0)
+                    sell = float(rec_row.get("sell", 0) or 0)
+                    strong_sell = float(rec_row.get("strongSell", 0) or 0)
+                    total = strong_buy + buy + hold + sell + strong_sell
+                    if total > 0:
+                        ratio = (strong_buy + buy) / total
+                        bullish_score = round(ratio * 100.0, 1)
+
+            # -- Analyst price targets --
+            upside_score: float | None = None
+            try:
+                targets = ticker.analyst_price_targets
+                current_price: float | None = None
+
+                # Try to get current price
+                info = ticker.info
+                current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+
+                if targets and current_price and float(current_price) > 0:
+                    mean_target = targets.get("mean") or targets.get("current")
+                    if mean_target and float(mean_target) > 0:
+                        upside_pct = (float(mean_target) - float(current_price)) / float(current_price) * 100
+                        # Map [-20%, +40%] upside to [0, 100]
+                        upside_score = max(0.0, min(100.0, (upside_pct + 20.0) / 60.0 * 100.0))
+                        upside_score = round(upside_score, 1)
+            except Exception:
+                upside_score = None
+
+            # Combine scores
+            if bullish_score is not None and upside_score is not None:
+                return round(0.6 * bullish_score + 0.4 * upside_score, 1)
+            elif bullish_score is not None:
+                return bullish_score
+            elif upside_score is not None:
+                return upside_score
+            else:
+                return None
+
+        except Exception:
+            return None
 
 
 def _safe_last(s: pd.Series) -> float:
@@ -299,6 +604,7 @@ class TechnicalIndicatorAdapter:
         ma50 = _safe_float(_safe_last(ind["ma50"]))
         ma200 = _safe_float(_safe_last(ind["ma200"]))
         adx = _safe_float(_safe_last(ind["adx14"]))
+        atr21 = _safe_float(_safe_last(ind["atr21"])) if "atr21" in ind else None
 
         # OBV change percentage (60-day lookback)
         obv_series = ind["obv"]
@@ -312,6 +618,7 @@ class TechnicalIndicatorAdapter:
             ma200=ma200,
             adx=adx,
             obv_change_pct=obv_change_pct,
+            atr21=atr21,
         )
 
     def get(self, symbol: str, days: int = 756) -> dict:
@@ -334,6 +641,7 @@ class TechnicalIndicatorAdapter:
         result["ma200"] = _safe_float(_safe_last(ind["ma200"]))
         result["adx"] = _safe_float(_safe_last(ind["adx14"]))
         result["obv_change_pct"] = self._compute_obv_change(ind["obv"])
+        result["atr21"] = _safe_float(_safe_last(ind["atr21"])) if "atr21" in ind else None
 
         return result
 

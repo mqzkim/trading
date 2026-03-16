@@ -17,3 +17,19 @@ class ScoreUpdatedEvent(DomainEvent):
     risk_adjusted_score: float
     safety_passed: bool
     strategy: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class SentimentUpdatedEvent(DomainEvent):
+    """센티먼트 서브 스코어 업데이트 이벤트.
+
+    발행: ScoreSymbolHandler (after scoring)
+    구독: 관측/로깅 목적
+    """
+    symbol: str
+    sentiment_score: float
+    confidence: str           # SentimentConfidence.value (str) for serialization
+    news_score: float | None
+    insider_score: float | None
+    institutional_score: float | None
+    analyst_score: float | None

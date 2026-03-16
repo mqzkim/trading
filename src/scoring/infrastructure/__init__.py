@@ -8,6 +8,7 @@ from .core_scoring_adapter import (
     TechnicalIndicatorAdapter,
     FundamentalDataAdapter,
     SentimentDataAdapter,
+    RealSentimentAdapter,
 )
 
 __all__ = [
@@ -17,4 +18,5 @@ __all__ = [
     "TechnicalIndicatorAdapter",
     "FundamentalDataAdapter",
     "SentimentDataAdapter",
+    "RealSentimentAdapter",
 ]

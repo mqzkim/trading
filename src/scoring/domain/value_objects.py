@@ -8,7 +8,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from src.shared.domain import ValueObject
+
+class SentimentConfidence(str, Enum):
+    """센티먼트 신뢰도 — 사용 가능한 데이터 소스 수 기반.
+
+    NONE: 데이터 없음 (0 sources)
+    LOW: 1-2 sources available
+    MEDIUM: 3 sources available
+    HIGH: 4 sources available (all: news, insider, institutional, analyst)
+    """
+    NONE = "NONE"
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
 
 # 전략별 가중치 — TECH-03: swing default = 40/40/20
 STRATEGY_WEIGHTS: dict[str, dict[str, float]] = {
@@ -97,12 +112,18 @@ class TechnicalScore(ValueObject):
 
 @dataclass(frozen=True)
 class SentimentScore(ValueObject):
-    """센티먼트 점수 (0-100).
+    """센티먼트 점수 (0-100) + 4개 서브 소스 + 신뢰도.
 
-    구성: 뉴스 감성, 내부자 거래, 애널리스트 추정치
+    구성: 뉴스 감성, 내부자 거래, 기관 보유, 애널리스트 추정치
     중립 기본값: 50
+    하위 호환: SentimentScore(value=50) 기존 사용법 유지 (서브 스코어 None, 신뢰도 NONE).
     """
     value: float
+    news_score: float | None = None           # Alpaca News + VADER (0-100)
+    insider_score: float | None = None        # yfinance insider buy ratio (0-100)
+    institutional_score: float | None = None  # yfinance institutional qoq change (0-100)
+    analyst_score: float | None = None        # yfinance analyst ratings + price target (0-100)
+    confidence: SentimentConfidence = SentimentConfidence.NONE
 
     def _validate(self) -> None:
         if not 0 <= self.value <= 100:

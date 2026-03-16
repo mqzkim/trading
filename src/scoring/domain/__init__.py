@@ -8,12 +8,13 @@ from .value_objects import (
     TechnicalIndicatorScore,
     TechnicalScore,
     SentimentScore,
+    SentimentConfidence,
     SafetyGate,
     CompositeScore,
     STRATEGY_WEIGHTS,
     DEFAULT_STRATEGY,
 )
-from .events import ScoreUpdatedEvent
+from .events import ScoreUpdatedEvent, SentimentUpdatedEvent
 from .services import (
     CompositeScoringService,
     SafetyFilterService,
@@ -28,11 +29,13 @@ __all__ = [
     "TechnicalIndicatorScore",
     "TechnicalScore",
     "SentimentScore",
+    "SentimentConfidence",
     "SafetyGate",
     "CompositeScore",
     "STRATEGY_WEIGHTS",
     "DEFAULT_STRATEGY",
     "ScoreUpdatedEvent",
+    "SentimentUpdatedEvent",
     "CompositeScoringService",
     "SafetyFilterService",
     "TechnicalScoringService",
