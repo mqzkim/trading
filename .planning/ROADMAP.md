@@ -97,12 +97,12 @@ Plans:
   3. Calling /api/v1/signals with a valid API key returns consensus signals with reasoning traces
   4. Requests without a valid JWT are rejected with 401; requests exceeding tier rate limits are rejected with 429; all responses include legal disclaimer
   5. Dashboard Signals page shows technical and sentiment sub-scores; a Performance Attribution page exists; all pages display real data when available; regime view shows enhanced HMM probabilities
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 28-01: TBD
-- [ ] 28-02: TBD
-- [ ] 28-03: TBD
+- [ ] 28-01-PLAN.md — Extend commercial API schemas/routers for 3-axis sub-scores and regime probabilities
+- [ ] 28-02-PLAN.md — Extend dashboard backend query handlers for sub-score breakdowns and regime probabilities
+- [ ] 28-03-PLAN.md — Dashboard frontend: expandable signals rows, regime probability bars, performance page shell
 
 ### Phase 29: Performance & Self-Improvement
 **Goal**: System tracks trade performance with 4-level attribution, validates signal quality, and proposes parameter improvements (with human approval) after sufficient trade history
@@ -132,5 +132,5 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29
 | 21-25 | v1.3 | 9/9 | Complete | 2026-03-14 |
 | 26. Pipeline Stabilization | 2/2 | Complete   | 2026-03-14 | - |
 | 27. Scoring Expansion | 2/2 | Complete    | 2026-03-16 | - |
-| 28. Commercial API & Dashboard | v1.4 | 0/? | Not started | - |
+| 28. Commercial API & Dashboard | v1.4 | 0/3 | Planning complete | - |
 | 29. Performance & Self-Improvement | v1.4 | 0/? | Not started | - |
