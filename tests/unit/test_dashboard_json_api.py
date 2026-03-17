@@ -163,6 +163,39 @@ def test_risk_does_not_contain_plotly_keys(client):
     assert "donut_json" not in data
 
 
+def test_risk_returns_regime_probabilities_when_regime_exists():
+    """GET /risk returns regime_probabilities dict with 4 regimes summing to ~1.0."""
+    ctx = _make_ctx()
+    mock_regime = MagicMock()
+    mock_regime.regime_type.value = "Bull"
+    mock_regime.confidence = 0.82
+    ctx["regime_repo"].find_latest.return_value = mock_regime
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.get("/api/v1/dashboard/risk")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "regime_probabilities" in data
+    probs = data["regime_probabilities"]
+    assert len(probs) == 4
+    assert probs["Bull"] == 0.82
+    assert abs(sum(probs.values()) - 1.0) < 0.01
+    assert data["regime_confidence"] == 0.82
+
+
+def test_risk_returns_empty_regime_probabilities_when_no_regime():
+    """GET /risk returns empty regime_probabilities when no regime data."""
+    ctx = _make_ctx()
+    ctx["regime_repo"].find_latest.return_value = None
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.get("/api/v1/dashboard/risk")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["regime_probabilities"] == {}
+    assert data["regime_confidence"] == 0.0
+
+
 # -- GET /api/v1/dashboard/pipeline --
 
 
