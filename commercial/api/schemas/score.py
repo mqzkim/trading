@@ -8,6 +8,14 @@ from pydantic import BaseModel, Field
 from .common import DISCLAIMER
 
 
+class SubScoreEntry(BaseModel):
+    """Individual sub-score entry for technical/sentiment breakdown."""
+
+    name: str
+    value: Optional[float] = None  # 0-100 normalized, null if unavailable
+    raw_value: Optional[float] = None
+
+
 class QuantScoreResponse(BaseModel):
     """Response for GET /api/v1/quantscore/{ticker}."""
 
@@ -18,5 +26,8 @@ class QuantScoreResponse(BaseModel):
     fundamental_score: Optional[float] = None
     technical_score: Optional[float] = None
     sentiment_score: Optional[float] = None
-    sub_scores: Optional[dict] = None
+    sentiment_confidence: Optional[str] = None  # "NONE"/"LOW"/"MEDIUM"/"HIGH"
+    sub_scores: Optional[dict] = None  # Keep for backward compat
+    technical_sub_scores: Optional[list[SubScoreEntry]] = None
+    sentiment_sub_scores: Optional[list[SubScoreEntry]] = None
     disclaimer: str = DISCLAIMER

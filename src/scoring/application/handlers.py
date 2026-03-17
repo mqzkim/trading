@@ -194,6 +194,21 @@ class ScoreSymbolHandler:
                 for s in technical.sub_scores
             ]
 
+        # Add sentiment sub-scores and confidence to result dict
+        result["sentiment_confidence"] = sentiment.confidence.value
+        if (
+            sentiment.news_score is not None
+            or sentiment.insider_score is not None
+            or sentiment.institutional_score is not None
+            or sentiment.analyst_score is not None
+        ):
+            result["sentiment_sub_scores"] = [
+                {"name": "News", "value": sentiment.news_score, "raw_value": sentiment.news_score},
+                {"name": "Insider", "value": sentiment.insider_score, "raw_value": sentiment.insider_score},
+                {"name": "Institutional", "value": sentiment.institutional_score, "raw_value": sentiment.institutional_score},
+                {"name": "Analyst", "value": sentiment.analyst_score, "raw_value": sentiment.analyst_score},
+            ]
+
         return Ok(result)
 
     def _compute_technical_with_subscores(self, technical_data: dict) -> TechnicalScore:

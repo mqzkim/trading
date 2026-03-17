@@ -23,6 +23,16 @@ from src.shared.domain import Err
 router = APIRouter(prefix="/regime", tags=["RegimeRadar"])
 
 
+def _compute_regime_probabilities(regime_type: str, confidence: float) -> dict[str, float]:
+    """Compute approximate probability distribution from dominant regime + confidence."""
+    regimes = ["Bull", "Bear", "Sideways", "Crisis"]
+    remaining = 1.0 - confidence
+    per_other = remaining / (len(regimes) - 1) if len(regimes) > 1 else 0.0
+    probs = {r: round(per_other, 4) for r in regimes}
+    probs[regime_type] = round(confidence, 4)
+    return probs
+
+
 @router.get("/current", response_model=RegimeCurrentResponse)
 @limiter.limit(get_tier_limit)
 def get_current_regime(
@@ -53,6 +63,9 @@ def get_current_regime(
             adx=latest.trend.adx,
             yield_spread=latest.yield_curve.spread,
             detected_at=latest.detected_at.isoformat(),
+            regime_probabilities=_compute_regime_probabilities(
+                latest.regime_type.value, latest.confidence
+            ),
             disclaimer=DISCLAIMER,
         )
 
@@ -66,6 +79,9 @@ def get_current_regime(
         adx=data.get("adx"),
         yield_spread=data.get("yield_spread"),
         detected_at=data.get("detected_at"),
+        regime_probabilities=_compute_regime_probabilities(
+            data["regime_type"], data["confidence"]
+        ),
         disclaimer=DISCLAIMER,
     )
 

@@ -19,6 +19,7 @@ class RegimeCurrentResponse(BaseModel):
     adx: Optional[float] = None
     yield_spread: Optional[float] = None
     detected_at: Optional[str] = None
+    regime_probabilities: Optional[dict[str, float]] = None
     disclaimer: str = DISCLAIMER
 
 

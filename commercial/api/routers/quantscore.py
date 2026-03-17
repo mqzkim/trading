@@ -10,7 +10,7 @@ from slowapi import Limiter
 from commercial.api.dependencies import get_current_user, get_score_handler
 from commercial.api.middleware.rate_limit import get_tier_limit, limiter
 from commercial.api.schemas.common import DISCLAIMER
-from commercial.api.schemas.score import QuantScoreResponse
+from commercial.api.schemas.score import QuantScoreResponse, SubScoreEntry
 from src.scoring.application.commands import ScoreSymbolCommand
 from src.shared.domain import Err
 
@@ -37,13 +37,29 @@ def get_quantscore(
 
     data = result.value
 
-    # Build sub_scores from technical_sub_scores if present
+    # Build sub_scores from technical_sub_scores if present (legacy dict)
     sub_scores = None
     if data.get("technical_sub_scores"):
         sub_scores = {
             s["name"]: {"value": s["value"], "explanation": s["explanation"], "raw_value": s["raw_value"]}
             for s in data["technical_sub_scores"]
         }
+
+    # Build typed technical_sub_scores list
+    technical_sub_scores_typed = None
+    if data.get("technical_sub_scores"):
+        technical_sub_scores_typed = [
+            SubScoreEntry(name=s["name"], value=s["value"], raw_value=s["raw_value"])
+            for s in data["technical_sub_scores"]
+        ]
+
+    # Build typed sentiment_sub_scores list
+    sentiment_sub_scores_typed = None
+    if data.get("sentiment_sub_scores"):
+        sentiment_sub_scores_typed = [
+            SubScoreEntry(name=s["name"], value=s["value"], raw_value=s["raw_value"])
+            for s in data["sentiment_sub_scores"]
+        ]
 
     return QuantScoreResponse(
         symbol=data["symbol"],
@@ -53,6 +69,9 @@ def get_quantscore(
         fundamental_score=data.get("fundamental_score"),
         technical_score=data.get("technical_score"),
         sentiment_score=data.get("sentiment_score"),
+        sentiment_confidence=data.get("sentiment_confidence"),
         sub_scores=sub_scores,
+        technical_sub_scores=technical_sub_scores_typed,
+        sentiment_sub_scores=sentiment_sub_scores_typed,
         disclaimer=DISCLAIMER,
     )
