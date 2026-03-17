@@ -3,6 +3,7 @@
 import { DrawdownGauge } from '@/components/risk/drawdown-gauge';
 import { PositionLimits } from '@/components/risk/position-limits';
 import { RegimeBadge } from '@/components/risk/regime-badge';
+import { RegimeProbabilities } from '@/components/risk/regime-probabilities';
 import { SectorDonut } from '@/components/risk/sector-donut';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -73,6 +74,14 @@ export default function RiskPage() {
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             <RegimeBadge regime={data.regime} />
+            {data.regime_probabilities && Object.keys(data.regime_probabilities).length > 0 && (
+              <div className="mt-3">
+                <RegimeProbabilities
+                  probabilities={data.regime_probabilities}
+                  dominant={data.regime}
+                />
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               Current market regime detected by HMM model
             </p>

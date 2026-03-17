@@ -25,6 +25,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               Pipeline
             </Link>
           </li>
+          <li>
+            <Link href="/performance" className="hover:text-primary">
+              Performance
+            </Link>
+          </li>
         </ul>
       </nav>
       <main className="p-6">{children}</main>
