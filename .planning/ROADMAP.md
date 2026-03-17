@@ -50,7 +50,7 @@ Delivered: Bloomberg terminal-style React dashboard with TradingView charts, dat
 
 - [x] **Phase 26: Pipeline Stabilization** - Fix DDD wiring gaps, unify scoring stores, verify event bus, populate real prices (completed 2026-03-14)
 - [x] **Phase 27: Scoring Expansion** - Technical indicators (RSI/MACD/MA/ADX/OBV) and sentiment scoring (news/insider/institutional/analyst) integrated into composite (completed 2026-03-16)
-- [ ] **Phase 28: Commercial API & Dashboard** - Three API products (QuantScore/RegimeRadar/SignalFusion) with auth/rate-limiting, plus dashboard updates showing new scoring and regime data
+- [x] **Phase 28: Commercial API & Dashboard** - Three API products (QuantScore/RegimeRadar/SignalFusion) with auth/rate-limiting, plus dashboard updates showing new scoring and regime data (completed 2026-03-17)
 - [ ] **Phase 29: Performance & Self-Improvement** - Trade P&L tracking, Brinson-Fachler attribution, signal validation, and propose-then-approve parameter optimization
 
 ## Phase Details
@@ -132,5 +132,5 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29
 | 21-25 | v1.3 | 9/9 | Complete | 2026-03-14 |
 | 26. Pipeline Stabilization | 2/2 | Complete   | 2026-03-14 | - |
 | 27. Scoring Expansion | 2/2 | Complete    | 2026-03-16 | - |
-| 28. Commercial API & Dashboard | 2/3 | In Progress|  | - |
+| 28. Commercial API & Dashboard | 3/3 | Complete   | 2026-03-17 | - |
 | 29. Performance & Self-Improvement | v1.4 | 0/? | Not started | - |

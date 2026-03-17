@@ -63,7 +63,7 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 ### Dashboard Enhancement
 
 - [x] **DASH-01**: Technical and sentiment sub-scores visible on Signals page
-- [ ] **DASH-02**: Performance attribution page added to dashboard
+- [x] **DASH-02**: Performance attribution page added to dashboard
 - [x] **DASH-03**: Real data displayed across all pages (no empty states when data exists)
 - [x] **DASH-04**: Regime detection enhanced view with HMM probabilities
 
@@ -132,7 +132,7 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 | SELF-03 | Phase 29 | Pending |
 | SELF-04 | Phase 29 | Pending |
 | DASH-01 | Phase 28 | Complete |
-| DASH-02 | Phase 28 | Pending |
+| DASH-02 | Phase 28 | Complete |
 | DASH-03 | Phase 28 | Complete |
 | DASH-04 | Phase 28 | Complete |
 
