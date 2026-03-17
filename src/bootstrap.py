@@ -246,6 +246,20 @@ def bootstrap(
     trade_persistence_handler = TradePersistenceHandler(trade_repo=trade_history_repo)
     bus.subscribe(PositionClosedEvent, trade_persistence_handler.on_position_closed)
 
+    # -- Self-improver context (proposal generation) --
+    from personal.self_improver.domain.services import ImprovementAdvisorService
+    from personal.self_improver.infrastructure.walk_forward_adapter import WalkForwardAdapter
+    from personal.self_improver.application.handlers import GenerateProposalHandler
+
+    advisor_service = ImprovementAdvisorService()
+    wf_adapter = WalkForwardAdapter()
+    proposal_gen_handler = GenerateProposalHandler(
+        trade_repo=trade_history_repo,
+        proposal_repo=proposal_repo,
+        advisor=advisor_service,
+        walk_forward_adapter=wf_adapter,
+    )
+
     # -- Score -> DuckDB sync (event-driven, per-symbol upsert) --
     from src.signals.infrastructure.duckdb_signal_store import DuckDBSignalStore
 
@@ -434,6 +448,7 @@ def bootstrap(
         "attribution_handler": attribution_handler,
         "trade_history_repo": trade_history_repo,
         "proposal_repo": proposal_repo,
+        "proposal_gen_handler": proposal_gen_handler,
     }
 
     # Wire pipeline handlers with ctx as handlers dict
