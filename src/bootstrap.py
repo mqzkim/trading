@@ -228,6 +228,24 @@ def bootstrap(
 
     bus.subscribe(SentimentUpdatedEvent, _log_sentiment_event)
 
+    # -- Performance context (trade history, attribution) --
+    from src.performance.infrastructure import (
+        DuckDBTradeHistoryRepository,
+        DuckDBProposalRepository,
+        TradePersistenceHandler,
+    )
+    from src.performance.application.handlers import AttributionHandler
+    from src.portfolio.domain.events import PositionClosedEvent
+
+    trade_history_repo = DuckDBTradeHistoryRepository(db_factory.duckdb_conn())
+    proposal_repo = DuckDBProposalRepository(db_factory.duckdb_conn())
+    attribution_handler = AttributionHandler(
+        trade_repo=trade_history_repo,
+        proposal_repo=proposal_repo,
+    )
+    trade_persistence_handler = TradePersistenceHandler(trade_repo=trade_history_repo)
+    bus.subscribe(PositionClosedEvent, trade_persistence_handler.on_position_closed)
+
     # -- Score -> DuckDB sync (event-driven, per-symbol upsert) --
     from src.signals.infrastructure.duckdb_signal_store import DuckDBSignalStore
 
@@ -413,6 +431,9 @@ def bootstrap(
         "approval_repo": approval_repo,
         "budget_repo": budget_repo,
         "review_queue_repo": review_queue_repo,
+        "attribution_handler": attribution_handler,
+        "trade_history_repo": trade_history_repo,
+        "proposal_repo": proposal_repo,
     }
 
     # Wire pipeline handlers with ctx as handlers dict

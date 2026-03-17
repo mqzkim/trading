@@ -8,7 +8,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from .middleware.rate_limit import limiter
 from .routers import auth
-from .routers import quantscore, regime, signals
+from .routers import quantscore, regime, signals, performance
 
 app = FastAPI(
     title="QuantScore API",
@@ -45,3 +45,4 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(quantscore.router, prefix="/api/v1")
 app.include_router(regime.router, prefix="/api/v1")
 app.include_router(signals.router, prefix="/api/v1")
+app.include_router(performance.router, prefix="/api/v1")

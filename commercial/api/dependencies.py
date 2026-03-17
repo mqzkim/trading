@@ -42,6 +42,11 @@ def get_signal_handler():
     return get_context()["signal_handler"]
 
 
+def get_attribution_handler():
+    """Extract attribution handler from bootstrap context."""
+    return get_context()["attribution_handler"]
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> dict:
