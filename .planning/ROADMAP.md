@@ -6,7 +6,7 @@
 - ✅ **v1.1 Stabilization & Expansion** — Phases 5-11 (shipped 2026-03-12)
 - ✅ **v1.2 Production Trading & Dashboard** — Phases 12-20 (shipped 2026-03-14)
 - ✅ **v1.3 Bloomberg Dashboard** — Phases 21-25 (shipped 2026-03-14)
-- 📋 **v1.4 Full Stack Trading Platform** — Phases 26-29 (planned)
+- ✅ **v1.4 Full Stack Trading Platform** — Phases 26-29 (shipped 2026-03-18)
 
 ## Phases
 
@@ -116,8 +116,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 29-01-PLAN.md — Performance bounded context: DuckDB trade history, Brinson-Fachler, IC/Kelly, commercial API endpoint
-- [ ] 29-02-PLAN.md — Self-improver DDD refactor + proposal workflow + Dashboard Performance page completion
+- [x] 29-01-PLAN.md — Performance bounded context: DuckDB trade history, Brinson-Fachler, IC/Kelly, commercial API endpoint
+- [x] 29-02-PLAN.md — Self-improver DDD refactor + proposal workflow + Dashboard Performance page completion
 
 ## Progress
 
