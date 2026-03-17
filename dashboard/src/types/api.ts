@@ -61,6 +61,10 @@ export interface ScoreRow {
   risk_adjusted: number;
   strategy: string;
   signal: string;
+  fundamental_score: number | null;
+  technical_score: number | null;
+  sentiment_score: number | null;
+  sentiment_confidence: string; // "NONE" | "LOW" | "MEDIUM" | "HIGH"
 }
 
 export interface SignalItem {
@@ -84,6 +88,26 @@ export interface RiskData {
   position_count: number;
   max_positions: number;
   regime: string;
+  regime_confidence: number;
+  regime_probabilities: Record<string, number>;
+}
+
+// --- Performance page types ---
+
+export interface PerformanceKPI {
+  sharpe: number | null;
+  sortino: number | null;
+  win_rate: number | null;
+  max_drawdown: number | null;
+}
+
+export interface PerformanceData {
+  kpis: PerformanceKPI | null;
+  brinson_table: unknown[] | null;
+  equity_curve: EquityCurve | null;
+  signal_ic: number | null;
+  kelly_efficiency: number | null;
+  trade_count: number;
 }
 
 // --- Pipeline page types ---

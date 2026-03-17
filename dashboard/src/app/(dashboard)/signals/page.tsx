@@ -1,6 +1,7 @@
 'use client';
 
 import { scoringColumns } from '@/components/signals/columns';
+import { ScoreBreakdownPanel } from '@/components/signals/score-breakdown-panel';
 import { SignalCards } from '@/components/signals/signal-cards';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
@@ -35,7 +36,11 @@ export default function SignalsPage() {
           <CardTitle>Scoring Table</CardTitle>
         </CardHeader>
         <CardContent>
-          <DataTable columns={scoringColumns} data={data.scores} />
+          <DataTable
+            columns={scoringColumns}
+            data={data.scores}
+            renderSubComponent={({ row }) => <ScoreBreakdownPanel scores={row.original} />}
+          />
         </CardContent>
       </Card>
 
