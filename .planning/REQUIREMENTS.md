@@ -37,13 +37,13 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 
 ### Commercial API
 
-- [ ] **API-01**: QuantScore endpoint returns composite score with sub-component breakdown
-- [ ] **API-02**: RegimeRadar endpoint returns current regime with probability and indicators
-- [ ] **API-03**: SignalFusion endpoint returns consensus signal with reasoning trace
-- [ ] **API-04**: JWT authentication with API key management
-- [ ] **API-05**: Rate limiting per tier (free/basic/pro)
-- [ ] **API-06**: Legal disclaimer auto-included in all responses
-- [ ] **API-07**: OpenAPI/Swagger documentation auto-generated
+- [x] **API-01**: QuantScore endpoint returns composite score with sub-component breakdown
+- [x] **API-02**: RegimeRadar endpoint returns current regime with probability and indicators
+- [x] **API-03**: SignalFusion endpoint returns consensus signal with reasoning trace
+- [x] **API-04**: JWT authentication with API key management
+- [x] **API-05**: Rate limiting per tier (free/basic/pro)
+- [x] **API-06**: Legal disclaimer auto-included in all responses
+- [x] **API-07**: OpenAPI/Swagger documentation auto-generated
 
 ### Performance Attribution
 
@@ -62,10 +62,10 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 
 ### Dashboard Enhancement
 
-- [ ] **DASH-01**: Technical and sentiment sub-scores visible on Signals page
+- [x] **DASH-01**: Technical and sentiment sub-scores visible on Signals page
 - [ ] **DASH-02**: Performance attribution page added to dashboard
-- [ ] **DASH-03**: Real data displayed across all pages (no empty states when data exists)
-- [ ] **DASH-04**: Regime detection enhanced view with HMM probabilities
+- [x] **DASH-03**: Real data displayed across all pages (no empty states when data exists)
+- [x] **DASH-04**: Regime detection enhanced view with HMM probabilities
 
 ## Future Requirements
 
@@ -115,13 +115,13 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 | SENT-04 | Phase 27 | Complete |
 | SENT-05 | Phase 27 | Complete |
 | SENT-06 | Phase 27 | Complete |
-| API-01 | Phase 28 | Pending |
-| API-02 | Phase 28 | Pending |
-| API-03 | Phase 28 | Pending |
-| API-04 | Phase 28 | Pending |
-| API-05 | Phase 28 | Pending |
-| API-06 | Phase 28 | Pending |
-| API-07 | Phase 28 | Pending |
+| API-01 | Phase 28 | Complete |
+| API-02 | Phase 28 | Complete |
+| API-03 | Phase 28 | Complete |
+| API-04 | Phase 28 | Complete |
+| API-05 | Phase 28 | Complete |
+| API-06 | Phase 28 | Complete |
+| API-07 | Phase 28 | Complete |
 | PERF-01 | Phase 29 | Pending |
 | PERF-02 | Phase 29 | Pending |
 | PERF-03 | Phase 29 | Pending |
@@ -131,10 +131,10 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 | SELF-02 | Phase 29 | Pending |
 | SELF-03 | Phase 29 | Pending |
 | SELF-04 | Phase 29 | Pending |
-| DASH-01 | Phase 28 | Pending |
+| DASH-01 | Phase 28 | Complete |
 | DASH-02 | Phase 28 | Pending |
-| DASH-03 | Phase 28 | Pending |
-| DASH-04 | Phase 28 | Pending |
+| DASH-03 | Phase 28 | Complete |
+| DASH-04 | Phase 28 | Complete |
 
 **Coverage:**
 - v1.4 requirements: 39 total

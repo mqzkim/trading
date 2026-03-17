@@ -132,5 +132,5 @@ Phases execute in numeric order: 26 -> 27 -> 28 -> 29
 | 21-25 | v1.3 | 9/9 | Complete | 2026-03-14 |
 | 26. Pipeline Stabilization | 2/2 | Complete   | 2026-03-14 | - |
 | 27. Scoring Expansion | 2/2 | Complete    | 2026-03-16 | - |
-| 28. Commercial API & Dashboard | v1.4 | 0/3 | Planning complete | - |
+| 28. Commercial API & Dashboard | 2/3 | In Progress|  | - |
 | 29. Performance & Self-Improvement | v1.4 | 0/? | Not started | - |

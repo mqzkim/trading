@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Full Stack Trading Platform
-status: completed
-stopped_at: Phase 28 context gathered
-last_updated: "2026-03-17T18:56:11.572Z"
-last_activity: 2026-03-14 -- Completed 26-02 pipeline data quality and E2E stability (real prices, valuation adapter, pipeline E2E test)
+status: executing
+stopped_at: Completed 28-02-PLAN.md
+last_updated: "2026-03-17T19:24:11.611Z"
+last_activity: 2026-03-17 -- Completed 28-02 dashboard sub-scores and regime probabilities
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
-  percent: 10
+  total_plans: 7
+  completed_plans: 6
+  percent: 30
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 
 ## Current Position
 
-Phase: 26 of 29 (Pipeline Stabilization) -- COMPLETE
-Plan: 2 of 2 complete in current phase
-Status: Phase 26 Complete
-Last activity: 2026-03-14 -- Completed 26-02 pipeline data quality and E2E stability (real prices, valuation adapter, pipeline E2E test)
+Phase: 28 of 29 (Commercial API Dashboard)
+Plan: 2 of 3 complete in current phase
+Status: Executing Phase 28
+Last activity: 2026-03-17 -- Completed 28-02 dashboard sub-scores and regime probabilities
 
-Progress: [##░░░░░░░░] 10%
+Progress: [###░░░░░░░] 30%
 
 ## Performance Metrics
 
@@ -52,6 +52,8 @@ Progress: [##░░░░░░░░] 10%
 | Phase 26 P02 | 7min | 2 tasks | 9 files |
 | Phase 27 P01 | 7 | 2 tasks | 9 files |
 | Phase 27 P02 | 8 | 2 tasks | 5 files |
+| Phase 28 P02 | 3min | 2 tasks | 5 files |
+| Phase 28 P01 | 4 | 1 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -76,6 +78,9 @@ Recent decisions affecting current work:
 - [Phase 27]: SentimentConfidence.NONE triggers weight renormalization: drops 20% sentiment axis, renormalizes fundamental+technical
 - [Phase 27]: RealSentimentAdapter: Alpaca News+VADER for news, yfinance for insider/institutional/analyst
 - [Phase 27]: Patch yfinance at yfinance.Ticker (module level) since it is imported locally inside RealSentimentAdapter methods
+- [Phase 28]: regime_probabilities computed from confidence: dominant regime gets confidence value, remaining split equally across other 3
+- [Phase 28]: Regime probabilities computed from dominant regime + confidence, split across 4 regimes (Bull/Bear/Sideways/Crisis)
+- [Phase 28]: sentiment_confidence defaults to NONE when not stored in score repo
 
 ### Pending Todos
 
@@ -91,6 +96,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-17T18:56:11.567Z
-Stopped at: Phase 28 context gathered
-Resume file: .planning/phases/28-commercial-api-dashboard/28-CONTEXT.md
+Last session: 2026-03-17T19:24:11.607Z
+Stopped at: Completed 28-02-PLAN.md
+Resume file: None
