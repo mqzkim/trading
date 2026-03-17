@@ -34,6 +34,32 @@ MOCK_SCORE_RESULT = {
         {"name": "RSI", "value": 62.0, "explanation": "Neutral", "raw_value": 45.0},
         {"name": "MACD", "value": 70.0, "explanation": "Bullish", "raw_value": 1.2},
     ],
+    "sentiment_sub_scores": [
+        {"name": "News", "value": 60.0, "raw_value": 60.0},
+        {"name": "Insider", "value": 45.0, "raw_value": 45.0},
+        {"name": "Institutional", "value": 70.0, "raw_value": 70.0},
+        {"name": "Analyst", "value": 55.0, "raw_value": 55.0},
+    ],
+    "sentiment_confidence": "MEDIUM",
+}
+
+MOCK_SCORE_RESULT_NO_SENTIMENT = {
+    "symbol": "AAPL",
+    "safety_passed": True,
+    "composite_score": 72.5,
+    "risk_adjusted_score": 68.3,
+    "strategy": "swing",
+    "fundamental_score": 65.0,
+    "technical_score": 78.0,
+    "sentiment_score": None,
+    "f_score": 7,
+    "z_score": 2.1,
+    "m_score": -1.8,
+    "event": MagicMock(),
+    "technical_sub_scores": [
+        {"name": "RSI", "value": 62.0, "explanation": "Neutral", "raw_value": 45.0},
+    ],
+    "sentiment_confidence": "NONE",
 }
 
 
@@ -155,3 +181,74 @@ class TestQuantScoreEndpoint:
 
         data = resp.json()
         assert "event" not in data
+
+
+class TestQuantScoreSubScores:
+    """Test typed sub-score lists and sentiment confidence."""
+
+    def test_technical_sub_scores_list_structure(self, client_and_mocks):
+        """technical_sub_scores is a list of {name, value, raw_value}."""
+        client, handler = client_and_mocks
+        handler.handle.return_value = Ok(MOCK_SCORE_RESULT)
+
+        resp = client.get(
+            "/api/v1/quantscore/AAPL",
+            headers={"Authorization": f"Bearer {make_jwt_token()}"},
+        )
+
+        data = resp.json()
+        assert data["technical_sub_scores"] is not None
+        assert len(data["technical_sub_scores"]) == 2
+        entry = data["technical_sub_scores"][0]
+        assert "name" in entry
+        assert "value" in entry
+        assert "raw_value" in entry
+        assert entry["name"] == "RSI"
+        assert entry["value"] == 62.0
+
+    def test_sentiment_sub_scores_list_structure(self, client_and_mocks):
+        """sentiment_sub_scores is a list of {name, value, raw_value}."""
+        client, handler = client_and_mocks
+        handler.handle.return_value = Ok(MOCK_SCORE_RESULT)
+
+        resp = client.get(
+            "/api/v1/quantscore/AAPL",
+            headers={"Authorization": f"Bearer {make_jwt_token()}"},
+        )
+
+        data = resp.json()
+        assert data["sentiment_sub_scores"] is not None
+        assert len(data["sentiment_sub_scores"]) == 4
+        names = [s["name"] for s in data["sentiment_sub_scores"]]
+        assert "News" in names
+        assert "Insider" in names
+        assert "Institutional" in names
+        assert "Analyst" in names
+
+    def test_sentiment_confidence_present(self, client_and_mocks):
+        """sentiment_confidence is always present as string."""
+        client, handler = client_and_mocks
+        handler.handle.return_value = Ok(MOCK_SCORE_RESULT)
+
+        resp = client.get(
+            "/api/v1/quantscore/AAPL",
+            headers={"Authorization": f"Bearer {make_jwt_token()}"},
+        )
+
+        data = resp.json()
+        assert "sentiment_confidence" in data
+        assert data["sentiment_confidence"] == "MEDIUM"
+
+    def test_no_sentiment_data_returns_none_and_confidence_none(self, client_and_mocks):
+        """When no sentiment, score is null and confidence is NONE."""
+        client, handler = client_and_mocks
+        handler.handle.return_value = Ok(MOCK_SCORE_RESULT_NO_SENTIMENT)
+
+        resp = client.get(
+            "/api/v1/quantscore/AAPL",
+            headers={"Authorization": f"Bearer {make_jwt_token()}"},
+        )
+
+        data = resp.json()
+        assert data["sentiment_score"] is None
+        assert data["sentiment_confidence"] == "NONE"

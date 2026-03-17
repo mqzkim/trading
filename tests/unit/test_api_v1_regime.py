@@ -137,6 +137,55 @@ class TestRegimeCurrentEndpoint:
         assert resp.status_code in (401, 403)
 
 
+class TestRegimeProbabilities:
+    """Test regime_probabilities dict in /current response."""
+
+    def test_regime_probabilities_present_with_4_keys(self, client_and_mocks):
+        """regime_probabilities has Bull/Bear/Sideways/Crisis keys."""
+        client, handler, _ = client_and_mocks
+        handler.handle.return_value = Ok(MOCK_REGIME_RESULT)
+
+        resp = client.get(
+            "/api/v1/regime/current",
+            headers={"Authorization": f"Bearer {make_jwt_token()}"},
+        )
+
+        data = resp.json()
+        assert "regime_probabilities" in data
+        probs = data["regime_probabilities"]
+        assert set(probs.keys()) == {"Bull", "Bear", "Sideways", "Crisis"}
+
+    def test_regime_probabilities_sum_to_one(self, client_and_mocks):
+        """Probability values sum to approximately 1.0."""
+        client, handler, _ = client_and_mocks
+        handler.handle.return_value = Ok(MOCK_REGIME_RESULT)
+
+        resp = client.get(
+            "/api/v1/regime/current",
+            headers={"Authorization": f"Bearer {make_jwt_token()}"},
+        )
+
+        data = resp.json()
+        probs = data["regime_probabilities"]
+        total = sum(probs.values())
+        assert abs(total - 1.0) < 0.01, f"Probabilities sum to {total}, expected ~1.0"
+
+    def test_dominant_regime_has_highest_probability(self, client_and_mocks):
+        """The dominant regime type should have the highest probability."""
+        client, handler, _ = client_and_mocks
+        handler.handle.return_value = Ok(MOCK_REGIME_RESULT)
+
+        resp = client.get(
+            "/api/v1/regime/current",
+            headers={"Authorization": f"Bearer {make_jwt_token()}"},
+        )
+
+        data = resp.json()
+        probs = data["regime_probabilities"]
+        dominant = data["regime_type"]
+        assert probs[dominant] == max(probs.values())
+
+
 class TestRegimeHistoryEndpoint:
     """GET /api/v1/regime/history tests."""
 

@@ -271,6 +271,31 @@ class TestSignalMethodologyVotes:
             assert vote["direction"] in allowed, f"Vote direction '{vote['direction']}' not informational"
 
 
+class TestSignalReasoningTrace:
+    """Test methodology_votes serves as reasoning trace (API-03)."""
+
+    def test_methodology_votes_as_reasoning_trace(self, client_and_mocks):
+        """methodology_votes is the reasoning trace: list of name/direction/score."""
+        client, handler = client_and_mocks
+        handler.handle.return_value = Ok(MOCK_SIGNAL_RESULT)
+
+        resp = client.get(
+            "/api/v1/signals/AAPL",
+            headers={"Authorization": f"Bearer {make_jwt_token()}"},
+        )
+
+        data = resp.json()
+        votes = data["methodology_votes"]
+        assert votes is not None
+        assert len(votes) == 4
+        # Each vote has all three trace fields
+        for vote in votes:
+            assert "name" in vote
+            assert "direction" in vote
+            assert "score" in vote
+            assert vote["score"] is not None  # score should have a value
+
+
 class TestSignalStrengthNormalization:
     """Test numeric strength is normalized from 0-100 to 0-1 scale."""
 
