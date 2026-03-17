@@ -5,7 +5,6 @@ GET /api/v1/quantscore/{ticker} -- returns score breakdown with disclaimer.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from slowapi import Limiter
 
 from commercial.api.dependencies import get_current_user, get_score_handler
 from commercial.api.middleware.rate_limit import get_tier_limit, limiter
