@@ -6,11 +6,17 @@
 
 ## Summary
 
-Phase 28 extends an already-operational commercial API (FastAPI with JWT auth, rate limiting, 3 product routers) and an existing Next.js dashboard (4 pages, Bloomberg dark theme, shadcn/ui). The work is primarily data-plumbing: the scoring handler already returns technical sub-scores (5 indicators) and sentiment sub-scores (4 sources) from Phase 27 -- this phase surfaces them through the API response schemas and dashboard UI.
+Phase 28 has TWO distinct work streams that share no runtime infrastructure:
 
-The API side requires: (1) extending `QuantScoreResponse` to include sentiment sub-scores alongside existing technical sub-scores, (2) extending `RegimeCurrentResponse` with per-regime HMM probabilities, (3) adding reasoning traces to `SignalResponse`, and (4) verifying all existing auth/rate-limit/disclaimer infrastructure works unchanged. The dashboard side requires: (1) expandable signal rows with F/T/S sub-score breakdown, (2) HMM probability bars in the Risk page regime section, (3) a new Performance Attribution page shell (empty state, no mock data), and (4) ensuring real data flows end-to-end.
+1. **Commercial API** (`commercial/api/main.py` on :8000) -- public-facing, JWT-authenticated, per-ticker endpoints for paying customers. Extends response schemas to expose 3-axis sub-scores, regime probabilities, and signal reasoning.
 
-**Primary recommendation:** This is a presentation-layer-only phase. No domain logic changes. Extend schemas, map handler data, add dashboard components. All infrastructure (auth, rate-limit, proxy) is already wired.
+2. **Dashboard Backend** (`src/dashboard/presentation/app.py` on :8000) -- internal-facing, no auth, bulk-query endpoints powering the React dashboard. The dashboard Next.js app (:3000) proxies `/api/*` to this FastAPI app via `next.config.ts` rewrites. This is a SEPARATE FastAPI app from the commercial API.
+
+The scoring handler already returns technical sub-scores (5 indicators) and has SentimentScore VO with 4 sub-source fields from Phase 27. This phase surfaces them through both the commercial API schemas AND the dashboard query handlers.
+
+**Critical architecture insight:** The dashboard hooks call `/api/v1/dashboard/signals` which routes to `SignalsQueryHandler` in `src/dashboard/application/queries.py` -- this is NOT the commercial API. The dashboard has its own bounded context (`src/dashboard/`) with query handlers that aggregate data from score_repo, signal_repo, regime_repo, etc. The dashboard backend (`src/dashboard/presentation/app.py`) and the commercial API (`commercial/api/main.py`) are two separate FastAPI applications.
+
+**Primary recommendation:** Treat as two parallel work tracks: (A) extend commercial API schemas + routers, (B) extend dashboard query handlers + React components. Both are presentation-layer only -- no domain logic changes except minor handler result dict extensions to expose sentiment sub-scores.
 
 <user_constraints>
 ## User Constraints (from CONTEXT.md)
@@ -58,29 +64,29 @@ The API side requires: (1) extending `QuantScoreResponse` to include sentiment s
 
 | ID | Description | Research Support |
 |----|-------------|-----------------|
-| API-01 | QuantScore endpoint returns composite score with sub-component breakdown | Extend `QuantScoreResponse` schema + router mapping; handler already returns `technical_sub_scores` and sentiment VO fields |
-| API-02 | RegimeRadar endpoint returns current regime with probability and indicators | Extend `RegimeCurrentResponse` with `regime_probabilities` dict; compute from detection service scores |
-| API-03 | SignalFusion endpoint returns consensus signal with reasoning trace | `SignalResponse` already returns methodology_votes; add `reasoning_traces` field mapping from handler data |
+| API-01 | QuantScore endpoint returns composite score with sub-component breakdown | Extend `QuantScoreResponse` schema + router mapping; handler already returns `technical_sub_scores`; add sentiment sub-scores to handler result dict |
+| API-02 | RegimeRadar endpoint returns current regime with probability and indicators | Extend `RegimeCurrentResponse` with `regime_probabilities` dict; compute synthetic probabilities from indicator scores in router |
+| API-03 | SignalFusion endpoint returns consensus signal with reasoning trace | `SignalResponse` already has methodology_votes; these ARE the reasoning trace -- each vote is a methodology + direction + score |
 | API-04 | JWT authentication with API key management | ALREADY COMPLETE -- auth router, JWT decode, API key CRUD all wired and tested |
 | API-05 | Rate limiting per tier (free/basic/pro) | ALREADY COMPLETE -- slowapi with tier extraction from JWT claims |
 | API-06 | Legal disclaimer auto-included in all responses | ALREADY COMPLETE -- DISCLAIMER constant auto-set as default field in all response schemas |
 | API-07 | OpenAPI/Swagger documentation auto-generated | FastAPI auto-generates at /docs; verify schema descriptions are updated after extensions |
-| DASH-01 | Technical and sentiment sub-scores visible on Signals page | Expandable signal rows with F/T/S breakdown; new components consuming extended API data |
+| DASH-01 | Technical and sentiment sub-scores visible on Signals page | Extend `SignalsQueryHandler` to include sub-scores from score_repo details; create expandable row components |
 | DASH-02 | Performance attribution page added to dashboard | New `/performance` route with empty-state shell; KPI cards, Brinson table, equity curve, scorecard |
-| DASH-03 | Real data displayed across all pages | End-to-end verification that dashboard hooks fetch real backend data through proxy rewrite |
-| DASH-04 | Regime detection enhanced view with HMM probabilities | Horizontal progress bars per regime in Risk page; data from extended regime endpoint |
+| DASH-03 | Real data displayed across all pages | Ensure `SignalsQueryHandler` and `RiskQueryHandler` surface sub-score data that handlers now produce |
+| DASH-04 | Regime detection enhanced view with HMM probabilities | Extend `RiskQueryHandler` to return regime probabilities; add probability bar components to Risk page |
 </phase_requirements>
 
 ## Standard Stack
 
-### Core (already installed)
+### Core (already installed -- NO new dependencies)
 | Library | Version | Purpose | Notes |
 |---------|---------|---------|-------|
-| FastAPI | existing | Commercial API framework | Already wired with routers, middleware |
+| FastAPI | existing | Commercial API + Dashboard backend | Two separate apps sharing same framework |
 | Pydantic v2 | existing | Response schemas | BaseModel for all responses |
-| PyJWT | existing | JWT auth | Decode in dependencies.py |
-| slowapi | existing | Rate limiting | Tier-based, per-user |
-| Next.js | 16.1.6 | Dashboard framework | Rewrite proxy to FastAPI |
+| PyJWT | existing | JWT auth | Commercial API only |
+| slowapi | existing | Rate limiting | Commercial API only |
+| Next.js | 16.1.6 | Dashboard frontend | Rewrite proxy to dashboard FastAPI app |
 | React | 19.2.3 | UI library | |
 | @tanstack/react-query | ^5.90.21 | Data fetching | All hooks use useQuery |
 | @tanstack/react-table | ^8.21.3 | Data tables | Scoring table on Signals page |
@@ -93,46 +99,55 @@ All required functionality is covered by existing packages. The `progress.tsx` c
 
 ## Architecture Patterns
 
-### Current Architecture (do not change)
-```
-Dashboard (Next.js :3000)
-  └─ /api/* → rewrite proxy → FastAPI (:8000)
-       └─ /api/v1/quantscore/{ticker}  → ScoreSymbolHandler
-       └─ /api/v1/regime/current       → DetectRegimeHandler
-       └─ /api/v1/signals/{ticker}     → GenerateSignalHandler
-       └─ /api/v1/auth/*               → JWT/API key management
+### Critical: Two Separate FastAPI Applications
 
-Dashboard hooks (useSignals, useRisk, etc.)
-  └─ fetch('/api/v1/dashboard/signals') → proxy → FastAPI
+```
+COMMERCIAL API (commercial/api/main.py)
+  Port: 8000 (standalone)
+  Auth: JWT required
+  Endpoints: /api/v1/quantscore/{ticker}, /api/v1/regime/current, /api/v1/signals/{ticker}
+  Handlers: ScoreSymbolHandler, DetectRegimeHandler, GenerateSignalHandler
+  Purpose: Per-ticker queries for paying API customers
+
+DASHBOARD BACKEND (src/dashboard/presentation/app.py)
+  Port: 8000 (dashboard mode)
+  Auth: NONE
+  Endpoints: /api/v1/dashboard/overview, /api/v1/dashboard/signals, /api/v1/dashboard/risk, /api/v1/dashboard/pipeline
+  Handlers: OverviewQueryHandler, SignalsQueryHandler, RiskQueryHandler, PipelineQueryHandler
+  Purpose: Bulk aggregation queries for internal dashboard
+
+DASHBOARD FRONTEND (Next.js :3000)
+  Proxy: /api/* → dashboard backend via next.config.ts rewrites
+  Hooks: useOverview, useSignals, useRisk, usePipeline → fetch('/api/v1/dashboard/*')
 ```
 
-### Pattern 1: Schema Extension (API side)
+These are NEVER the same running process. The planner must treat them as separate change sets.
+
+### Pattern 1: Schema Extension (Commercial API)
 **What:** Add new fields to existing Pydantic response models
-**When to use:** All API-01, API-02, API-03 changes
+**When to use:** API-01, API-02, API-03
 **Key rule:** Add fields as `Optional` with defaults to maintain backward compatibility
-```python
-# Extend QuantScoreResponse
-class QuantScoreResponse(BaseModel):
-    # ... existing fields ...
-    sentiment_confidence: Optional[str] = None  # NEW
-    technical_sub_scores: Optional[list[SubScoreEntry]] = None  # NEW (replaces untyped sub_scores dict)
-    sentiment_sub_scores: Optional[list[SubScoreEntry]] = None  # NEW
-```
 
-### Pattern 2: Expandable Table Row (Dashboard side)
+### Pattern 2: Query Handler Extension (Dashboard Backend)
+**What:** Extend existing query handlers to return additional data from repos
+**When to use:** DASH-01, DASH-03, DASH-04
+**Key point:** `SignalsQueryHandler` reads from `score_repo.find_all_latest()` which returns `CompositeScore` VOs. To get sub-scores, it needs to also read score details. The `score_repo.save()` receives a `details` dict with fundamental/technical/sentiment scores -- check if `find_all_latest()` also returns details or if a new method is needed.
+
+### Pattern 3: Expandable Table Row (Dashboard Frontend)
 **What:** Table row that expands to show sub-score detail panel
 **When to use:** DASH-01 signals page
-**Implementation:** Use @tanstack/react-table `getCanExpand()` + custom sub-row rendering. The existing `DataTable` component wraps react-table -- extend it or create a new `ExpandableDataTable` variant.
+**Implementation:** Use @tanstack/react-table `getCanExpand()` + custom sub-row rendering. The existing `DataTable` component wraps react-table -- extend it with expansion support.
 
-### Pattern 3: Empty-State Shell Page (Dashboard side)
-**What:** Page with full layout structure but displaying "no data yet" when no data exists
+### Pattern 4: Empty-State Shell Page (Dashboard Frontend)
+**What:** Page with full layout structure showing "no data yet" when empty
 **When to use:** DASH-02 performance attribution page
-**Key rule:** Never use mock data. Show real components with empty states.
+**Key rule:** Never use mock data. Show real component structure with empty states.
 
 ### Anti-Patterns to Avoid
-- **Changing domain logic:** This phase is presentation-only. Do not modify scoring services, regime detection, or signal generation.
-- **Breaking existing API contracts:** Add fields, never remove or rename. `sub_scores: Optional[dict]` can coexist with new typed fields during migration.
-- **Creating Next.js API routes:** The dashboard uses rewrite proxy (next.config.ts), not API routes. Do not create `/app/api/` directories.
+- **Confusing the two FastAPI apps:** Commercial API changes go in `commercial/api/`, dashboard backend changes go in `src/dashboard/`. Never mix.
+- **Changing domain logic:** This phase is presentation-only. Do not modify scoring services, regime detection, or signal generation. Exception: handler result dict may need minor extension to expose sentiment sub-scores.
+- **Breaking existing API contracts:** Add fields, never remove or rename. `sub_scores: Optional[dict]` can coexist with new typed fields.
+- **Creating Next.js API routes:** Dashboard uses rewrite proxy, not API route handlers.
 - **Mocking data on Performance page:** Empty state only. Phase 29 provides real data.
 
 ## Don't Hand-Roll
@@ -146,35 +161,39 @@ class QuantScoreResponse(BaseModel):
 
 ## Common Pitfalls
 
-### Pitfall 1: Handler Result Key Mismatch
-**What goes wrong:** The scoring handler returns `sentiment_score` as a float on the result dict (line 178 of handlers.py), but the SentimentScore VO has `news_score`, `insider_score`, etc. These sub-fields are NOT currently propagated to the handler result dict.
-**Why it happens:** Phase 27 added sub-fields to the VO but the handler only extracts `sentiment.value` (not individual sub-scores).
-**How to avoid:** In the handler result dict construction, add sentiment sub-scores explicitly:
+### Pitfall 1: Sentiment Sub-Scores Not in Handler Result Dict
+**What goes wrong:** The scoring handler returns `sentiment_score` as a float (line 178 of handlers.py), but the SentimentScore VO has `news_score`, `insider_score`, `institutional_score`, `analyst_score`. These sub-fields are NOT currently propagated to the handler result dict.
+**Why it happens:** Phase 27 added sub-fields to the SentimentScore VO but the handler only extracts `sentiment.value` to the result dict -- it doesn't include individual sub-scores.
+**How to avoid:** Add `sentiment_sub_scores` list and `sentiment_confidence` to the handler result dict, similar to how `technical_sub_scores` is already added (lines 186-195):
 ```python
-# Add to handler result dict (around line 183)
-"sentiment_sub_scores": [
-    {"name": "News", "value": sentiment.news_score, "raw_value": sentiment.news_score},
-    {"name": "Insider", "value": sentiment.insider_score, "raw_value": sentiment.insider_score},
-    # ... etc
-]
+# Add alongside technical_sub_scores in handler result dict
+result["sentiment_confidence"] = sentiment.confidence.value
+if sentiment.news_score is not None or sentiment.insider_score is not None:
+    result["sentiment_sub_scores"] = [
+        {"name": "News", "value": sentiment.news_score, "raw_value": sentiment.news_score},
+        {"name": "Insider", "value": sentiment.insider_score, "raw_value": sentiment.insider_score},
+        {"name": "Institutional", "value": sentiment.institutional_score, "raw_value": sentiment.institutional_score},
+        {"name": "Analyst", "value": sentiment.analyst_score, "raw_value": sentiment.analyst_score},
+    ]
 ```
 **Warning signs:** API returns `sentiment_sub_scores: null` even when sentiment data exists.
 
-### Pitfall 2: Regime Probabilities Not Available from Current Handler
-**What goes wrong:** The CONTEXT.md asks for per-regime probability bars (Bull/Bear/Sideways/Crisis), but `DetectRegimeHandler.handle()` returns only the dominant regime + confidence. It does NOT return probabilities for all 4 regimes.
-**Why it happens:** `RegimeDetectionService.detect()` returns `(RegimeType, confidence)` -- a single regime, not a probability distribution.
-**How to avoid:** Compute approximate probabilities from the detection logic's scoring. The `_resolve_ambiguous` method has bull_score/bear_score -- expose these as normalized probabilities. For non-ambiguous cases, set dominant regime to the confidence value and distribute remaining probability.
+### Pitfall 2: Regime Probabilities Not Available from Handler
+**What goes wrong:** CONTEXT.md asks for per-regime probability bars (Bull/Bear/Sideways/Crisis), but `DetectRegimeHandler.handle()` returns only the dominant regime + confidence, not a probability distribution for all 4 regimes.
+**Why it happens:** `RegimeDetectionService.detect()` returns `(RegimeType, float)` -- single regime, not distribution.
+**How to avoid:** Compute synthetic probabilities in the API router layer. For the dominant regime, use the confidence value. Distribute remaining (1 - confidence) across other regimes based on indicator proximity to thresholds. This is a presentation-layer calculation, not a domain change.
 **Warning signs:** Regime endpoint returns only 1 regime probability instead of 4.
 
-### Pitfall 3: Dashboard Proxy Path Mismatch
-**What goes wrong:** Dashboard hooks call `/api/v1/dashboard/signals` but the FastAPI has `/api/v1/quantscore/{ticker}` and `/api/v1/signals/{ticker}`. These are different endpoints.
-**Why it happens:** The dashboard currently has a BFF-style aggregation layer that combines multiple FastAPI calls. The hook paths don't match FastAPI paths directly.
-**How to avoid:** Check if there's a FastAPI dashboard aggregation router. If not, the dashboard hooks may be calling non-existent endpoints (returning 404 in production) or there's a separate BFF service.
-**Warning signs:** Dashboard shows "Backend connection failed" on all pages.
+### Pitfall 3: Dashboard score_repo Returns CompositeScore Only
+**What goes wrong:** `SignalsQueryHandler` calls `score_repo.find_all_latest()` which returns `dict[str, CompositeScore]`. The `CompositeScore` VO contains only `value`, `risk_adjusted`, `strategy`, `weights`. It does NOT contain sub-scores (fundamental, technical, sentiment).
+**Why it happens:** The score_repo stores a CompositeScore VO, not the full scoring details. Sub-score details are saved via `score_repo.save(symbol, composite, details=details)` but `find_all_latest()` may not retrieve them.
+**How to avoid:** Check if `IScoreRepository.find_all_latest()` returns details alongside CompositeScore. If not, add a method or extend it to also return the details dict that was saved.
+**Warning signs:** Dashboard signals page shows composite scores but no F/T/S breakdown.
 
-### Pitfall 4: Next.js 16 Rewrite Caching
-**What goes wrong:** Next.js caches rewritten responses, stale data shows in dashboard.
-**How to avoid:** The existing hooks use `staleTime: 30_000` (30 seconds) which is appropriate. Don't increase this.
+### Pitfall 4: Two Different Score Data Paths
+**What goes wrong:** Commercial API uses `ScoreSymbolHandler.handle()` (computes live, per-ticker). Dashboard uses `score_repo.find_all_latest()` (reads stored, all-symbols). The stored data may lag behind or lack sub-scores.
+**Why it happens:** The pipeline runs scoring and stores results; dashboard reads stored results. If storage doesn't include sub-scores, dashboard can't show them.
+**How to avoid:** Verify that `score_repo.save()` stores sub-score details (technical_sub_scores, sentiment sub-scores) and that `find_all_latest()` retrieves them.
 
 ## Code Examples
 
@@ -196,7 +215,7 @@ class QuantScoreResponse(BaseModel):
     technical_score: Optional[float] = None
     sentiment_score: Optional[float] = None
     sentiment_confidence: Optional[str] = None  # "NONE"/"LOW"/"MEDIUM"/"HIGH"
-    sub_scores: Optional[dict] = None  # DEPRECATED - keep for backward compat
+    sub_scores: Optional[dict] = None  # Keep for backward compat
     technical_sub_scores: Optional[list[SubScoreEntry]] = None
     sentiment_sub_scores: Optional[list[SubScoreEntry]] = None
     disclaimer: str = DISCLAIMER
@@ -214,15 +233,42 @@ class RegimeCurrentResponse(BaseModel):
     adx: Optional[float] = None
     yield_spread: Optional[float] = None
     detected_at: Optional[str] = None
-    regime_probabilities: Optional[dict[str, float]] = None  # NEW: {"Bull": 0.82, "Bear": 0.05, ...}
+    regime_probabilities: Optional[dict[str, float]] = None  # {"Bull": 0.82, "Bear": 0.05, ...}
     disclaimer: str = DISCLAIMER
 ```
 
-### Expandable Signal Row Component Pattern
+### Synthetic Regime Probability Computation (Router Layer)
+```python
+# In commercial/api/routers/regime.py
+def _compute_regime_probabilities(regime_type: str, confidence: float) -> dict[str, float]:
+    """Compute approximate probability distribution from dominant regime + confidence."""
+    regimes = ["Bull", "Bear", "Sideways", "Crisis"]
+    remaining = 1.0 - confidence
+    per_other = remaining / (len(regimes) - 1) if len(regimes) > 1 else 0.0
+    probs = {r: per_other for r in regimes}
+    probs[regime_type] = confidence
+    return probs
+```
+
+### Dashboard RiskQueryHandler Extension
+```python
+# In src/dashboard/application/queries.py - RiskQueryHandler.handle()
+# Add regime_probabilities to the returned dict
+regime_probabilities = {}
+if regime_obj is not None:
+    regime_probabilities = _compute_regime_probabilities(
+        regime_obj.regime_type.value, regime_obj.confidence
+    )
+return {
+    # ... existing fields ...
+    "regime_probabilities": regime_probabilities,
+}
+```
+
+### Expandable Signal Row Component
 ```tsx
-// Expandable row for signals table -- uses react-table expansion
-// Row click toggles expanded state, renders sub-panel below
-<TableRow onClick={() => row.toggleExpanded()}>
+// Row click toggles expanded state
+<TableRow onClick={() => row.toggleExpanded()} className="cursor-pointer">
   {/* existing columns */}
 </TableRow>
 {row.getIsExpanded() && (
@@ -234,17 +280,24 @@ class RegimeCurrentResponse(BaseModel):
 )}
 ```
 
-### HMM Probability Bars Component Pattern
+### HMM Probability Bars Component
 ```tsx
-// Risk page regime section -- horizontal progress bars
-function RegimeProbabilities({ probabilities }: { probabilities: Record<string, number> }) {
+function RegimeProbabilities({ probabilities, dominant }: {
+  probabilities: Record<string, number>;
+  dominant: string;
+}) {
   return (
     <div className="space-y-2">
       {Object.entries(probabilities).map(([regime, prob]) => (
-        <div key={regime} className="flex items-center gap-3">
+        <div key={regime} className={cn(
+          "flex items-center gap-3 rounded-md p-1",
+          regime === dominant && "ring-1 ring-primary font-bold"
+        )}>
           <span className="w-20 text-sm">{regime}</span>
           <Progress value={prob * 100} className="flex-1" />
-          <span className="w-12 text-right text-sm font-mono">{Math.round(prob * 100)}%</span>
+          <span className="w-12 text-right text-sm font-mono">
+            {Math.round(prob * 100)}%
+          </span>
         </div>
       ))}
     </div>
@@ -256,36 +309,31 @@ function RegimeProbabilities({ probabilities }: { probabilities: Record<string, 
 
 | Area | Current State | Phase 28 Change |
 |------|---------------|-----------------|
-| QuantScore response | Returns sub_scores as untyped dict (tech only) | Add typed technical_sub_scores + sentiment_sub_scores lists |
-| Regime response | Returns dominant regime + confidence only | Add regime_probabilities dict for all 4 regimes |
-| Signals response | Returns methodology_votes but no reasoning | Consider adding reasoning_traces if handler provides |
-| Dashboard signals | Flat table, no sub-scores | Expandable rows with F/T/S breakdown |
-| Dashboard risk/regime | Badge showing regime name only | + HMM probability bars per regime |
-| Dashboard nav | 4 pages (Overview/Signals/Risk/Pipeline) | + Performance page (5th) |
+| QuantScore response | `sub_scores` as untyped dict (tech only) | Add typed `technical_sub_scores` + `sentiment_sub_scores` + `sentiment_confidence` |
+| Regime response | Dominant regime + confidence only | Add `regime_probabilities` dict for all 4 regimes |
+| Signals response | `methodology_votes` (direction + score per method) | Methodology votes already serve as reasoning trace -- verify and document |
+| Dashboard signals | Flat table with composite/risk_adjusted/strategy/signal | Expandable rows: click to see F/T/S + individual sub-scores |
+| Dashboard risk/regime | RegimeBadge (name only) | + Probability bars per regime with dominant highlighted |
+| Dashboard nav | 4 pages (Overview/Signals/Risk/Pipeline) | + Performance page (5th, empty-state shell) |
+| Dashboard query handlers | Return composite scores only | Extend to return sub-score breakdowns |
 
 ## Open Questions
 
-1. **Dashboard BFF Aggregation**
-   - What we know: Hooks call `/api/v1/dashboard/signals` but FastAPI has `/api/v1/quantscore/{ticker}` and `/api/v1/signals/{ticker}` -- these are per-ticker endpoints, not bulk.
-   - What's unclear: Is there a dashboard-specific FastAPI router that aggregates scoring data for all tracked symbols? Or do the hooks just not work currently?
-   - Recommendation: Check if there's a `commercial/api/routes/` directory (separate from `routers/`) that handles dashboard aggregation. There IS a `routes/` directory -- investigate before planning.
+1. **Score Repository Details Retrieval**
+   - What we know: `score_repo.save(symbol, composite, details=details)` stores sub-score details. `find_all_latest()` returns `dict[str, CompositeScore]`.
+   - What's unclear: Does `find_all_latest()` also return the details dict, or only the CompositeScore VO? The dashboard needs sub-scores.
+   - Recommendation: Check `IScoreRepository` implementation. If details are not retrievable, extend the repo interface.
 
-2. **Regime Probability Computation**
-   - What we know: Current `RegimeDetectionService.detect()` returns single (RegimeType, confidence). No HMM library is in use -- the "HMM" is a rule-based state machine.
-   - What's unclear: The CONTEXT.md says "enhanced HMM probabilities" but there is no actual HMM (hmmlearn) in the regime detection code. The service uses rule-based detection.
-   - Recommendation: Compute synthetic probabilities by scoring all 4 regime types based on indicator values and normalizing to sum=1. This is consistent with the existing architecture. Do NOT add hmmlearn dependency (that's ML-01 in future requirements).
-
-3. **Signal Reasoning Traces (API-03)**
-   - What we know: `SignalResponse` has methodology_votes. The handler returns methodology_scores and methodology_directions.
-   - What's unclear: What constitutes a "reasoning trace"? The signal handler doesn't currently produce textual reasoning.
-   - Recommendation: Use the existing methodology_votes as the reasoning trace -- each vote shows which methodology voted which direction with what score. This satisfies API-03 without domain changes.
+2. **Regime Probability Computation Method**
+   - What we know: No actual HMM (hmmlearn) in codebase. Rule-based detection with single (RegimeType, confidence) output.
+   - Resolution: Compute synthetic probabilities by assigning confidence to dominant regime and distributing remainder. This is presentation-layer, consistent with architecture.
 
 ## Validation Architecture
 
 ### Test Framework
 | Property | Value |
 |----------|-------|
-| Framework | pytest (Python API tests), biome (dashboard lint) |
+| Framework | pytest (Python API/dashboard tests), biome (dashboard lint) |
 | Config file | pyproject.toml (pytest section) |
 | Quick run command | `pytest tests/unit/test_api_v1_quantscore.py -x` |
 | Full suite command | `pytest tests/ -x` |
@@ -297,13 +345,13 @@ function RegimeProbabilities({ probabilities }: { probabilities: Record<string, 
 | API-02 | Regime returns per-regime probabilities | unit | `pytest tests/unit/test_api_v1_regime.py -x` | Exists -- extend |
 | API-03 | Signals returns reasoning traces | unit | `pytest tests/unit/test_api_v1_signals.py -x` | Exists -- extend |
 | API-04 | JWT auth rejects invalid tokens | unit | `pytest tests/unit/test_api_v1_quantscore.py::TestQuantScoreEndpoint::test_no_jwt_returns_401_or_403 -x` | Exists |
-| API-05 | Rate limiting per tier | unit | `pytest tests/unit/test_api_v1_rate_limit.py -x` | Exists (in pycache) |
-| API-06 | Disclaimer in all responses | unit | `pytest tests/unit/test_api_v1_quantscore.py -x -k disclaimer` | Covered by existing tests |
-| API-07 | OpenAPI docs accessible | smoke | `curl -s http://localhost:8000/docs` | Manual -- Wave 0 add |
-| DASH-01 | Signals page shows sub-scores | manual-only | Dashboard UI inspection | N/A -- TypeScript component |
-| DASH-02 | Performance page exists | manual-only | Dashboard UI inspection | N/A -- new page |
-| DASH-03 | Real data displayed | e2e | Start FastAPI + Next.js, verify data flow | Manual |
-| DASH-04 | Regime probability bars | manual-only | Dashboard UI inspection | N/A -- TypeScript component |
+| API-05 | Rate limiting per tier | unit | (covered by existing tests) | Exists |
+| API-06 | Disclaimer in all responses | unit | (covered by existing tests) | Exists |
+| API-07 | OpenAPI docs auto-generated | smoke | `pytest tests/unit/test_api_v1_quantscore.py -x` (schema validation) | Covered |
+| DASH-01 | Signals page shows sub-scores | unit | `pytest tests/unit/test_dashboard_json_api.py -x` | Exists (pycache) -- extend |
+| DASH-02 | Performance page exists | manual-only | Dashboard UI inspection | N/A |
+| DASH-03 | Real data displayed | e2e | Manual: start servers, verify data | Manual |
+| DASH-04 | Regime probability bars | unit | `pytest tests/unit/test_dashboard_json_api.py -x` | Extend for regime_probabilities |
 
 ### Sampling Rate
 - **Per task commit:** `pytest tests/unit/test_api_v1_quantscore.py tests/unit/test_api_v1_regime.py tests/unit/test_api_v1_signals.py -x`
@@ -311,18 +359,21 @@ function RegimeProbabilities({ probabilities }: { probabilities: Record<string, 
 - **Phase gate:** Full suite green before `/gsd:verify-work`
 
 ### Wave 0 Gaps
-- [ ] Extend `tests/unit/test_api_v1_quantscore.py` -- add test for sentiment_sub_scores + sentiment_confidence
-- [ ] Extend `tests/unit/test_api_v1_regime.py` -- add test for regime_probabilities dict
-- [ ] Extend `tests/unit/test_api_v1_signals.py` -- add test for reasoning traces in response
-- [ ] Add OpenAPI schema smoke test -- verify /openapi.json includes new fields
+- [ ] Extend `tests/unit/test_api_v1_quantscore.py` -- add test for `sentiment_sub_scores`, `sentiment_confidence`, `technical_sub_scores` (typed list)
+- [ ] Extend `tests/unit/test_api_v1_regime.py` -- add test for `regime_probabilities` dict (4 regimes, sums to ~1.0)
+- [ ] Extend `tests/unit/test_api_v1_signals.py` -- add test verifying methodology_votes serves as reasoning trace
+- [ ] Extend dashboard query handler tests for sub-score data in signals response
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Direct codebase analysis of `commercial/api/` (routers, schemas, middleware, dependencies)
-- Direct codebase analysis of `dashboard/src/` (pages, hooks, components, types)
-- Direct codebase analysis of `src/scoring/application/handlers.py` (handler result dict structure)
-- Direct codebase analysis of `src/regime/` (detection service, handler, value objects)
+- Direct codebase analysis: `commercial/api/` (routers, schemas, middleware, dependencies)
+- Direct codebase analysis: `src/dashboard/presentation/` (app.py, api_routes.py)
+- Direct codebase analysis: `src/dashboard/application/queries.py` (SignalsQueryHandler, RiskQueryHandler)
+- Direct codebase analysis: `src/scoring/application/handlers.py` (handler result dict structure)
+- Direct codebase analysis: `src/regime/` (detection service, handler, value objects)
+- Direct codebase analysis: `dashboard/src/` (pages, hooks, components, types)
+- Direct codebase analysis: `dashboard/next.config.ts` (rewrite proxy configuration)
 
 ### Secondary (MEDIUM confidence)
 - CONTEXT.md decisions from user discussion session
@@ -331,9 +382,9 @@ function RegimeProbabilities({ probabilities }: { probabilities: Record<string, 
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH - all libraries already installed and in use
-- Architecture: HIGH - extending existing patterns, no new architectural decisions
-- Pitfalls: HIGH - identified from direct code analysis, verified handler output structure
+- Standard stack: HIGH - all libraries already installed and in use, no new deps
+- Architecture: HIGH - two-app architecture confirmed by codebase, extending existing patterns
+- Pitfalls: HIGH - identified from direct code analysis (sentiment sub-scores missing from handler dict, score_repo details retrieval unknown)
 
 **Research date:** 2026-03-18
 **Valid until:** 2026-04-18 (stable -- no external dependency changes expected)
