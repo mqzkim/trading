@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Full Stack Trading Platform
 status: executing
-stopped_at: Completed 29-01-PLAN.md
-last_updated: "2026-03-17T20:33:41.599Z"
+stopped_at: Completed 29-02-PLAN.md
+last_updated: "2026-03-17T20:45:55.399Z"
 last_activity: 2026-03-17 -- Completed 29-01 performance backend
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
   percent: 89
 ---
 
@@ -56,6 +56,7 @@ Progress: [████████░░] 89%
 | Phase 28 P01 | 4 | 1 tasks | 8 files |
 | Phase 28 P03 | 3min | 2 tasks | 9 files |
 | Phase 29 P01 | 6min | 3 tasks | 22 files |
+| Phase 29 P02 | 186 | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,8 @@ Recent decisions affecting current work:
 - [Phase 28]: DataTable renderSubComponent pattern for generic row expansion
 - [Phase 28]: usePerformance returns fallback data on 404 since endpoint does not exist until Phase 29
 - [Phase 29]: DuckDB sequence for trades table auto-increment ID
+- [Phase 29]: WalkForwardAdapter converts flat trade_returns to synthetic OHLCV for run_walk_forward() compatibility
+- [Phase 29]: Parameter Proposals section hidden when tradeCount < 50 (client-side guard matching MINIMUM_TRADES backend guard)
 
 ### Pending Todos
 
@@ -101,6 +104,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-17T20:33:41.596Z
-Stopped at: Completed 29-01-PLAN.md
+Last session: 2026-03-17T20:45:44.971Z
+Stopped at: Completed 29-02-PLAN.md
 Resume file: None

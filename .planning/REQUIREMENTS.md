@@ -55,10 +55,10 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 
 ### Self-Improvement
 
-- [ ] **SELF-01**: Parameter adjustment proposals generated from performance analysis
-- [ ] **SELF-02**: Propose-then-approve workflow (no auto-modification)
-- [ ] **SELF-03**: Walk-forward validation before parameter changes applied
-- [ ] **SELF-04**: Minimum 50 trades threshold before self-improvement activates
+- [x] **SELF-01**: Parameter adjustment proposals generated from performance analysis
+- [x] **SELF-02**: Propose-then-approve workflow (no auto-modification)
+- [x] **SELF-03**: Walk-forward validation before parameter changes applied
+- [x] **SELF-04**: Minimum 50 trades threshold before self-improvement activates
 
 ### Dashboard Enhancement
 
@@ -127,10 +127,10 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 | PERF-03 | Phase 29 | Complete |
 | PERF-04 | Phase 29 | Complete |
 | PERF-05 | Phase 29 | Complete |
-| SELF-01 | Phase 29 | Pending |
-| SELF-02 | Phase 29 | Pending |
-| SELF-03 | Phase 29 | Pending |
-| SELF-04 | Phase 29 | Pending |
+| SELF-01 | Phase 29 | Complete |
+| SELF-02 | Phase 29 | Complete |
+| SELF-03 | Phase 29 | Complete |
+| SELF-04 | Phase 29 | Complete |
 | DASH-01 | Phase 28 | Complete |
 | DASH-02 | Phase 28 | Complete |
 | DASH-03 | Phase 28 | Complete |

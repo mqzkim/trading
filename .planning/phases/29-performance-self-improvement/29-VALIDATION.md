@@ -1,8 +1,8 @@
 ---
 phase: 29
 slug: performance-self-improvement
-status: draft
-nyquist_compliant: false
+status: complete
+nyquist_compliant: true
 wave_0_complete: true
 created: 2026-03-18
 ---
@@ -43,10 +43,10 @@ created: 2026-03-18
 | 29-01-03 | 01 | 0 | PERF-03 | unit | `pytest tests/unit/test_ic_calculation.py -x` | ✅ | ✅ green |
 | 29-01-04 | 01 | 0 | PERF-04 | unit | `pytest tests/unit/test_kelly_efficiency.py -x` | ✅ | ✅ green |
 | 29-01-05 | 01 | 0 | PERF-05 | unit | `pytest tests/unit/test_position_score_snapshot.py -x` | ✅ | ✅ green |
-| 29-02-01 | 02 | 0 | SELF-01 | unit | `pytest tests/unit/test_self_improver_proposal.py -x` | ❌ W0 | ⬜ pending |
-| 29-02-02 | 02 | 0 | SELF-02 | unit | `pytest tests/unit/test_proposal_approval.py -x` | ❌ W0 | ⬜ pending |
-| 29-02-03 | 02 | 0 | SELF-03 | unit | `pytest tests/unit/test_self_improver_proposal.py::test_walk_forward_required -x` | ❌ W0 | ⬜ pending |
-| 29-02-04 | 02 | 0 | SELF-04 | unit | `pytest tests/unit/test_self_improver_proposal.py::test_threshold_50 -x` | ❌ W0 | ⬜ pending |
+| 29-02-01 | 02 | 0 | SELF-01 | unit | `pytest tests/unit/test_self_improver_proposal.py -x` | ✅ | ✅ green |
+| 29-02-02 | 02 | 0 | SELF-02 | unit | `pytest tests/unit/test_proposal_approval.py -x` | ✅ | ✅ green |
+| 29-02-03 | 02 | 0 | SELF-03 | unit | `pytest tests/unit/test_self_improver_proposal.py::test_walk_forward_required -x` | ✅ | ✅ green |
+| 29-02-04 | 02 | 0 | SELF-04 | unit | `pytest tests/unit/test_self_improver_proposal.py::test_threshold_50 -x` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -59,8 +59,8 @@ created: 2026-03-18
 - [x] `tests/unit/test_ic_calculation.py` — stubs for PERF-03
 - [x] `tests/unit/test_kelly_efficiency.py` — stubs for PERF-04
 - [x] `tests/unit/test_position_score_snapshot.py` — stubs for PERF-05
-- [ ] `tests/unit/test_self_improver_proposal.py` — stubs for SELF-01, SELF-03, SELF-04
-- [ ] `tests/unit/test_proposal_approval.py` — stubs for SELF-02
+- [x] `tests/unit/test_self_improver_proposal.py` — stubs for SELF-01, SELF-03, SELF-04
+- [x] `tests/unit/test_proposal_approval.py` — stubs for SELF-02
 
 ---
 
