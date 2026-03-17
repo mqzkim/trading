@@ -47,11 +47,11 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 
 ### Performance Attribution
 
-- [ ] **PERF-01**: Trade-level P&L tracking with entry/exit context
-- [ ] **PERF-02**: Brinson-Fachler 4-level decomposition (portfolio/strategy/trade/skill)
-- [ ] **PERF-03**: Signal IC validation (>= 0.03 threshold)
-- [ ] **PERF-04**: Kelly efficiency monitoring (>= 70% threshold)
-- [ ] **PERF-05**: Decision context snapshot captured at trade entry time
+- [x] **PERF-01**: Trade-level P&L tracking with entry/exit context
+- [x] **PERF-02**: Brinson-Fachler 4-level decomposition (portfolio/strategy/trade/skill)
+- [x] **PERF-03**: Signal IC validation (>= 0.03 threshold)
+- [x] **PERF-04**: Kelly efficiency monitoring (>= 70% threshold)
+- [x] **PERF-05**: Decision context snapshot captured at trade entry time
 
 ### Self-Improvement
 
@@ -122,11 +122,11 @@ Requirements for Full Stack Trading Platform milestone. Each maps to roadmap pha
 | API-05 | Phase 28 | Complete |
 | API-06 | Phase 28 | Complete |
 | API-07 | Phase 28 | Complete |
-| PERF-01 | Phase 29 | Pending |
-| PERF-02 | Phase 29 | Pending |
-| PERF-03 | Phase 29 | Pending |
-| PERF-04 | Phase 29 | Pending |
-| PERF-05 | Phase 29 | Pending |
+| PERF-01 | Phase 29 | Complete |
+| PERF-02 | Phase 29 | Complete |
+| PERF-03 | Phase 29 | Complete |
+| PERF-04 | Phase 29 | Complete |
+| PERF-05 | Phase 29 | Complete |
 | SELF-01 | Phase 29 | Pending |
 | SELF-02 | Phase 29 | Pending |
 | SELF-03 | Phase 29 | Pending |
