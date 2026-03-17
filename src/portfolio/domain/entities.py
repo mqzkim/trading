@@ -26,6 +26,7 @@ class Position(Entity[str]):
     atr_stop: Optional[ATRStop] = None
     sector: str = "unknown"
     risk_tier: RiskTier = RiskTier.MEDIUM
+    score_snapshot: Optional[dict] = None
 
     @property
     def id(self) -> str:
@@ -42,6 +43,18 @@ class Position(Entity[str]):
         pnl = (exit_price - self.entry_price) * self.quantity
         pnl_pct = (exit_price - self.entry_price) / self.entry_price
         self.add_domain_event(
-            PositionClosedEvent(symbol=self.symbol, pnl=pnl, pnl_pct=pnl_pct)
+            PositionClosedEvent(
+                symbol=self.symbol,
+                pnl=pnl,
+                pnl_pct=pnl_pct,
+                entry_price=self.entry_price,
+                exit_price=exit_price,
+                entry_date=self.entry_date,
+                exit_date=date.today(),
+                quantity=self.quantity,
+                strategy=self.strategy,
+                sector=self.sector,
+                score_snapshot=self.score_snapshot,
+            )
         )
         return {"symbol": self.symbol, "pnl": pnl, "pnl_pct": pnl_pct}

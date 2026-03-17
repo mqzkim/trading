@@ -5,7 +5,9 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date
+from typing import Optional
 
 from src.shared.domain import DomainEvent
 
@@ -17,6 +19,8 @@ class PositionOpenedEvent(DomainEvent):
     symbol: str = ""
     entry_price: float = 0.0
     quantity: int = 0
+    score_snapshot: Optional[dict] = None
+    signal_direction: str = ""
 
 
 @dataclass(frozen=True)
@@ -26,6 +30,15 @@ class PositionClosedEvent(DomainEvent):
     symbol: str = ""
     pnl: float = 0.0
     pnl_pct: float = 0.0
+    entry_price: float = 0.0
+    exit_price: float = 0.0
+    entry_date: date = field(default_factory=date.today)
+    exit_date: date = field(default_factory=date.today)
+    quantity: int = 0
+    strategy: str = "swing"
+    sector: str = "unknown"
+    score_snapshot: Optional[dict] = None
+    signal_direction: str = ""
 
 
 @dataclass(frozen=True)
