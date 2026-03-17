@@ -101,13 +101,48 @@ export interface PerformanceKPI {
   max_drawdown: number | null;
 }
 
+export interface BrinsonFachlerRow {
+  name: string;
+  allocation_effect: number;
+  selection_effect: number;
+  interaction_effect: number;
+  total_effect: number;
+}
+
+export interface ProposalItem {
+  id: string;
+  regime: string;
+  axis: string;
+  current_weight: number;
+  proposed_weight: number;
+  walk_forward_sharpe: number;
+  status: string;
+}
+
+export interface ApprovalHistoryItem {
+  id: string;
+  regime: string;
+  axis: string;
+  current_weight: number;
+  proposed_weight: number;
+  status: string;
+  decided_at: string;
+}
+
 export interface PerformanceData {
   kpis: PerformanceKPI | null;
-  brinson_table: unknown[] | null;
+  brinson_table: BrinsonFachlerRow[] | null;
   equity_curve: EquityCurve | null;
   signal_ic: number | null;
   kelly_efficiency: number | null;
   trade_count: number;
+  signal_ic_per_axis: {
+    fundamental: number | null;
+    technical: number | null;
+    sentiment: number | null;
+  } | null;
+  proposals: ProposalItem[] | null;
+  approval_history: ApprovalHistoryItem[] | null;
 }
 
 // --- Pipeline page types ---
