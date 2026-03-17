@@ -28,6 +28,16 @@ class PipelineQuery:
     """Query for pipeline page data (run history, approval status, budget)."""
 
 
+def _compute_regime_probabilities(regime_type: str, confidence: float) -> dict[str, float]:
+    """Compute approximate probability distribution from dominant regime + confidence."""
+    regimes = ["Bull", "Bear", "Sideways", "Crisis"]
+    remaining = 1.0 - confidence
+    per_other = remaining / (len(regimes) - 1) if len(regimes) > 1 else 0.0
+    probs = {r: round(per_other, 4) for r in regimes}
+    probs[regime_type] = round(confidence, 4)
+    return probs
+
+
 class PipelineQueryHandler:
     """Aggregates pipeline, approval, budget, and review data for the pipeline page."""
 
@@ -516,6 +526,14 @@ class RiskQueryHandler:
 
         regime = regime_obj.regime_type.value if regime_obj is not None else "Unknown"
 
+        regime_confidence = 0.0
+        regime_probabilities: dict[str, float] = {}
+        if regime_obj is not None:
+            regime_confidence = regime_obj.confidence
+            regime_probabilities = _compute_regime_probabilities(
+                regime_obj.regime_type.value, regime_obj.confidence
+            )
+
         return {
             "drawdown_pct": drawdown_pct,
             "drawdown_level": drawdown_level,
@@ -523,4 +541,6 @@ class RiskQueryHandler:
             "position_count": position_count,
             "max_positions": self.MAX_POSITIONS,
             "regime": regime,
+            "regime_confidence": regime_confidence,
+            "regime_probabilities": regime_probabilities,
         }
