@@ -112,6 +112,33 @@ def test_signals_accepts_sort_params(client):
     assert "scores" in data
 
 
+def test_signals_returns_sub_score_fields():
+    """GET /signals returns scores with fundamental_score, technical_score, sentiment_score."""
+    ctx = _make_ctx()
+    ctx["score_repo"].find_all_latest_with_details.return_value = [
+        {
+            "symbol": "AAPL",
+            "composite_score": 72.5,
+            "risk_adjusted": 68.3,
+            "strategy": "swing",
+            "fundamental_score": 65.0,
+            "technical_score": 78.0,
+            "sentiment_score": 55.0,
+        }
+    ]
+    app = create_dashboard_app(ctx=ctx)
+    client = TestClient(app)
+    resp = client.get("/api/v1/dashboard/signals")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["scores"]) == 1
+    score = data["scores"][0]
+    assert score["fundamental_score"] == 65.0
+    assert score["technical_score"] == 78.0
+    assert score["sentiment_score"] == 55.0
+    assert score["sentiment_confidence"] == "NONE"
+
+
 # -- GET /api/v1/dashboard/risk --
 
 
