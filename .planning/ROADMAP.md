@@ -113,11 +113,11 @@ Plans:
   2. Performance report shows 4-level Brinson-Fachler decomposition (portfolio/strategy/trade/skill) with Sharpe, Sortino, win rate, and max drawdown
   3. Signal IC (information coefficient) is computed and compared against 0.03 threshold; Kelly efficiency is computed and compared against 70% threshold
   4. After 50+ trades, the system generates parameter adjustment proposals with walk-forward validation results, and no changes apply without explicit human approval
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 29-01: TBD
-- [ ] 29-02: TBD
+- [ ] 29-01-PLAN.md — Performance bounded context: DuckDB trade history, Brinson-Fachler, IC/Kelly, commercial API endpoint
+- [ ] 29-02-PLAN.md — Self-improver DDD refactor + proposal workflow + Dashboard Performance page completion
 
 ## Progress
 
