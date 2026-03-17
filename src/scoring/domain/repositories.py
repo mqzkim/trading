@@ -18,3 +18,6 @@ class IScoreRepository(ABC):
 
     @abstractmethod
     def find_all_latest(self, limit: int = 100) -> dict[str, CompositeScore]: ...
+
+    @abstractmethod
+    def find_all_latest_with_details(self, limit: int = 100) -> list[dict]: ...

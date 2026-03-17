@@ -18,6 +18,7 @@ def _make_ctx(execution_mode: ExecutionMode = ExecutionMode.PAPER) -> dict:
 
     score_repo = MagicMock()
     score_repo.find_all_latest.return_value = {}
+    score_repo.find_all_latest_with_details.return_value = []
 
     trade_plan_repo = MagicMock()
     trade_plan_repo._db_path = ":memory:"

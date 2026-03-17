@@ -29,3 +29,22 @@ class InMemoryScoreRepository(IScoreRepository):
             reverse=True,
         )
         return dict(sorted_items[:limit])
+
+    def find_all_latest_with_details(self, limit: int = 100) -> list[dict]:
+        sorted_items = sorted(
+            self._store.items(),
+            key=lambda kv: kv[1].value,
+            reverse=True,
+        )
+        return [
+            {
+                "symbol": symbol,
+                "composite_score": cs.value,
+                "risk_adjusted": cs.risk_adjusted,
+                "strategy": cs.strategy,
+                "fundamental_score": None,
+                "technical_score": None,
+                "sentiment_score": None,
+            }
+            for symbol, cs in sorted_items[:limit]
+        ]

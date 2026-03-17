@@ -395,20 +395,24 @@ class SignalsQueryHandler:
                 scores: list of dicts with symbol, composite, risk_adjusted, strategy, signal
                 signals: list of dicts with symbol, direction, strength, metadata
         """
-        # Fetch latest scores per symbol: dict[str, CompositeScore]
+        # Fetch latest scores per symbol with sub-score details
         try:
-            raw_scores = self._score_repo.find_all_latest()
+            raw_score_details = self._score_repo.find_all_latest_with_details()
         except Exception:
-            raw_scores = {}
+            raw_score_details = []
 
-        # Build score rows
+        # Build score rows with sub-score breakdown
         scores = []
-        for symbol, cs in raw_scores.items():
+        for row in raw_score_details:
             scores.append({
-                "symbol": symbol,
-                "composite": round(cs.value, 1),
-                "risk_adjusted": round(cs.risk_adjusted, 1),
-                "strategy": cs.strategy,
+                "symbol": row["symbol"],
+                "composite": round(row["composite_score"], 1),
+                "risk_adjusted": round(row["risk_adjusted"], 1),
+                "strategy": row["strategy"],
+                "fundamental_score": row.get("fundamental_score"),
+                "technical_score": row.get("technical_score"),
+                "sentiment_score": row.get("sentiment_score"),
+                "sentiment_confidence": row.get("sentiment_confidence", "NONE"),
             })
 
         # Sort scores

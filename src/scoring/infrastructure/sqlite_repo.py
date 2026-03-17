@@ -116,6 +116,24 @@ class SqliteScoreRepository(IScoreRepository):
             ).fetchall()
         return {row["symbol"]: self._row_to_vo(dict(row)) for row in rows}
 
+    def find_all_latest_with_details(self, limit: int = 100) -> list[dict]:
+        with sqlite3.connect(self._db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                """
+                SELECT symbol, composite_score, risk_adjusted, strategy,
+                       fundamental_score, technical_score, sentiment_score
+                FROM scored_symbols
+                WHERE id IN (
+                    SELECT MAX(id) FROM scored_symbols GROUP BY symbol
+                )
+                ORDER BY composite_score DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def find_all_latest_for_sync(self) -> list[dict]:
         """Return latest scores in sync format for DuckDB.
 
