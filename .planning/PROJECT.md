@@ -2,7 +2,7 @@
 
 ## What This Is
 
-AI-assisted mid-term trading system that identifies undervalued US companies through fundamental scoring (F/Z/M/G-Score), ensemble valuation (DCF + EPV + Relative), and rule-based signal generation — then produces risk-controlled trade plans with human approval, Alpaca paper trading execution, and interactive CLI dashboard. Built on DDD architecture with full explainability chain from raw data to trade execution.
+AI-assisted mid-term trading system that identifies undervalued US companies through 3-axis scoring (fundamental F/Z/M/G-Score + technical RSI/MACD/MA/ADX/OBV + sentiment news/insider/institutional/analyst), ensemble valuation (DCF + EPV + Relative), and rule-based signal generation — then produces risk-controlled trade plans with human approval, Alpaca live trading execution, Bloomberg-style dashboard, commercial REST API (QuantScore/RegimeRadar/SignalFusion), and Brinson-Fachler performance attribution. Built on DDD architecture with full explainability chain from raw data to trade execution.
 
 ## Core Value
 
@@ -44,17 +44,23 @@ Every recommendation must be explainable and risk-controlled — the system prio
 - ✓ 4-page dashboard (Overview, Signals, Risk, Pipeline) with data-dense layout — v1.3
 - ✓ SSE real-time updates via EventSource-to-TanStack-Query mapping — v1.3
 - ✓ Legacy HTMX/Jinja2/Plotly complete removal — v1.3
+- ✓ Pipeline stabilization (DDD event bus, unified SQLite/DuckDB stores, real prices) — v1.4
+- ✓ Technical scoring axis (RSI/MACD ATR-norm/MA golden-death cross/ADX/OBV) — v1.4
+- ✓ Sentiment scoring (Alpaca+VADER news, yfinance insider/institutional/analyst + SentimentConfidence) — v1.4
+- ✓ 3-axis composite score with confidence-aware weight renormalization — v1.4
+- ✓ Commercial REST API — QuantScore (sub-score breakdown) / RegimeRadar (probabilities) / SignalFusion (reasoning traces) — v1.4
+- ✓ JWT auth + tier-based rate limiting + legal disclaimer on all commercial endpoints — v1.4
+- ✓ Dashboard: expandable signal rows (F/T/S breakdown), regime probability bars, 5-link nav — v1.4
+- ✓ Performance DDD context: Brinson-Fachler 4-level attribution, IC (Spearman ≥ 0.03), Kelly efficiency (≥ 70%) — v1.4
+- ✓ Self-improver DDD: 50-trade threshold + walk-forward validation + propose-then-approve workflow — v1.4
 
-### Active
+### Active (Known Gaps from v1.4 — Next Milestone)
 
-- [ ] Pipeline stabilization and tech debt resolution (DDD wiring, store mismatch, failed runs)
-- [ ] Technical scoring axis (RSI/MACD/MA/ADX/OBV) integrated into composite score
-- [ ] Regime detection enhancement (VIX/yield curve/HMM-based)
-- [ ] Sentiment scoring (news sentiment, insider trades, institutional holdings, analyst revisions)
-- [ ] Performance attribution (4-level P&L decomposition)
-- [ ] Self-improver (parameter optimization from performance analysis)
-- [ ] Commercial REST API (QuantScore/RegimeRadar/SignalFusion with auth/billing/rate-limiting)
-- [ ] Dashboard enhancement (real data display, new feature UIs)
+- [ ] **signal_direction propagation** — Position.close() never sets signal_direction; IC calculation always returns None (PERF-03/04)
+- [ ] **Proposal trigger** — proposal_gen_handler has no caller; self-improvement never fires automatically (SELF-02)
+- [ ] **sentiment_confidence persistence** — scored_symbols SQLite table missing column; dashboard always shows "NONE" (DASH-01)
+- [ ] **Phase 26 formal verification** — VERIFICATION.md never written; pipeline wiring confirmed correct by integration checker but artifact missing
+- [ ] **Nyquist validation** — Phases 26/27 missing VALIDATION.md; Phase 28 VALIDATION.md not completed
 
 ### Out of Scope
 
@@ -63,30 +69,27 @@ Every recommendation must be explainable and risk-controlled — the system prio
 - Real-time intraday trading — daily granularity for mid-term holding
 - Options/derivatives — stock-only
 - Korean market (KIS broker) — deferred, may require Korean brokerage account
-
-## Current Milestone: v1.4 Full Stack Trading Platform
-
-**Goal:** Complete the trading system with technical/sentiment scoring, regime enhancement, commercial API, performance analysis, and self-improvement loop — transforming from MVP to production-grade platform.
-
-**Target features:**
-- Pipeline stabilization + tech debt resolution
-- Technical & sentiment scoring axes
-- Enhanced regime detection
-- Commercial FastAPI REST API (3 products)
-- Performance analyst + self-improver
-- Dashboard with real data
+- FinBERT upgrade for news sentiment — VADER accuracy 56% on financial headlines acceptable for now
 
 ## Current State
 
-Shipped v1.3 Bloomberg Dashboard (2026-03-14). Starting v1.4 Full Stack Trading Platform.
+Shipped v1.4 Full Stack Trading Platform (2026-03-18). 5 complete milestones. ~209,832 LOC total.
+
+**System capabilities:**
+- Full 3-axis scoring pipeline (fundamental + technical + sentiment) running end-to-end
+- Commercial API serving real scoring data to external consumers
+- Bloomberg-style dashboard with live data, real-time SSE updates, and performance attribution page
+- Brinson-Fachler attribution framework in place (needs 50+ trades to activate self-improvement)
+
+**Known gaps carried to next milestone:** IC calculation broken (signal_direction not propagated), proposal trigger missing, sentiment_confidence not persisted. See `.planning/milestones/v1.4-MILESTONE-AUDIT.md`.
 
 ## Context
 
-Shipped v1.3 Bloomberg Dashboard with 13,008 LOC Python + 2,430 LOC TypeScript across 4 bounded contexts + Next.js dashboard.
-Tech stack: Python 3.12, DuckDB (analytics), SQLite (operational), yfinance + edgartools (data), Alpaca (broker), Typer + Rich (CLI), Next.js 16 + React + TanStack Query + shadcn/ui (dashboard).
-DDD architecture with domain VOs, async event bus, and adapter pattern wrapping core/ functions.
-Bloomberg terminal-style dark theme dashboard with TradingView charts and SSE real-time updates.
-352+ behavioral tests passing. Legacy core/ path provides working alternatives where DDD path has wiring gaps.
+~209,832 LOC Python + TypeScript across 5 bounded contexts (scoring, pipeline, portfolio, regime, performance) + personal/ self-improver + commercial/ FastAPI + Next.js 16 dashboard.
+Tech stack: Python 3.12, DuckDB (analytics), SQLite (operational), yfinance + edgartools + Alpaca News (data), Alpaca (broker), Typer + Rich (CLI), Next.js 16 + React + TanStack Query + shadcn/ui (dashboard), FastAPI (commercial API), scipy (IC calculation).
+DDD architecture with domain VOs, sync event bus, adapter pattern, and BFF proxy architecture.
+Bloomberg terminal-style dark theme dashboard with TradingView charts, SSE real-time updates, expandable data tables.
+352+ behavioral tests passing.
 
 ## Constraints
 
@@ -106,20 +109,21 @@ Bloomberg terminal-style dark theme dashboard with TradingView charts and SSE re
 | CLI-based dashboard | Fastest to build, matches terminal workflow | ✓ Good — Typer+Rich dashboard works well |
 | Valuation ensemble (DCF+EPV+Relative) | No single model is reliable alone; ensemble reduces model risk | ✓ Good — confidence scoring adds transparency |
 | Alpaca for broker integration | Free API, Paper Trading built-in, good Python SDK | ✓ Good — mock fallback enables offline dev |
-| Python-centric stack | Best ecosystem for financial analysis | ✓ Good — 20K LOC in 10 days |
+| Python-centric stack | Best ecosystem for financial analysis | ✓ Good — 20K+ LOC in 7 days |
 | Daily screening granularity | Mid-term holding period doesn't need intraday data | ✓ Good — simplifies data pipeline |
 | Fractional Kelly + ATR for position sizing | Mathematically grounded, prevents over-concentration | ✓ Good — conservative 1/4 Kelly appropriate |
-| DDD architecture with bounded contexts | Clean separation of concerns, testable domains | ⚠️ Revisit — cross-context wiring gaps need fixing |
-| DuckDB for analytics + SQLite for operational | Separation of analytical and transactional workloads | ⚠️ Revisit — scoring store mismatch needs resolution |
+| DDD architecture with bounded contexts | Clean separation of concerns, testable domains | ✓ Resolved — v1.4 fixed wiring gaps with adapter pattern |
+| DuckDB for analytics + SQLite for operational | Separation of analytical and transactional workloads | ✓ Resolved — v1.4 unified scoring store with event-driven DuckDB sync |
 | core/ wrapper + DDD adapter pattern | Reuse existing scoring/signal math without rewriting | ✓ Good — reduced implementation time significantly |
-| Coarse 4-phase roadmap | Strict dependency chain, each phase standalone | ✓ Good — clean execution, 12 plans in 10 days |
-
-| Next.js 16 + React for dashboard | HTMX+Jinja2 too limited for Bloomberg-style data density and interactions | ✓ Good — professional UI with 2,430 LOC TypeScript |
+| Coarse 4-phase roadmap | Strict dependency chain, each phase standalone | ✓ Good — clean execution pattern across all milestones |
+| Next.js 16 + React for dashboard | HTMX+Jinja2 too limited for Bloomberg-style data density | ✓ Good — professional UI with ~5K LOC TypeScript |
 | TradingView Lightweight Charts | Professional trading charts with candlestick, indicators, real-time | ✓ Good — equity curve with regime overlay works well |
 | BFF proxy via next.config.ts rewrites | Avoid direct DB access from Node.js, single proxy point | ✓ Good — clean separation, SSE proxied without buffering |
-| Biome 2.x replacing ESLint+Prettier | Next.js 16 removed next lint, Biome faster and simpler | ✓ Good — single tool for lint+format |
-| CSS conic-gradient for visualizations | No chart library needed for gauges and donuts | ✓ Good — zero dependencies for risk visualizations |
-| EventSource-to-TanStack-Query mapping | Native browser API, no WebSocket library needed | ✓ Good — simple and reliable real-time updates |
+| MACD ATR-scaled normalization [-2×ATR21, +2×ATR21] | Hardcoded [-5,+5] range caused saturation at extreme values | ✓ Good — dynamic range prevents score saturation |
+| SentimentConfidence.NONE triggers weight renorm | When sentiment data unavailable, 20% weight redistributed to fundamental+technical | ✓ Good — graceful degradation preserves scoring quality |
+| Brinson-Fachler 4-level attribution | Industry standard, maps directly to scoring axes | ✓ Good — framework ready, needs trade history to activate |
+| WalkForwardAdapter synthetic OHLCV conversion | run_walk_forward() requires OHLCV format; convert trade_returns at adapter boundary | ✓ Good — clean adapter isolation |
+| proposal_gen_handler stored in ctx, no trigger | Wired but not called — no pipeline post-run hook implemented | ⚠️ Gap — SELF-02 deferred to next milestone |
 
 ---
-*Last updated: 2026-03-14 after v1.3 milestone completion*
+*Last updated: 2026-03-18 after v1.4 milestone completion*

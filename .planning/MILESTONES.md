@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.4 Full Stack Trading Platform (Shipped: 2026-03-18)
+
+**Phases completed:** 4 phases, 9 plans, 6 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.3 Bloomberg Dashboard (Shipped: 2026-03-14)
 
 **Phases completed:** 5 phases, 9 plans
