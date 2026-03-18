@@ -14,11 +14,11 @@ import { useReviewAction } from '@/hooks/use-pipeline';
 import { formatDate, formatScore } from '@/lib/formatters';
 import type { ReviewItem } from '@/types/api';
 
-export function ReviewQueue({ items }: { items: ReviewItem[] }) {
+export function ReviewQueue({ items }: { items: ReviewItem[] | null | undefined }) {
   const approve = useReviewAction('approve');
   const reject = useReviewAction('reject');
 
-  if (items.length === 0) {
+  if (!items || items.length === 0) {
     return <p className="text-muted-foreground text-sm">No pending reviews</p>;
   }
 
