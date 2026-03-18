@@ -20,6 +20,9 @@ class ApiSettings(BaseSettings):
     RATE_LIMIT_BASIC: str = "30/minute"
     RATE_LIMIT_PRO: str = "100/minute"
 
+    # Dashboard internal secret (BFF -> FastAPI)
+    DASHBOARD_SECRET: str = "dashboard-internal"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 

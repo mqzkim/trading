@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
+import { proxyPost } from '../../_proxy';
 
 export async function POST() {
-  return NextResponse.json({ status: 'suspended' });
+  return proxyPost('/api/v1/approval/revoke', {});
 }

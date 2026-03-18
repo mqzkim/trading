@@ -47,6 +47,52 @@ def get_attribution_handler():
     return get_context()["attribution_handler"]
 
 
+def get_approval_handler():
+    """Extract approval handler from bootstrap context."""
+    return get_context()["approval_handler"]
+
+
+def get_run_pipeline_handler():
+    """Extract run pipeline handler from bootstrap context."""
+    return get_context()["run_pipeline_handler"]
+
+
+def get_pipeline_status_handler():
+    """Extract pipeline status handler from bootstrap context."""
+    return get_context()["pipeline_status_handler"]
+
+
+def get_review_queue_repo():
+    """Extract review queue repository from bootstrap context."""
+    return get_context()["review_queue_repo"]
+
+
+def get_trade_plan_handler():
+    """Extract trade plan handler from bootstrap context."""
+    return get_context()["trade_plan_handler"]
+
+
+def get_event_bus():
+    """Extract event bus from bootstrap context."""
+    return get_context()["bus"]
+
+
+def get_scheduler_service():
+    """Extract scheduler service from bootstrap context."""
+    return get_context()["scheduler_service"]
+
+
+def verify_dashboard_secret(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> None:
+    """Verify dashboard internal secret (Bearer token = DASHBOARD_SECRET)."""
+    if credentials.credentials != api_settings.DASHBOARD_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid dashboard secret",
+        )
+
+
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> dict:
