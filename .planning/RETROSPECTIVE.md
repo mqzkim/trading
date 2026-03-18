@@ -140,6 +140,54 @@
 
 ---
 
+## Milestone: v1.4 — Full Stack Trading Platform
+
+**Shipped:** 2026-03-18
+**Phases:** 4 (26-29) | **Plans:** 9 | **Commits:** 151
+
+### What Was Built
+- Pipeline stabilized: DDD event bus live, unified SQLite/DuckDB sync, real current_price + target_price from adapters
+- 3-axis scoring: technical (RSI/MACD ATR-norm/MA/ADX/OBV) + sentiment (Alpaca+VADER + yfinance ×3) with SentimentConfidence
+- Commercial API: QuantScore/RegimeRadar/SignalFusion with sub-score breakdowns, JWT, rate limiting, legal disclaimer
+- Dashboard enhanced: expandable F/T/S rows, regime probability bars, Performance Attribution page, 5-link nav
+- Performance DDD context: Brinson-Fachler, per-axis IC with Spearman correlation, Kelly efficiency, DuckDB trade/proposal stores
+- Self-improver DDD: 50-trade threshold, walk-forward before proposals, propose-then-approve Dashboard workflow
+
+### What Worked
+- MACD ATR-scaled normalization: dynamic range prevents saturation across all price scales
+- SentimentConfidence enum + weight renormalization: graceful degradation when data unavailable
+- BFF proxy split (performance page vs. other dashboard pages): natural boundary matches deployment topology
+- Coarse 4-phase structure with strict dependency chain: clean execution, minimal rework
+- 148 tests passing (scoring module only) after Phase 27: strong regression lock
+
+### What Was Inefficient
+- Phase 26 VERIFICATION.md never written — carried as tech debt; integration checker had to confirm pipeline correctness at audit time
+- signal_direction not propagated through Position lifecycle — IC calculation broken; caught at audit but not at phase execution
+- proposal_gen_handler wired in bootstrap but no trigger path defined — SELF-02 gap shipped without detection
+- sentiment_confidence not persisted to SQLite scored_symbols table — surfaced at audit integration check, not during phase execution
+- 3 of 4 v1.4 audit gaps were integration issues (cross-module data flow), not unit-level bugs
+
+### Patterns Established
+- `WalkForwardAdapter` synthetic OHLCV conversion: adapter boundary converts trade_returns to OHLCV for existing backtest engine
+- Dashboard BFF with two different env var patterns (`BACKEND_URL` vs `NEXT_PUBLIC_API_URL`) — document in `.env.example`
+- Performance bounded context as pure read-model fed by domain events — event-driven persistence pattern
+- Propose-then-approve: `DuckDBProposalRepository` + Dashboard mutation flow as approval UI
+
+### Key Lessons
+1. **Integration gaps are invisible at the unit level** — need cross-phase integration checks before declaring phases done
+2. **Data flow must be traced end-to-end** — signal_direction lifecycle gap (open → close → persist → IC) wasn't caught because each piece tested in isolation
+3. **Bootstrap wiring needs explicit integration tests** — handler stored in ctx but never called is a systemic risk when only unit tests exist
+4. **Audit identifies gaps audit cannot fix** — 3 clear next-milestone items from v1.4 audit: signal_direction, proposal trigger, sentiment_confidence column
+5. **Coarse 4-phase structure remains optimal** — each phase ships a complete vertical slice; dependent phases don't start until previous verified
+
+### Cost Observations
+- Model mix: ~65% sonnet (execution), ~25% opus (orchestration + audit), ~10% haiku
+- Execution velocity: ~5 min/plan average (slower than v1.3 due to larger plans)
+- Total execution time: ~45 minutes for 9 plans + audit
+- Notable: Integration checker agent at audit time identified 4 actionable gaps missed during phase execution
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -150,6 +198,7 @@
 | v1.1 | ~80 | 7 | 17 | ~4.5 | Tech debt fix + expansion to 7 contexts |
 | v1.2 | ~90 | 9 | 20 | ~4.0 | Production safety + HTMX dashboard |
 | v1.3 | 40 | 5 | 9 | 3.4 | React dashboard + legacy removal |
+| v1.4 | 151 | 4 | 9 | ~5.0 | 3-axis scoring + commercial API + performance attribution |
 
 ### Cumulative Quality
 
@@ -159,6 +208,7 @@
 | v1.1 | 352+ | ~25K | 0 | reduced |
 | v1.2 | 352+ | ~28K | 0 | reduced |
 | v1.3 | 352+ | 13,008 | 2,430 | 3 items |
+| v1.4 | 352++ | ~180K | ~5K | 5 items (3 critical, 2 cosmetic) |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -168,3 +218,6 @@
 4. BFF proxy pattern cleanly separates frontend and backend concerns (v1.3)
 5. CSS-only visualizations reduce dependency count without sacrificing quality (v1.3)
 6. Tight scope enables single-day milestone delivery (v1.3)
+7. Cross-phase integration gaps are invisible at unit test level — run integration checker before declaring phases done (v1.4)
+8. Data lifecycle must be traced end-to-end at design time — field gaps (signal_direction) surface late if only tested in isolation (v1.4)
+9. Bootstrap ctx entries need explicit trigger paths — a handler that is wired but never called is silent dead code (v1.4)
