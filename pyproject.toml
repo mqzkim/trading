@@ -25,6 +25,7 @@ dependencies = [
     "alpaca-py>=0.43",
     "pykrx>=1.0",
     "sse-starlette>=2.0",
+    "vaderSentiment>=3.3",
 ]
 
 [project.optional-dependencies]

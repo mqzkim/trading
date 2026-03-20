@@ -7,8 +7,9 @@ from .core_scoring_adapter import (
     CoreScoringAdapter,
     TechnicalIndicatorAdapter,
     FundamentalDataAdapter,
-    SentimentDataAdapter,
 )
+from .sentiment_adapter import VADERSentimentAnalyzer
+from .sentiment_adapters import YFinanceNewsProvider
 
 __all__ = [
     "SqliteScoreRepository",
@@ -16,5 +17,6 @@ __all__ = [
     "CoreScoringAdapter",
     "TechnicalIndicatorAdapter",
     "FundamentalDataAdapter",
-    "SentimentDataAdapter",
+    "VADERSentimentAnalyzer",
+    "YFinanceNewsProvider",
 ]

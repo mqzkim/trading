@@ -7,7 +7,8 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from src.shared.domain import ValueObject
 
 # 전략별 가중치 — TECH-03: swing default = 40/40/20
@@ -99,14 +100,42 @@ class TechnicalScore(ValueObject):
 class SentimentScore(ValueObject):
     """센티먼트 점수 (0-100).
 
-    구성: 뉴스 감성, 내부자 거래, 애널리스트 추정치
-    중립 기본값: 50
+    구성: 뉴스 감성 (VADER) + yfinance 헤드라인
+    중립 기본값: value=50, confidence=0.0
+
+    Attributes:
+        value: 감성 점수 0-100 (50 = 중립)
+        confidence: 신뢰도 0.0-1.0 (분석된 뉴스 수 기반)
+        metadata: 부가 정보 (예: {"n_items": 5, "ticker": "AAPL"})
     """
     value: float
+    confidence: float = 0.0
+    metadata: dict = field(default_factory=dict)
 
     def _validate(self) -> None:
         if not 0 <= self.value <= 100:
             raise ValueError(f"SentimentScore must be 0-100, got {self.value}")
+        if not 0.0 <= self.confidence <= 1.0:
+            raise ValueError(f"SentimentScore.confidence must be 0.0-1.0, got {self.confidence}")
+
+
+@dataclass(frozen=True)
+class NewsItem(ValueObject):
+    """단일 뉴스 아이템 — 헤드라인과 게시 일시.
+
+    SentimentService가 VADER 분석 입력으로 사용하는 불변 값 객체.
+    """
+
+    headline: str
+    published_at: datetime
+
+    def _validate(self) -> None:
+        if not self.headline:
+            raise ValueError("NewsItem.headline must not be empty")
+        if not isinstance(self.published_at, datetime):
+            raise ValueError(
+                f"NewsItem.published_at must be a datetime, got {type(self.published_at)}"
+            )
 
 
 @dataclass(frozen=True)
