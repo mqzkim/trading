@@ -231,18 +231,6 @@ class FundamentalDataAdapter:
         return compute_fundamental_score(highlights, valuation)
 
 
-class SentimentDataAdapter:
-    """Infrastructure adapter providing sentiment data via .get(symbol).
-
-    Wraps core/scoring/sentiment to keep core/ imports out of handlers.
-    """
-
-    def get(self, symbol: str) -> dict:
-        """Compute sentiment score for a symbol."""
-        from core.scoring.sentiment import compute_sentiment_score  # type: ignore[import-untyped]
-        return compute_sentiment_score(symbol)  # type: ignore[arg-type]
-
-
 def _safe_last(s: pd.Series) -> float:
     """Extract last non-NaN value from a pandas Series, or NaN if empty."""
     v = s.dropna()

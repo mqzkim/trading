@@ -12,11 +12,14 @@ from __future__ import annotations
 import math
 from typing import Protocol
 
+from src.shared.domain import Ok, Result
+
 from .value_objects import (
     FundamentalScore,
     TechnicalScore,
     TechnicalIndicatorScore,
     SentimentScore,
+    NewsItem,
     SafetyGate,
     CompositeScore,
     STRATEGY_WEIGHTS,
@@ -44,6 +47,85 @@ class RegimeWeightAdjuster(Protocol):
     def adjust_weights(
         self, strategy: str, regime_type: str | None = None
     ) -> dict[str, float]: ...
+
+
+class SentimentAnalyzer(Protocol):
+    """뉴스 텍스트 목록을 분석하여 SentimentScore를 반환하는 프로토콜.
+
+    구체 구현: VADERSentimentAnalyzer (infrastructure layer)
+    테스트 더블: InMemorySentimentAnalyzer (tests/)
+
+    Args:
+        symbol: 종목 코드 (예: "AAPL") — 메타데이터 태깅 용도
+        texts: 분석할 뉴스 헤드라인 목록
+
+    Returns:
+        Ok(SentimentScore) — 정상 분석 결과
+        Err(str) — 분석 실패 사유 (예: 빈 목록, VADER 초기화 실패)
+    """
+
+    def analyze(self, symbol: str, texts: list[str]) -> Result[SentimentScore, str]: ...
+
+
+class NewsProvider(Protocol):
+    """종목 심볼에 대한 뉴스 헤드라인을 조회하는 프로토콜.
+
+    구체 구현: YFinanceNewsProvider (infrastructure layer)
+    테스트 더블: InMemoryNewsProvider (tests/)
+
+    Args:
+        symbol: 종목 코드 (예: "AAPL")
+
+    Returns:
+        Ok(list[NewsItem]) — 뉴스 목록 (빈 목록 포함 가능)
+        Err(str) — 조회 실패 사유 (예: 네트워크 오류, 파싱 실패)
+    """
+
+    def fetch(self, symbol: str) -> Result[list[NewsItem], str]: ...
+
+
+class SentimentService:
+    """뉴스 기반 센티먼트 점수 산출 도메인 서비스.
+
+    NewsProvider와 SentimentAnalyzer를 조합하여 종목별 센티먼트 점수를 산출.
+
+    흐름:
+      1. NewsProvider.fetch(symbol) → 뉴스 아이템 목록
+      2. 뉴스 없음 → 중립 SentimentScore(value=50.0, confidence=0.0) 반환
+      3. 헤드라인 추출 → SentimentAnalyzer.analyze(symbol, texts)
+      4. Ok(SentimentScore) 또는 Err(str) 반환
+
+    Args:
+        news_provider: 종목 뉴스 조회 포트 (YFinanceNewsProvider 등)
+        sentiment_analyzer: 텍스트 감성 분석 포트 (VADERSentimentAnalyzer 등)
+    """
+
+    def __init__(
+        self,
+        news_provider: NewsProvider,
+        sentiment_analyzer: SentimentAnalyzer,
+    ) -> None:
+        self._news_provider = news_provider
+        self._sentiment_analyzer = sentiment_analyzer
+
+    def get_sentiment(self, symbol: str) -> Result[SentimentScore, str]:
+        """종목의 센티먼트 점수 조회.
+
+        Args:
+            symbol: 종목 코드 (예: "AAPL")
+
+        Returns:
+            Ok(SentimentScore) — 정상 센티먼트 점수
+            Err(str) — 뉴스 조회 실패 또는 분석 실패 사유
+        """
+        news_result = self._news_provider.fetch(symbol)
+        if news_result.is_err():
+            return news_result  # type: ignore[return-value]
+
+        news_items: list[NewsItem] = news_result.unwrap()  # type: ignore[union-attr]
+        # Empty list propagates to analyzer which returns Err("no_headlines_available")
+        texts = [item.headline for item in news_items]
+        return self._sentiment_analyzer.analyze(symbol, texts)
 
 
 class NoOpRegimeAdjuster:

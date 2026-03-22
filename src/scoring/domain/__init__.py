@@ -8,6 +8,7 @@ from .value_objects import (
     TechnicalIndicatorScore,
     TechnicalScore,
     SentimentScore,
+    NewsItem,
     SafetyGate,
     CompositeScore,
     STRATEGY_WEIGHTS,
@@ -18,6 +19,9 @@ from .services import (
     CompositeScoringService,
     SafetyFilterService,
     TechnicalScoringService,
+    SentimentAnalyzer,
+    NewsProvider,
+    SentimentService,
     TECHNICAL_INDICATOR_WEIGHTS,
 )
 from .repositories import IScoreRepository
@@ -28,6 +32,7 @@ __all__ = [
     "TechnicalIndicatorScore",
     "TechnicalScore",
     "SentimentScore",
+    "NewsItem",
     "SafetyGate",
     "CompositeScore",
     "STRATEGY_WEIGHTS",
@@ -36,6 +41,9 @@ __all__ = [
     "CompositeScoringService",
     "SafetyFilterService",
     "TechnicalScoringService",
+    "SentimentAnalyzer",
+    "NewsProvider",
+    "SentimentService",
     "TECHNICAL_INDICATOR_WEIGHTS",
     "IScoreRepository",
 ]
