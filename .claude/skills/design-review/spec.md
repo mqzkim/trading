@@ -1,3 +1,8 @@
+---
+name: design-review-spec
+description: "시니어 디자이너 수준 UI/UX 디자인 리뷰 기술 명세"
+---
+
 # Design Reviewer Skill — 기술 명세서 (Specification)
 
 > **버전:** 1.0.0

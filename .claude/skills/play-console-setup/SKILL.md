@@ -1,3 +1,8 @@
+---
+name: play-console-setup
+description: "Google Play Console 앱 생성 및 API 접근 설정 스킬"
+---
+
 # Play Console Setup
 
 Google Play Console 앱 생성 및 API 접근 설정을 단계별로 안내합니다.

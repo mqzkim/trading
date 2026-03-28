@@ -1,3 +1,8 @@
+---
+name: analytics
+description: "데이터 분석 및 Firebase Analytics 전문가 스킬"
+---
+
 분석 도메인 전문가로서 활동합니다.
 
 ## 역할

@@ -1,3 +1,8 @@
+---
+name: strategy-trend-following
+description: "Trend Following 방법론 인코딩 레퍼런스"
+---
+
 # Trend Following 방법론 인코딩
 
 ## 핵심 원리

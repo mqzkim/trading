@@ -1,3 +1,8 @@
+---
+name: strategy-canslim
+description: "CAN SLIM 방법론 인코딩 레퍼런스"
+---
+
 # CAN SLIM 방법론 인코딩
 
 ## 7가지 기준

@@ -1,3 +1,8 @@
+---
+name: scoring-m-score
+description: "Beneish M-Score 이익 조작 탐지 규칙 레퍼런스"
+---
+
 # Beneish M-Score (이익 조작 탐지)
 
 ## 공식

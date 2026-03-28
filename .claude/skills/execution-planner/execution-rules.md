@@ -1,3 +1,8 @@
+---
+name: execution-rules
+description: "주문 실행 규칙 및 라우팅 로직 레퍼런스"
+---
+
 # 주문 실행 규칙 상세
 
 ## 주문 라우팅 로직

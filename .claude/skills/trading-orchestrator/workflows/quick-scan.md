@@ -1,3 +1,8 @@
+---
+name: trading-quick-scan
+description: "빠른 종목 스캔 워크플로우"
+---
+
 # Quick Scan 워크플로우
 
 ## 호출

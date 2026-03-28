@@ -1,3 +1,8 @@
+---
+name: strategy-magic-formula
+description: "Magic Formula 방법론 인코딩 레퍼런스"
+---
+
 # Magic Formula 방법론 인코딩 (Greenblatt)
 
 ## 핵심 원리

@@ -1,3 +1,8 @@
+---
+name: art-review
+description: "아트 및 UI 도메인 전문가 리뷰 스킬"
+---
+
 아트 & UI 도메인 전문가로서 활동합니다.
 
 ## 역할

@@ -1,3 +1,8 @@
+---
+name: android-store-listing
+description: "Google Play 스토어 등록 에셋 준비 스킬"
+---
+
 # Android Store Listing
 
 Google Play 스토어 등록에 필요한 에셋(아이콘, Feature Graphic, 메타데이터)을 준비합니다.

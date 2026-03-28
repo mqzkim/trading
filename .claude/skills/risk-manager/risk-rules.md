@@ -1,3 +1,8 @@
+---
+name: risk-manager-rules
+description: "리스크 관리 규칙 및 거래 체크리스트 레퍼런스"
+---
+
 # 리스크 관리 규칙 상세
 
 ## 거래 레벨 체크리스트

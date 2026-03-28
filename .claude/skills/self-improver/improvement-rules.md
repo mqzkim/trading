@@ -1,3 +1,8 @@
+---
+name: self-improvement-rules
+description: "자기 개선 규칙 및 진단 임계값 레퍼런스"
+---
+
 # 자기 개선 규칙 상세
 
 ## 진단 임계값

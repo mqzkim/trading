@@ -1,3 +1,8 @@
+---
+name: vercel-deploy
+description: "Vercel 배포 설정, 트러블슈팅, cron 관리 스킬"
+---
+
 # Vercel Deploy
 
 Vercel 배포 전문 스킬. ShipKit 프로젝트의 배포 설정, 트러블슈팅, cron 관리를 담당한다.

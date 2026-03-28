@@ -1,3 +1,8 @@
+---
+name: bias-checker-biases
+description: "투자 편향 상세 정의 및 감지 규칙 레퍼런스"
+---
+
 # 투자 편향 상세 정의 및 감지 규칙
 
 ## 1. 손실 회피 (Loss Aversion)

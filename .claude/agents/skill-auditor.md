@@ -3,6 +3,10 @@ name: skill-auditor
 description: "Claude Code 스킬/에이전트/커맨드 품질 감사. 프론트매터 검증, 중복 탐지, 구조 일관성 체크."
 tools: Read, Grep, Glob, Bash
 model: sonnet
+hooks:
+  plan: lifecycle-gate.mjs plan
+  guard: lifecycle-gate.mjs guard
+  review: lifecycle-gate.mjs review
 ---
 
 # Skill Auditor Agent

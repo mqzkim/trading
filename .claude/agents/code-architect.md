@@ -1,6 +1,16 @@
 ---
+name: code-architect
 model: sonnet
 description: DDD 레이어 의존성과 아키텍처 규칙 준수를 검증하는 에이전트
+tools:
+  - Read
+  - Bash
+  - Grep
+  - Glob
+hooks:
+  plan: lifecycle-gate.mjs plan
+  guard: lifecycle-gate.mjs guard
+  review: lifecycle-gate.mjs review
 ---
 
 # Code Architect

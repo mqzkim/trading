@@ -1,3 +1,8 @@
+---
+name: pm-agent-spec
+description: "PM Agent 기술 명세 - 아이디어 분해 및 프로젝트 플래닝"
+---
+
 # PM Agent Specification — Idea Decomposer & Project Planner
 
 > idea.md 같은 전략 문서를 읽고, 개별 프로젝트로 분해하여 구체적 실행 스펙을 생성하는 에이전트

@@ -1,3 +1,8 @@
+---
+name: code-review-spec
+description: "시니어 아키텍트 수준 심층 코드 리뷰 기술 명세"
+---
+
 # Reviewer Skill Specification
 
 > 30년 이상 경력의 서버/백엔드 시니어 아키텍트 수준의 심층 코드 리뷰를 수행하는 Claude Code Skill

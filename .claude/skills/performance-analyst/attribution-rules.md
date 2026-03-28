@@ -1,3 +1,8 @@
+---
+name: performance-attribution-rules
+description: "성과 어트리뷰션 KPI 정의 레퍼런스"
+---
+
 # 성과 어트리뷰션 KPI 정의
 
 ## 포트폴리오 레벨

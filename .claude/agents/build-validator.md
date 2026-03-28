@@ -1,6 +1,16 @@
 ---
+name: build-validator
 model: haiku
 description: typecheck + lint + test 파이프라인을 순차 실행하여 빌드 상태를 검증하는 에이전트
+tools:
+  - Read
+  - Bash
+  - Grep
+  - Glob
+hooks:
+  plan: lifecycle-gate.mjs plan
+  guard: lifecycle-gate.mjs guard
+  review: lifecycle-gate.mjs review
 ---
 
 # Build Validator

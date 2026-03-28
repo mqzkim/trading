@@ -1,3 +1,8 @@
+---
+name: backtest-validation-checklist
+description: "백테스트 검증 체크리스트 상세 규칙 레퍼런스"
+---
+
 # 백테스트 검증 체크리스트 상세
 
 ## 1. 데이터 무결성 (4항목)

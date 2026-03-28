@@ -1,3 +1,8 @@
+---
+name: android-screenshot
+description: "Google Play 스토어용 스크린샷 촬영 및 후처리 스킬"
+---
+
 # Android Screenshot
 
 Google Play 스토어용 스크린샷 촬영 및 후처리를 수행합니다.

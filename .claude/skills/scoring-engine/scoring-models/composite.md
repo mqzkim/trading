@@ -1,3 +1,8 @@
+---
+name: scoring-composite
+description: "복합 점수 계산 규칙 레퍼런스"
+---
+
 # 복합 점수 계산 규칙
 
 ## 계산 흐름

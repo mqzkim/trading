@@ -1,3 +1,8 @@
+---
+name: scoring-z-score
+description: "Altman Z-Score 파산 위험 평가 규칙 레퍼런스"
+---
+
 # Altman Z-Score (파산 위험 평가)
 
 ## 공식

@@ -1,3 +1,8 @@
+---
+name: android-build-test
+description: "Android AAB 빌드 실행, 모니터링, 서명 검증 스킬"
+---
+
 # Android Build Test
 
 Android AAB 빌드 실행, 모니터링, 서명 검증을 수행합니다.

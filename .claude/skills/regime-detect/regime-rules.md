@@ -1,3 +1,8 @@
+---
+name: regime-detect-rules
+description: "레짐 분류 상세 규칙 및 임계값 레퍼런스"
+---
+
 # 레짐 분류 상세 규칙
 
 ## 입력 지표 임계값

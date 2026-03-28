@@ -1,3 +1,8 @@
+---
+name: observability-setup
+description: "Next.js 앱에 PostHog 및 Sentry 통합 설정 스킬"
+---
+
 # Observability Setup
 
 Next.js 앱에 PostHog(분석) + Sentry(에러 추적)를 통합하는 스킬.

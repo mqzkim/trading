@@ -1,3 +1,8 @@
+---
+name: android-release
+description: "Android Internal Testing에서 Production까지 릴리스 파이프라인 관리 스킬"
+---
+
 # Android Release
 
 Internal Testing에서 Production까지의 릴리스 파이프라인을 관리합니다.

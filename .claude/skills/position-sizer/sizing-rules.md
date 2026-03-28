@@ -1,3 +1,8 @@
+---
+name: position-sizing-rules
+description: "포지션 사이징 규칙 및 Kelly Criterion 레퍼런스"
+---
+
 # 포지션 사이징 규칙 상세
 
 ## Kelly Criterion

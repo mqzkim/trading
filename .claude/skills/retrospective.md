@@ -1,3 +1,8 @@
+---
+name: retrospective
+description: "회고 및 기억 관리자 스킬"
+---
+
 회고 & 기억 관리자로서 활동합니다.
 
 ## 역할

@@ -1,3 +1,8 @@
+---
+name: monetization
+description: "수익화 도메인 전문가 스킬"
+---
+
 수익화 도메인 전문가로서 활동합니다.
 
 ## 역할

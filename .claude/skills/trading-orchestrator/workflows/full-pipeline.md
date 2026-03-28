@@ -1,3 +1,8 @@
+---
+name: trading-full-pipeline
+description: "전체 9계층 트레이딩 파이프라인 워크플로우"
+---
+
 # Full Pipeline 워크플로우
 
 ## 호출

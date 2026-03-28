@@ -1,3 +1,8 @@
+---
+name: scoring-f-score
+description: "Piotroski F-Score (0-9) 계산 규칙 레퍼런스"
+---
+
 # Piotroski F-Score (0-9)
 
 ## 개요

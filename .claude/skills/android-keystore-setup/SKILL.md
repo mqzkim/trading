@@ -1,3 +1,8 @@
+---
+name: android-keystore-setup
+description: "Android Keystore 생성 및 GitHub Secrets 등록 자동화 스킬"
+---
+
 # Android Keystore Setup
 
 Android 앱 서명을 위한 Keystore 생성 및 GitHub Secrets 등록을 자동화합니다.

@@ -3,6 +3,10 @@ name: hub-manager
 description: "Claude Hub 중앙 관리 에이전트. 레지스트리 유지보수, 에셋 마이그레이션, 충돌 해결, 허브 상태 모니터링."
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: opus
+hooks:
+  plan: lifecycle-gate.mjs plan
+  guard: lifecycle-gate.mjs guard
+  review: lifecycle-gate.mjs review
 ---
 
 # Hub Manager Agent

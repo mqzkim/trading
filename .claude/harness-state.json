@@ -1,0 +1,711 @@
+{
+  "version": 1,
+  "status": "completed",
+  "maxIterations": 10,
+  "stagnantThreshold": 3,
+  "iterations": [
+    {
+      "id": 1,
+      "timestamp": "2026-03-27T17:48:47.498Z",
+      "evaluate": {
+        "scores": {
+          "cacheHits": 9,
+          "cacheMisses": 86,
+          "agents": "FAIL",
+          "agentDetails": [
+            {
+              "name": "backend-architect",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "backtest-methodology-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "build-validator",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "code-architect",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "data-engineer-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "execution-ops-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "frontend-developer",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "fullstack-developer",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "fundamental-analyst-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "hub-manager",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "llms-maintainer",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "performance-attribution-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "regime-analyst-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "risk-auditor-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "sentiment-analyst-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "skill-auditor",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "technical-analyst-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "technical-writer",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "trading-orchestrator-lead",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "ui-ux-designer",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "verify-app",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "agent-creator",
+              "overall": "PASS",
+              "cached": true
+            },
+            {
+              "name": "agent-evaluator",
+              "overall": "PASS",
+              "cached": true
+            },
+            {
+              "name": "architect",
+              "overall": "PASS",
+              "cached": true
+            },
+            {
+              "name": "claudemd-creator",
+              "overall": "PASS",
+              "cached": true
+            },
+            {
+              "name": "claudemd-evaluator",
+              "overall": "PASS",
+              "cached": true
+            },
+            {
+              "name": "harness-creator",
+              "overall": "PASS",
+              "cached": true
+            },
+            {
+              "name": "harness-evaluator",
+              "overall": "PASS",
+              "cached": true
+            },
+            {
+              "name": "hook-creator",
+              "overall": "PASS",
+              "cached": true
+            },
+            {
+              "name": "skill-evaluator",
+              "overall": "PASS",
+              "cached": true
+            }
+          ],
+          "claudemd": "WARN",
+          "skills": "FAIL",
+          "harness": "SKIP"
+        },
+        "totalScore": 17,
+        "cacheHits": 9,
+        "cacheMisses": 86
+      },
+      "create": null,
+      "retrospect": {
+        "evaluate": null,
+        "create": null
+      },
+      "delta": 17
+    },
+    {
+      "id": 2,
+      "timestamp": "2026-03-27T18:01:47.428Z",
+      "evaluate": {
+        "scores": {
+          "cacheHits": 0,
+          "cacheMisses": 95,
+          "agents": "FAIL",
+          "agentDetails": [
+            {
+              "name": "backend-architect",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "backtest-methodology-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "build-validator",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "code-architect",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "data-engineer-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "execution-ops-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "frontend-developer",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "fullstack-developer",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "fundamental-analyst-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "hub-manager",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "llms-maintainer",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "performance-attribution-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "regime-analyst-agent",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "risk-auditor-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "sentiment-analyst-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "skill-auditor",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "technical-analyst-agent",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "technical-writer",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "trading-orchestrator-lead",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "ui-ux-designer",
+              "overall": "FAIL",
+              "cached": false
+            },
+            {
+              "name": "verify-app",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "agent-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "agent-evaluator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "architect",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "claudemd-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "claudemd-evaluator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "harness-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "harness-evaluator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "hook-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "skill-evaluator",
+              "overall": "PASS",
+              "cached": false
+            }
+          ],
+          "claudemd": "WARN",
+          "skills": "WARN",
+          "harness": "SKIP"
+        },
+        "totalScore": 33,
+        "cacheHits": 0,
+        "cacheMisses": 95
+      },
+      "create": null,
+      "retrospect": {
+        "evaluate": null,
+        "create": null
+      },
+      "delta": 16
+    },
+    {
+      "id": 3,
+      "timestamp": "2026-03-27T18:10:38.603Z",
+      "evaluate": {
+        "scores": {
+          "cacheHits": 0,
+          "cacheMisses": 95,
+          "agents": "WARN",
+          "agentDetails": [
+            {
+              "name": "backend-architect",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "backtest-methodology-agent",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "build-validator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "code-architect",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "data-engineer-agent",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "execution-ops-agent",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "frontend-developer",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "fullstack-developer",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "fundamental-analyst-agent",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "hub-manager",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "llms-maintainer",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "performance-attribution-agent",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "regime-analyst-agent",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "risk-auditor-agent",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "sentiment-analyst-agent",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "skill-auditor",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "technical-analyst-agent",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "technical-writer",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "trading-orchestrator-lead",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "ui-ux-designer",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "verify-app",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "agent-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "agent-evaluator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "architect",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "claudemd-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "claudemd-evaluator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "harness-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "harness-evaluator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "hook-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "skill-evaluator",
+              "overall": "PASS",
+              "cached": false
+            }
+          ],
+          "claudemd": "WARN",
+          "skills": "WARN",
+          "harness": "SKIP"
+        },
+        "totalScore": 50,
+        "cacheHits": 0,
+        "cacheMisses": 95
+      },
+      "create": null,
+      "retrospect": {
+        "evaluate": null,
+        "create": null
+      },
+      "delta": 17
+    },
+    {
+      "id": 4,
+      "timestamp": "2026-03-27T19:06:15.204Z",
+      "evaluate": {
+        "scores": {
+          "cacheHits": 0,
+          "cacheMisses": 95,
+          "agents": "WARN",
+          "agentDetails": [
+            {
+              "name": "backend-architect",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "backtest-methodology-agent",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "build-validator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "code-architect",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "data-engineer-agent",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "execution-ops-agent",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "frontend-developer",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "fullstack-developer",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "fundamental-analyst-agent",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "hub-manager",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "llms-maintainer",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "performance-attribution-agent",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "regime-analyst-agent",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "risk-auditor-agent",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "sentiment-analyst-agent",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "skill-auditor",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "technical-analyst-agent",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "technical-writer",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "trading-orchestrator-lead",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "ui-ux-designer",
+              "overall": "WARN",
+              "cached": false
+            },
+            {
+              "name": "verify-app",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "agent-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "agent-evaluator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "architect",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "claudemd-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "claudemd-evaluator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "harness-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "harness-evaluator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "hook-creator",
+              "overall": "PASS",
+              "cached": false
+            },
+            {
+              "name": "skill-evaluator",
+              "overall": "PASS",
+              "cached": false
+            }
+          ],
+          "claudemd": "PASS",
+          "skills": "WARN",
+          "harness": "SKIP"
+        },
+        "totalScore": 67,
+        "cacheHits": 0,
+        "cacheMisses": 95
+      },
+      "create": null,
+      "retrospect": {
+        "evaluate": null,
+        "create": null
+      },
+      "delta": 17
+    }
+  ],
+  "currentScore": 67,
+  "bestScore": 67,
+  "stagnantCount": 0
+}

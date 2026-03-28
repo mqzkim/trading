@@ -1,3 +1,8 @@
+---
+name: scoring-g-score
+description: "Mohanram G-Score (0-8) 성장주 평가 규칙 레퍼런스"
+---
+
 # Mohanram G-Score (0-8, 성장주 평가)
 
 ## 개요

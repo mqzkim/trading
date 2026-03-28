@@ -1,3 +1,8 @@
+---
+name: data-ingest-sources
+description: "트레이딩 데이터 소스 레퍼런스 (EODHD 등)"
+---
+
 # 데이터 소스 레퍼런스
 
 ## EODHD (Phase 1 — 메인)

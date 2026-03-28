@@ -1,3 +1,8 @@
+---
+name: strategy-dual-momentum
+description: "Dual Momentum 방법론 인코딩 레퍼런스"
+---
+
 # Dual Momentum 방법론 인코딩 (Antonacci)
 
 ## 핵심 원리
