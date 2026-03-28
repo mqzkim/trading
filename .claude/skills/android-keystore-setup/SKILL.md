@@ -40,12 +40,13 @@ keytool -list -v -keystore colorsortmaster.keystore -storepass "<PASSWORD>"
 ```
 
 ### 3. GitHub Secrets 등록
-`.env` 파일에 다음 변수 설정 후 `scripts/deploy/setup-github-secrets.sh` 실행:
-```
-KEYSTORE_PATH=colorsortmaster.keystore
-KEYSTORE_PASSWORD=<password>
-KEY_ALIAS=colorsortmaster
-KEY_PASSWORD=<password>
+`gh` CLI로 직접 등록:
+```bash
+# keystore를 base64로 인코딩하여 등록
+base64 colorsortmaster.keystore | gh secret set ANDROID_KEYSTORE_BASE64
+gh secret set KEYSTORE_PASSWORD --body "<password>"
+gh secret set KEY_ALIAS --body "colorsortmaster"
+gh secret set KEY_PASSWORD --body "<password>"
 ```
 
 등록되는 Secrets:
@@ -62,7 +63,7 @@ KEY_PASSWORD=<password>
 
 ## 참고 문서
 - `.claude/commands/deploy-setup.md` (Step 5: Keystore)
-- `scripts/deploy/setup-github-secrets.sh` (자동 Secret 등록)
+- GitHub Secrets 등록: `gh secret set` 명령어 사용
 - `docs/deploy/store-submission-guide.md` (line 454-461: 백업 프로토콜)
 
 ## 제약 조건

@@ -27,10 +27,10 @@ $ARGUMENTS를 파싱합니다:
 
 ### 1. ZIP 패키징 (`--zip` 또는 `--all`)
 
-1. `cd shipkit && bash scripts/package-for-sale.sh` 실행
-2. 결과 확인: `dist/` 폴더에 3개 ZIP 존재 확인
-3. `bash scripts/verify-zip.sh` 실행
-4. 27/27 통과 확인 — 실패 시 상세 보고
+1. `shipkit/` 디렉토리에서 배포 대상 파일을 `dist/`에 ZIP 패키징
+2. 3개 Tier별 ZIP 생성: prompt-pack, boilerplate, all-in-one
+3. 각 ZIP에 시크릿 파일(`.env`, credentials) 미포함 검증
+4. ZIP 내용물 무결성 확인 — 실패 시 상세 보고
 
 ### 2. 런칭 카피 생성 (`--copy` 또는 `--all`)
 

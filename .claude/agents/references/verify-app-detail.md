@@ -1,0 +1,36 @@
+# Verify App — Detail
+
+## 검증 순서
+
+### 1. 빌드 확인
+```bash
+# Next.js
+cd claude-workspace && npm run build
+
+# Python
+cd trading && python -m py_compile src/**/*.py
+```
+
+### 2. 서버 시작 + 헬스체크
+```bash
+# Next.js
+npm run start &
+sleep 3
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3000
+kill %1
+```
+
+### 3. E2E 테스트 (있는 경우)
+```bash
+npx playwright test --reporter=list
+```
+
+### 4. 결과 보고
+- 빌드: pass/fail
+- 헬스체크: HTTP 상태코드
+- E2E: pass/fail 요약
+
+## 제약
+- 워크트리에서 격리 실행 (메인 작업 영향 없음)
+- 코드 수정하지 않음
+- 검증 결과만 보고

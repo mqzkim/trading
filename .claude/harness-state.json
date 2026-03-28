@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "status": "completed",
+  "status": "running",
   "maxIterations": 10,
   "stagnantThreshold": 3,
   "iterations": [

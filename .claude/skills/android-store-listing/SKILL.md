@@ -15,14 +15,14 @@ Google Play 스토어 등록에 필요한 에셋(아이콘, Feature Graphic, 메
 ### 1. 앱 아이콘 준비 (512x512)
 - iOS와 동일한 아이콘 사용 (브랜드 일관성)
 - 기존 1024x1024 아이콘을 512x512로 리사이즈
-- 소스: `scripts/app-icon-preview.png`
+- 기존 1024x1024 앱 아이콘 소스 파일 사용
 
 ```python
 from PIL import Image
 
-img = Image.open("scripts/app-icon-preview.png")
+img = Image.open("app-icon-1024.png")  # 프로젝트 내 앱 아이콘 경로
 img_resized = img.resize((512, 512), Image.LANCZOS)
-img_resized.save("scripts/play-store-icon-512.png")
+img_resized.save("play-store-icon-512.png")
 print("512x512 아이콘 생성 완료")
 ```
 
@@ -62,7 +62,7 @@ for i, color in enumerate(colors):
     x = 200 + i * 160
     draw.ellipse([x-30, 350, x+30, 410], fill=color)
 
-img.save("scripts/play-store-feature-graphic.png")
+img.save("play-store-feature-graphic.png")
 print("Feature Graphic 생성 완료: 1024x500")
 ```
 
@@ -116,7 +116,7 @@ print("Feature Graphic 생성 완료: 1024x500")
 - `docs/deploy/screenshot-specs.md` (에셋 사이즈 스펙)
 - `docs/store/metadata-ko.md` (한국어 메타데이터)
 - `docs/store/metadata-en.md` (영어 메타데이터)
-- `scripts/generate-app-icon.py` (아이콘 생성기)
+- Pillow 라이브러리로 아이콘 리사이즈 (위 코드 참고)
 
 ## 제약 조건
 - 앱 아이콘은 iOS와 동일한 것 사용 (브랜드 일관성)
